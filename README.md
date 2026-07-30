@@ -5,6 +5,18 @@ Sistema de gestão de escalas/operação (analista · supervisor · coordenador)
 Frontend em HTML/CSS/JS puro (sem build step) + backend em Node.js/Express
 + banco de dados Firebase (Firestore + Authentication).
 
+## Site no ar
+
+- **Frontend**: https://thiagoribeiro-sys.github.io/kronoopoficial/ (GitHub Pages)
+- **Backend**: https://kronoopoficial.onrender.com (Render) — `/api/health`
+  responde `{"status":"ok"}`, mas o login ainda está com um bug em
+  investigação (`401` na verificação do token, provavelmente credencial do
+  Firebase mal configurada nas variáveis de ambiente do Render). Até isso
+  ser corrigido, o site cai no modo demonstração (offline) em vez de usar
+  o banco de dados real.
+- **Banco de dados**: projeto `kronosop-prod` (Firebase), separado do
+  projeto de desenvolvimento — ver `docs/ROADMAP.md`, item 6.
+
 ## Comece por aqui
 
 Este pacote já tem **todo o código pronto e funcionando** — o que falta é
@@ -69,8 +81,9 @@ melhorias futuras, veja [`docs/README.md`](docs/README.md).
   (cai em dados de demonstração — `seedDB()` — se não houver backend
   configurado).
 - **Backend**: todos os recursos têm CRUD completo — ver
-  `backend/README.md` → "Módulos implementados". Falta só conectar a um
-  projeto Firebase próprio (`docs/COMO-PUBLICAR.md`, passo 2).
+  `backend/README.md` → "Módulos implementados". Já conectado a um
+  projeto Firebase de produção (`kronosop-prod`) e publicado no Render —
+  ver "Site no ar" acima para o status atual.
 - **Login**: e-mail/senha via Firebase Authentication — não existe mais
   senha em texto plano em nenhuma coleção do Firestore. Toda rota da API
   exige um token válido, e cada mutação tem autorização por `role`
