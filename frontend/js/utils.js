@@ -107,6 +107,10 @@ function plantaoBannerFor(analistaId, dateStr){
 
 function userSupKey(userId){ const u=userById(userId); return u.supervisorId; }
 
+function recadosParaAnalista(analistaId){
+  return DB.recados.filter(r=> r.to==='all' || r.to==='all_ana_'+userSupKey(analistaId) || r.to===analistaId);
+}
+
 
 function getLembretesForAnalista(analistaId){
   const me = userById(analistaId);

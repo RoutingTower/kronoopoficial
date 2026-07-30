@@ -96,13 +96,28 @@ function buildNav(){
   activeNavKey = items[0].k;
   document.getElementById('navEyebrow').textContent = session.role==='analista'?'Analista':session.role==='supervisor'?'Supervisor':'Coordenador';
   const el = document.getElementById('navItems');
-  el.innerHTML = items.map(it=>`<div class="nav-item ${it.k===activeNavKey?'active':''}" data-k="${it.k}">${it.label}</div>`).join('');
+  el.innerHTML = items.map(it=>`<div class="nav-item ${it.k===activeNavKey?'active':''}" data-k="${it.k}"><span>${it.label}</span><span class="nav-badge" data-badge="${it.k}"></span></div>`).join('');
   el.onclick = e=>{
     const item = e.target.closest('.nav-item'); if(!item) return;
     activeNavKey = item.dataset.k;
     el.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.k===activeNavKey));
     renderMain();
   };
+  updateNavBadges();
+}
+
+// Bolinha piscando ao lado de itens do menu com pendência — hoje só a Caixa
+// de Entrada do analista, até ele confirmar a leitura de todos os recados.
+// Chamado de novo a cada renderMain() pra ficar em sincronia sem precisar
+// reconstruir o menu inteiro (buildNav) a cada mutação.
+function updateNavBadges(){
+  if(session.role==='analista'){
+    const badge = document.querySelector('[data-badge="recados"]');
+    if(badge){
+      const naoLidas = recadosParaAnalista(session.userId).filter(r=>!(r.lidoPor||[]).includes(session.userId)).length;
+      badge.classList.toggle('show', naoLidas>0);
+    }
+  }
 }
 
 function openMenuConfigModal(){
@@ -181,6 +196,7 @@ function renderMain(){
   else if(session.role==='supervisor') main.innerHTML = renderSupervisor();
   else if(session.role==='coordenador') main.innerHTML = renderCoordenador();
   bindMainEvents();
+  updateNavBadges();
 }
 
 

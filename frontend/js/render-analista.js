@@ -1,12 +1,20 @@
 /* Telas do papel Analista: programação, caixa de entrada e lembretes. */
 
-function renderFlashcardRow(analistaId, dateStr){
+// showLembretes só é true na própria Programação do analista (renderAnalista) —
+// a "Programação Analista" do supervisor reusa esta mesma função pra ver a
+// rota de qualquer analista da equipe, e lembretes são um to-do pessoal
+// (origem:self), não algo que deva aparecer na visão do supervisor.
+function renderFlashcardRow(analistaId, dateStr, showLembretes){
   const slots = getDaySlots(analistaId, dateStr);
   const reunioes = getReunioesForDate(analistaId, dateStr);
-  return `<div class="flash-row">` + HOURS.map(hour=>{
+  const lembretesDoDia = showLembretes ? getLembretesForAnalista(analistaId).filter(l=>(l.data||todayISO())===dateStr) : [];
+  const semHora = lembretesDoDia.filter(l=>!l.hora);
+  const semHoraCol = showLembretes ? `<div class="flash-col"><div class="flash-time">Sem hora</div>${semHora.length===0 ? `<div class="flash-card off"><div style="color:var(--text-faint);font-size:12px;">Sem lembrete</div></div>` : semHora.map(lembreteCardHTML).join('')}</div>` : '';
+  return `<div class="flash-row">` + semHoraCol + HOURS.map(hour=>{
     const items = slots.filter(s=>s.horaInicio===hour);
     const rns = reunioes.filter(r=>r.hora===hour);
-    if(items.length===0 && rns.length===0){
+    const lembretes = lembretesDoDia.filter(l=>l.hora===hour);
+    if(items.length===0 && rns.length===0 && lembretes.length===0){
       return `<div class="flash-col"><div class="flash-time">${hour}</div><div class="flash-card off"><div style="color:var(--text-faint);font-size:12px;">Sem operação</div></div></div>`;
     }
     let cardsHtml = items.map(it=>{
@@ -30,6 +38,7 @@ function renderFlashcardRow(analistaId, dateStr){
       <div class="flash-meta">${r.titulo}</div>
       <div class="flash-meta">${r.tipo==='grupo'?'Grupo':'Individual'} · ${r.hora}</div>
     </div>`).join('');
+    cardsHtml += lembretes.map(lembreteCardHTML).join('');
     return `<div class="flash-col"><div class="flash-time">${hour}</div>${cardsHtml}</div>`;
   }).join('') + `</div>`;
 }
@@ -67,7 +76,7 @@ function renderAnalista(){
   <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px;">
     <input type="date" id="analistaDatePick" value="${dateStr}" class="mono" style="background:var(--bg-2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;">
   </div>
-  ${uiState.analistaView==='diaria' ? renderFlashcardRow(session.userId, dateStr)
+  ${uiState.analistaView==='diaria' ? renderFlashcardRow(session.userId, dateStr, true)
     : uiState.analistaView==='semanal' ? renderAnalistaSemanal(session.userId, dateStr)
     : renderAnalistaMensal(session.userId, dateStr)}
   `;
@@ -131,7 +140,7 @@ function renderAnalistaMensal(analistaId, dateStr){
 
 
 function renderRecadosAnalista(){
-  const my = DB.recados.filter(r=> r.to==='all' || r.to==='all_ana_'+userSupKey(session.userId) || r.to===session.userId).sort((a,b)=>b.ts-a.ts);
+  const my = recadosParaAnalista(session.userId).sort((a,b)=>b.ts-a.ts);
   if(!uiState.inboxSelected || !my.find(m=>m.id===uiState.inboxSelected)) uiState.inboxSelected = my[0]?.id || null;
   const sel = my.find(m=>m.id===uiState.inboxSelected);
   const naoLidas = my.filter(r=>!(r.lidoPor||[]).includes(session.userId)).length;
