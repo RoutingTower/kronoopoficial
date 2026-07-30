@@ -67,7 +67,6 @@ function supBaseMestra(myAnalistas){
 function supSuplencias(myAnalistas){
   const ids = myAnalistas.map(a=>a.id);
   const rows = DB.suplencias.filter(s=>ids.includes(s.analistaOriginalId));
-  const ausencias = DB.ausencias.filter(a=>ids.includes(a.analistaId));
   return `
   <div class="section-title">Cobertura</div>
   <div class="csv-row">
@@ -82,15 +81,6 @@ function supSuplencias(myAnalistas){
   <table><thead><tr><th>Operação</th><th>Horário</th><th>Suplente</th><th>Cobrindo</th><th>Data</th><th></th></tr></thead><tbody>
   ${rows.map(s=>`<tr><td>${s.operacao}</td><td class="mono">${s.horaInicio}–${s.horaFim}</td><td>${s.suplente}</td><td>${userById(s.analistaOriginalId)?.name||'—'}</td><td class="mono">${s.dataCobertura}</td>
   <td style="text-align:right;"><button class="btn btn-danger" data-excluir-suplencia="${s.id}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="6" class="empty">Nenhuma cobertura avulsa registrada</td></tr>'}
-  </tbody></table></div>
-
-  <div class="card">
-  <table><thead><tr><th>Analista</th><th>Operação</th><th>Data</th><th>Tipo</th><th>Suplente</th><th></th></tr></thead><tbody>
-  ${ausencias.map(a=>`<tr><td>${userById(a.analistaId)?.name||'—'}</td><td>${a.operacao}</td><td class="mono">${a.data}</td><td>${a.tipo==='ferias'?'Férias':'Folga'}</td><td>${userById(a.suplenteId)?.name||a.suplenteNome||'—'}</td>
-  <td style="text-align:right;white-space:nowrap;">
-    <button class="btn" data-editar-ausencia="${a.id}">Editar</button>
-    <button class="btn btn-danger" data-excluir-ausencia="${a.id}">Excluir</button>
-  </td></tr>`).join('') || '<tr><td colspan="6" class="empty">Nenhuma folga ou férias registrada</td></tr>'}
   </tbody></table></div>`;
 }
 

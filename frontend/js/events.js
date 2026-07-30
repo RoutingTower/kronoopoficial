@@ -500,59 +500,6 @@ function bindMainEvents(){
     });
   });
 
-  main.querySelectorAll('[data-editar-ausencia]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const a = DB.ausencias.find(x=>x.id===btn.dataset.editarAusencia);
-      if(!a) return;
-      const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
-      const suplenteAtual = userById(a.suplenteId)?.name || a.suplenteNome || '';
-      openModal(`<h3>Editar folga/férias</h3>
-        <div class="help-text">${userById(a.analistaId)?.name||'—'} · ${a.operacao}</div>
-        <div class="field"><label>Data</label><input type="date" id="fEditAusenciaData" value="${a.data}"></div>
-        <div class="field"><label>Tipo</label>
-          <select id="fEditAusenciaTipo">
-            <option value="folga" ${a.tipo==='folga'?'selected':''}>Folga</option>
-            <option value="ferias" ${a.tipo==='ferias'?'selected':''}>Férias</option>
-          </select>
-        </div>
-        <div class="field"><label>Suplente</label>
-          <select id="fEditAusenciaSup">
-            <option value="">Sem suplente</option>
-            ${myAnalistas.map(x=>`<option value="${x.name}" ${x.name===suplenteAtual?'selected':''}>${x.name}</option>`).join('')}
-          </select>
-        </div>
-        <div style="display:flex;gap:8px;justify-content:flex-end;">
-          <button class="btn" data-modal-cancel>Cancelar</button>
-          <button class="btn btn-brand" id="confirmEditAusencia">Salvar</button>
-        </div>`);
-      const cancelBtn = document.querySelector('[data-modal-cancel]');
-      if(cancelBtn) cancelBtn.onclick = closeModal;
-      document.getElementById('confirmEditAusencia').onclick = async ()=>{
-        const supName = document.getElementById('fEditAusenciaSup').value;
-        const supMatch = myAnalistas.find(x=>x.name===supName);
-        const patch = {
-          data: document.getElementById('fEditAusenciaData').value || a.data,
-          tipo: document.getElementById('fEditAusenciaTipo').value,
-          suplenteId: supMatch?.id || null,
-          suplenteNome: supMatch ? null : (supName || ''),
-        };
-        try{
-          const atualizado = await apiUpdateAusencia(a.id, patch);
-          Object.assign(a, atualizado);
-          closeModal(); renderMain();
-        }catch(e){ alert('Não foi possível salvar: '+e.message); }
-      };
-    });
-  });
-  main.querySelectorAll('[data-excluir-ausencia]').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      if(!confirm('Excluir este registro de folga/férias?')) return;
-      const id = btn.dataset.excluirAusencia;
-      try{ await apiDeleteAusencia(id); DB.ausencias = DB.ausencias.filter(x=>x.id!==id); renderMain(); }
-      catch(e){ alert('Não foi possível excluir: '+e.message); }
-    });
-  });
-
   main.querySelectorAll('[data-editar-recado]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const r = DB.recados.find(x=>x.id===btn.dataset.editarRecado);
