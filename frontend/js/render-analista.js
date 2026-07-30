@@ -18,7 +18,8 @@ function renderFlashcardRow(analistaId, dateStr){
         </div>
         <div class="flash-meta">${it.ciclo} · ${it.horaInicio}–${it.horaFim}</div>
         <div class="flash-meta">${it.isSuplente ? 'Suplente' : 'Titular'}: ${it.responsavelNome}</div>
-        ${it.isOff ? `<div class="flash-cover">${it.tipo==='ferias'?'🏖️ Férias':'🌙 Folga'} do titular</div>` : ''}
+        ${it.isOff ? `<div class="flash-cover">${it.tipo==='ferias'?'🏖️ Férias':'🌙 Folga'} do titular</div>`
+          : it.isCobertura ? `<div class="flash-cover">🔁 Cobrindo ${it.tipo==='ferias'?'férias':'folga'} de ${it.responsavelNome}</div>` : ''}
         ${!it.isOff && analistaId===session?.userId ? (raiox ? `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}</div>` : `<div class="flash-actions">
             <button class="btn btn-brand" data-finalizar-op="${it.operacao}" data-hora="${it.horaInicio}" data-data="${dateStr}">Finalizar operação</button>
           </div>`) : ''}
@@ -86,7 +87,8 @@ function renderAnalistaSemanal(analistaId, dateStr){
       : slots.map(s=>`<div class="flash-card${s.isOff?' off':''}">
           <div class="flash-sigla" style="font-size:13px;">${s.operacao}</div>
           <div class="flash-meta">${s.horaInicio}–${s.horaFim}</div>
-          ${s.isOff?`<div class="flash-cover">${s.tipo==='ferias'?'Férias':'Folga'} · cobre: ${s.responsavelNome}</div>`:''}
+          ${s.isOff?`<div class="flash-cover">${s.tipo==='ferias'?'Férias':'Folga'} · cobre: ${s.responsavelNome}</div>`
+            :s.isCobertura?`<div class="flash-cover">Cobrindo ${s.tipo==='ferias'?'férias':'folga'} de ${s.responsavelNome}</div>`:''}
         </div>`).join('')}
     </div>`;
   }
@@ -113,7 +115,8 @@ function renderAnalistaMensal(analistaId, dateStr){
       : slots.map(s=>`<div class="flash-card${s.isOff?' off':''}">
           <div class="flash-sigla" style="font-size:13px;">${s.operacao}</div>
           <div class="flash-meta">${s.horaInicio}–${s.horaFim}</div>
-          ${s.isOff?`<div class="flash-cover">${s.tipo==='ferias'?'Férias':'Folga'} · cobre: ${s.responsavelNome}</div>`:''}
+          ${s.isOff?`<div class="flash-cover">${s.tipo==='ferias'?'Férias':'Folga'} · cobre: ${s.responsavelNome}</div>`
+            :s.isCobertura?`<div class="flash-cover">Cobrindo ${s.tipo==='ferias'?'férias':'folga'} de ${s.responsavelNome}</div>`:''}
         </div>`).join('')}
     </div>`;
   }

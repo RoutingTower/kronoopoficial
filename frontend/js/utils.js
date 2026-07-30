@@ -68,7 +68,26 @@ function getDaySlots(analistaId, dateStr){
   });
   const adhoc = DB.suplencias.filter(s=>s.analistaOriginalId===analistaId && s.dataCobertura===dateStr)
     .map(s=>({id:s.id, operacao:s.operacao, ciclo:s.ciclo, horaInicio:s.horaInicio, horaFim:s.horaFim, isOff:true, tipo:'cobertura', responsavelNome:s.suplente, responsavelId:null, isSuplente:true}));
-  return [...slots, ...adhoc].sort((a,b)=> hourSortValue(a.horaInicio)-hourSortValue(b.horaInicio));
+
+  // As duas listas acima só aparecem na agenda do TITULAR (a operação some
+  // do dia dele, com "quem cobre"). Sem isso abaixo, quem cobre nunca vê a
+  // operação na própria agenda nem consegue fazer o Raio-X dela — daí vem
+  // aqui como uma operação normal (isOff:false, então o botão "Finalizar
+  // operação" aparece do mesmo jeito), só com um aviso de que é cobertura.
+  const coberturaAusencias = DB.ausencias.filter(a=>a.suplenteId===analistaId && a.data===dateStr).map(a=>{
+    const bm = DB.baseMestra.find(b=>b.id===a.baseMestraId);
+    if(!bm) return null;
+    const titular = userById(bm.analistaId);
+    return {...bm, isOff:false, isCobertura:true, tipo:a.tipo, responsavelNome: titular?.name || bm.titular, responsavelId: bm.analistaId, isSuplente:false};
+  }).filter(Boolean);
+
+  const me = userById(analistaId);
+  const coberturaAdhoc = me ? DB.suplencias.filter(s=>s.suplente===me.name && s.dataCobertura===dateStr).map(s=>{
+    const titular = userById(s.analistaOriginalId);
+    return {id:s.id, operacao:s.operacao, ciclo:s.ciclo, horaInicio:s.horaInicio, horaFim:s.horaFim, isOff:false, isCobertura:true, tipo:'cobertura', responsavelNome: titular?.name || '—', responsavelId: s.analistaOriginalId||null, isSuplente:false};
+  }) : [];
+
+  return [...slots, ...adhoc, ...coberturaAusencias, ...coberturaAdhoc].sort((a,b)=> hourSortValue(a.horaInicio)-hourSortValue(b.horaInicio));
 }
 
 function getReunioesForDate(analistaId, dateStr){
