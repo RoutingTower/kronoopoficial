@@ -426,7 +426,7 @@ function bindMainEvents(){
   if(btnBaixarModeloMestra) btnBaixarModeloMestra.addEventListener('click', ()=>{
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
     const exemplo = myAnalistas[0]?.name || 'Nome do Analista';
-    downloadCSV('modelo_base_mestra.csv',
+    downloadXLSX('modelo_base_mestra.xlsx',
       ['analista','operacao','ciclo','hora_inicio','hora_fim','data_inicio','data_fim'],
       [exemplo,'COL-A','T3','19:00','23:00', todayISO(), '2026-12-31']);
   });
@@ -434,8 +434,9 @@ function bindMainEvents(){
   if(fileImportMestra) fileImportMestra.addEventListener('change', async ()=>{
     const file = fileImportMestra.files[0]; if(!file) return;
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
-    const text = await readFileAsText(file);
-    const rows = parseCSV(text);
+    let rows;
+    try { rows = await parseXLSX(file); }
+    catch(e){ fileImportMestra.value=''; alert('Não foi possível ler o arquivo Excel: '+e.message); return; }
     let ok=0, fail=0;
     for(const r of rows){
       const a = findAnalistaByName(myAnalistas, r.analista);
@@ -465,7 +466,7 @@ function bindMainEvents(){
   if(btnBaixarModeloSuplencia) btnBaixarModeloSuplencia.addEventListener('click', ()=>{
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
     const exemplo = myAnalistas[0]?.name || 'Nome do Analista Original';
-    downloadCSV('modelo_coberturas_avulsas.csv',
+    downloadXLSX('modelo_coberturas_avulsas.xlsx',
       ['analista_original','suplente','operacao','ciclo','hora_inicio','hora_fim','data_cobertura'],
       [exemplo,'Nome do Suplente','COL-B','T3','19:00','23:00', todayISO()]);
   });
@@ -473,8 +474,9 @@ function bindMainEvents(){
   if(fileImportSuplencia) fileImportSuplencia.addEventListener('change', async ()=>{
     const file = fileImportSuplencia.files[0]; if(!file) return;
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
-    const text = await readFileAsText(file);
-    const rows = parseCSV(text);
+    let rows;
+    try { rows = await parseXLSX(file); }
+    catch(e){ fileImportSuplencia.value=''; alert('Não foi possível ler o arquivo Excel: '+e.message); return; }
     let ok=0, fail=0;
     for(const r of rows){
       const orig = findAnalistaByName(myAnalistas, r.analista_original);
@@ -505,7 +507,7 @@ function bindMainEvents(){
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
     const exemplo = myAnalistas[0]?.name || 'Nome do Analista';
     const opExemplo = DB.baseMestra.find(b=>b.analistaId===myAnalistas[0]?.id)?.operacao || 'COL-A';
-    downloadCSV('modelo_folgas_ferias_por_operacao.csv',
+    downloadXLSX('modelo_folgas_ferias_por_operacao.xlsx',
       ['analista','operacao','data','tipo','suplente'],
       [exemplo, opExemplo, todayISO(), 'folga', 'Nome do Suplente']);
   });
@@ -513,8 +515,9 @@ function bindMainEvents(){
   if(fileImportAusencia) fileImportAusencia.addEventListener('change', async ()=>{
     const file = fileImportAusencia.files[0]; if(!file) return;
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
-    const text = await readFileAsText(file);
-    const rows = parseCSV(text);
+    let rows;
+    try { rows = await parseXLSX(file); }
+    catch(e){ fileImportAusencia.value=''; alert('Não foi possível ler o arquivo Excel: '+e.message); return; }
     let ok=0, fail=0;
     for(const r of rows){
       const a = findAnalistaByName(myAnalistas, r.analista);

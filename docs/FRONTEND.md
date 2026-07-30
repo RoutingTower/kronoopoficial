@@ -94,11 +94,12 @@ main.querySelectorAll('[data-xfiltro]').forEach(inp=>{
 ```
 
 ### Importação em massa
-CSV usa `downloadCSV()`/`parseCSV()`/`readFileAsText()`; Excel usa
-`downloadXLSX()`/`parseXLSX()`/`readFileAsArrayBuffer()` (biblioteca
-[SheetJS](https://sheetjs.com), carregada via CDN em `index.html` — única
-dependência externa do frontend). Ambos os fluxos: baixar modelo → usuário
-preenche → `<input type="file" style="display:none">` disparado por um
+Todo fluxo de carga em massa usa Excel — `downloadXLSX()`/`parseXLSX()`/
+`readFileAsArrayBuffer()` (biblioteca [SheetJS](https://sheetjs.com),
+carregada via CDN em `index.html` — única dependência externa do
+frontend). `parseXLSX()` já trata células de data (`cellDates:true`),
+convertendo pro mesmo formato `YYYY-MM-DD` usado no resto do app. O fluxo:
+baixar modelo → usuário preenche → `<input type="file" style="display:none">` disparado por um
 `<label class="btn">` → parse → validar linha a linha (contar `ok`/`fail`)
 → `alert()` com o resumo.
 

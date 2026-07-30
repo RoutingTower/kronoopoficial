@@ -48,9 +48,9 @@ function supBaseMestra(myAnalistas){
   const rows = DB.baseMestra.filter(b=>ids.includes(b.analistaId));
   return `
   <div class="csv-row">
-    <span class="csv-label">Carga em massa das operações do titular (CSV)</span>
-    <button class="btn" id="btnBaixarModeloMestra">⭳ Baixar modelo CSV</button>
-    <label class="btn" style="margin:0;">⭱ Importar CSV<input type="file" accept=".csv" id="fileImportMestra" style="display:none;"></label>
+    <span class="csv-label">Carga em massa das operações do titular (Excel)</span>
+    <button class="btn" id="btnBaixarModeloMestra">⭳ Baixar modelo Excel</button>
+    <label class="btn" style="margin:0;">⭱ Importar Excel<input type="file" accept=".xlsx,.xls" id="fileImportMestra" style="display:none;"></label>
   </div>
   <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
     <button class="btn btn-brand" id="btnNovaMestra">+ Nova entrada</button>
@@ -70,9 +70,9 @@ function supSuplencias(myAnalistas){
   return `
   <div class="section-title">Cobertura</div>
   <div class="csv-row">
-    <span class="csv-label">Carga em massa de coberturas avulsas (CSV)</span>
-    <button class="btn" id="btnBaixarModeloSuplencia">⭳ Baixar modelo CSV</button>
-    <label class="btn" style="margin:0;">⭱ Importar CSV<input type="file" accept=".csv" id="fileImportSuplencia" style="display:none;"></label>
+    <span class="csv-label">Carga em massa de coberturas avulsas (Excel)</span>
+    <button class="btn" id="btnBaixarModeloSuplencia">⭳ Baixar modelo Excel</button>
+    <label class="btn" style="margin:0;">⭱ Importar Excel<input type="file" accept=".xlsx,.xls" id="fileImportSuplencia" style="display:none;"></label>
   </div>
   <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
     <button class="btn btn-brand" id="btnNovaSuplencia">+ Nova cobertura avulsa</button>
@@ -84,11 +84,11 @@ function supSuplencias(myAnalistas){
   </tbody></table></div>
 
   <div class="csv-row">
-    <span class="csv-label">Carga em massa de folgas e férias — por operação (CSV)</span>
-    <button class="btn" id="btnBaixarModeloAusencia">⭳ Baixar modelo CSV</button>
-    <label class="btn" style="margin:0;">⭱ Importar CSV<input type="file" accept=".csv" id="fileImportAusencia" style="display:none;"></label>
+    <span class="csv-label">Carga em massa de folgas e férias — por operação (Excel)</span>
+    <button class="btn" id="btnBaixarModeloAusencia">⭳ Baixar modelo Excel</button>
+    <label class="btn" style="margin:0;">⭱ Importar Excel<input type="file" accept=".xlsx,.xls" id="fileImportAusencia" style="display:none;"></label>
   </div>
-  <div class="help-text">Cada linha do CSV cobre UMA operação de UM analista. Se o titular tiver 3 operações no dia, use 3 linhas (uma por operação), podendo indicar um suplente diferente em cada.</div>
+  <div class="help-text">Cada linha da planilha cobre UMA operação de UM analista. Se o titular tiver 3 operações no dia, use 3 linhas (uma por operação), podendo indicar um suplente diferente em cada.</div>
   <div class="card">
   <table><thead><tr><th>Analista</th><th>Operação</th><th>Data</th><th>Tipo</th><th>Suplente</th><th></th></tr></thead><tbody>
   ${ausencias.map(a=>`<tr><td>${userById(a.analistaId)?.name||'—'}</td><td>${a.operacao}</td><td class="mono">${a.data}</td><td>${a.tipo==='ferias'?'Férias':'Folga'}</td><td>${userById(a.suplenteId)?.name||a.suplenteNome||'—'}</td>

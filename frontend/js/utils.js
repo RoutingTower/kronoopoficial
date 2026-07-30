@@ -126,40 +126,9 @@ function candidatosParaSlot(myAnalistas, titularId, bm, dataStr){
 }
 
 
-function downloadCSV(filename, headers, exampleRow){
-  const csv = [headers.join(','), exampleRow.join(',')].join('\n');
-  const blob = new Blob(["\uFEFF"+csv], {type:'text/csv;charset=utf-8;'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-function parseCSV(text){
-  const lines = text.split(/\r?\n/).filter(l=>l.trim().length>0);
-  if(lines.length<2) return [];
-  const headers = lines[0].split(',').map(h=>h.trim().toLowerCase());
-  return lines.slice(1).map(line=>{
-    const cells = line.split(',').map(c=>c.trim().replace(/^"|"$/g,''));
-    const obj = {};
-    headers.forEach((h,i)=>obj[h]=cells[i]||'');
-    return obj;
-  });
-}
-
 function findAnalistaByName(myAnalistas, name){
   const n = (name||'').trim().toLowerCase();
   return myAnalistas.find(a=>a.name.trim().toLowerCase()===n);
-}
-
-function readFileAsText(file){
-  return new Promise((res,rej)=>{
-    const r = new FileReader();
-    r.onload = ()=>res(r.result);
-    r.onerror = rej;
-    r.readAsText(file, 'utf-8');
-  });
 }
 
 function readFileAsArrayBuffer(file){
@@ -180,12 +149,18 @@ function downloadXLSX(filename, headers, exampleRow){
 
 async function parseXLSX(file){
   const buf = await readFileAsArrayBuffer(file);
-  const wb = XLSX.read(buf, {type:'array'});
+  // cellDates:true — sem isso, uma célula formatada como data no Excel vira
+  // número serial (ex.: 46600) em vez de um valor utilizável.
+  const wb = XLSX.read(buf, {type:'array', cellDates:true});
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
   return rows.map(row=>{
     const obj = {};
-    Object.keys(row).forEach(k=>{ obj[k.trim().toLowerCase()] = String(row[k]).trim(); });
+    Object.keys(row).forEach(k=>{
+      const v = row[k];
+      // Mesma convenção de data usada no resto do app (todayISO() etc.).
+      obj[k.trim().toLowerCase()] = v instanceof Date ? v.toISOString().slice(0,10) : String(v).trim();
+    });
     return obj;
   });
 }
