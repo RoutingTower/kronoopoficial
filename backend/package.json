@@ -6,7 +6,8 @@
   "type": "commonjs",
   "scripts": {
     "dev": "node --watch src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "render:sync-env": "node scripts/sync-render-env.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

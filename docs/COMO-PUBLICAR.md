@@ -163,6 +163,17 @@ Nesse ponto o site já está no ar, mas ainda em **modo demonstração**
 
 1. Crie a conta em https://render.com (recomendado: "Sign in with
    GitHub", já libera acesso ao repositório).
+
+**Caminho automatizado (recomendado)**: este pacote já vem com
+[`render.yaml`](../render.yaml) na raiz (um "Blueprint" do Render) — ele
+descreve root directory, build/start command e health check path sozinho,
+sem precisar preencher esses campos manualmente. No dashboard: **New** →
+**Blueprint** → conecte o repositório → o Render lê `render.yaml` e monta
+o serviço com a configuração certa; só pede pra você preencher os 3
+valores do Firebase (e opcionalmente `ALLOWED_ORIGINS`) na hora. Depois
+disso, pule direto pro passo 6.
+
+**Caminho manual** (se preferir montar campo a campo):
 2. Dashboard → **New** → **Web Service** → conecte o repositório que
    você criou no passo 3.
 3. Configure:
@@ -177,6 +188,16 @@ Nesse ponto o site já está no ar, mas ainda em **modo demonstração**
    - `FIREBASE_CLIENT_EMAIL`
    - `FIREBASE_PRIVATE_KEY` (cole o valor completo, com aspas e `\n`)
    - Não precisa adicionar `PORT` — o Render define isso sozinho.
+
+   **Alternativa automatizada** (evita erro de copiar/colar a chave
+   privada, a causa mais comum de `401` no login em produção): crie o
+   Web Service primeiro sem preencher as variáveis, pegue o
+   `RENDER_SERVICE_ID` dele (começa com `srv-`) e uma API key em Render →
+   Account Settings → API Keys, depois rode
+   `backend/scripts/sync-render-env.js` — ver
+   [`../backend/README.md`](../backend/README.md) → "Sincronizar
+   variáveis de ambiente com o Render". Ele lê o `backend/.env.production`
+   local e envia os valores byte a byte pra API do Render.
 5. Em **Advanced**: **Auto-Deploy** = Yes; **Health Check Path** =
    `/api/health`.
 6. Clique em **Create Web Service** e aguarde o primeiro deploy (2–5 min).

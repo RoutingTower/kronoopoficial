@@ -70,6 +70,26 @@ cd backend
 node scripts/seed-firestore.js
 ```
 
+## Sincronizar variáveis de ambiente com o Render
+
+`scripts/sync-render-env.js` envia `FIREBASE_PROJECT_ID`,
+`FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` e `ALLOWED_ORIGINS`
+direto pra API do Render, lendo os valores do `.env.production` local —
+evita colar a chave privada manualmente no painel do Render, que é a
+causa mais provável de erros `401` no login em produção (uma chave PEM de
+várias linhas colada numa caixa de texto do navegador corrompe fácil).
+Rodar sempre que o `.env.production` mudar (rotação de chave, troca de
+projeto Firebase, etc.):
+```powershell
+cd backend
+$env:RENDER_API_KEY="rnd_...."       # Render → Account Settings → API Keys
+$env:RENDER_SERVICE_ID="srv-...."    # painel do serviço no Render
+npm run render:sync-env
+```
+O Render redeploya sozinho assim que as variáveis mudam (igual a uma
+edição feita pelo painel) — acompanhe em Render → o serviço → Events. Ver
+comentário no topo do script para detalhes.
+
 ## Autenticação
 
 Login via **Firebase Authentication** (e-mail/senha) — não existe mais
