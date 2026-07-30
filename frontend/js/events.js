@@ -198,10 +198,11 @@ function bindMainEvents(){
     try { rows = await parseXLSX(file); }
     catch(e){ fileImportAnalista.value=''; alert('Não foi possível ler o arquivo Excel: '+e.message); return; }
     let ok=0, fail=0;
-    for(const r of rows){
+    openProgressModal('Importando analistas...');
+    for(const [idx, r] of rows.entries()){
       const name = (r.nome||'').trim();
       const email = (r.email||'').trim();
-      if(!name || !email){ fail++; continue; }
+      if(!name || !email){ fail++; updateProgressModal(idx+1, rows.length); continue; }
       const dias = (r.dias||'').split(',').map(d=>d.trim().toLowerCase()).filter(Boolean);
       const jornada = { dias: dias.length?dias:['seg','ter','qua','qui','sex'], horaInicio:r.hora_inicio||'19:00', horaFim:r.hora_fim||'01:00' };
       const password = (r.senha||'').trim() || 'demo123';
@@ -210,7 +211,9 @@ function bindMainEvents(){
         DB.users.push(novo);
         ok++;
       }catch(e){ console.error('Falha ao importar', name, e); fail++; }
+      updateProgressModal(idx+1, rows.length);
     }
+    closeModal();
     fileImportAnalista.value=''; renderMain();
     alert(`Importação concluída: ${ok} analista(s) adicionado(s)${fail?`, ${fail} linha(s) ignorada(s) (nome/e-mail ausente ou e-mail já cadastrado)`:''}.`);
   });
@@ -405,15 +408,18 @@ function bindMainEvents(){
     try { rows = await parseXLSX(file); }
     catch(e){ fileImportMestra.value=''; alert('Não foi possível ler o arquivo Excel: '+e.message); return; }
     let ok=0, fail=0;
-    for(const r of rows){
+    openProgressModal('Importando operações fixas...');
+    for(const [idx, r] of rows.entries()){
       const a = findAnalistaByName(myAnalistas, r.analista);
-      if(!a || !r.operacao || !r.hora_inicio || !r.hora_fim){ fail++; continue; }
+      if(!a || !r.operacao || !r.hora_inicio || !r.hora_fim){ fail++; updateProgressModal(idx+1, rows.length); continue; }
       const entrada = {analistaId:a.id, operacao:r.operacao, ciclo:r.ciclo||'T3',
         horaInicio:r.hora_inicio, horaFim:r.hora_fim, titular:a.name,
         dataInicio:r.data_inicio||todayISO(), dataFim:r.data_fim||'2026-12-31'};
       try{ DB.baseMestra.push(await apiCreateBaseMestra(entrada)); ok++; }
       catch(e){ console.error('Falha ao importar', r.analista, e); fail++; }
+      updateProgressModal(idx+1, rows.length);
     }
+    closeModal();
     fileImportMestra.value=''; renderMain();
     alert(`Importação concluída: ${ok} entrada(s) adicionada(s)${fail?`, ${fail} linha(s) ignorada(s) (analista ou campos não reconhecidos)`:''}.`);
   });
@@ -478,15 +484,18 @@ function bindMainEvents(){
     try { rows = await parseXLSX(file); }
     catch(e){ fileImportSuplencia.value=''; alert('Não foi possível ler o arquivo Excel: '+e.message); return; }
     let ok=0, fail=0;
-    for(const r of rows){
+    openProgressModal('Importando coberturas avulsas...');
+    for(const [idx, r] of rows.entries()){
       const orig = findAnalistaByName(myAnalistas, r.analista_original);
-      if(!orig || !r.suplente || !r.operacao || !r.hora_inicio || !r.hora_fim || !r.data_cobertura){ fail++; continue; }
+      if(!orig || !r.suplente || !r.operacao || !r.hora_inicio || !r.hora_fim || !r.data_cobertura){ fail++; updateProgressModal(idx+1, rows.length); continue; }
       const entrada = {operacao:r.operacao, ciclo:r.ciclo||'T3',
         horaInicio:r.hora_inicio, horaFim:r.hora_fim, suplente:r.suplente,
         dataCobertura:r.data_cobertura, analistaOriginalId:orig.id};
       try{ DB.suplencias.push(await apiCreateSuplencia(entrada)); ok++; }
       catch(e){ console.error('Falha ao importar cobertura', e); fail++; }
+      updateProgressModal(idx+1, rows.length);
     }
+    closeModal();
     fileImportSuplencia.value=''; renderMain();
     alert(`Importação concluída: ${ok} cobertura(s) adicionada(s)${fail?`, ${fail} linha(s) ignorada(s)`:''}.`);
   });

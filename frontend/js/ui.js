@@ -238,3 +238,19 @@ function openModal(html){
 
 function closeModal(){ document.getElementById('modalBg').style.display='none'; }
 
+// Barra de progresso pros imports em massa (Excel) — cada linha vira uma
+// chamada de API sequencial (events.js), então dá pra medir e mostrar
+// progresso real, não só um spinner indeterminado.
+function openProgressModal(titulo){
+  openModal(`<h3>${titulo}</h3>
+    <div class="progress-track"><div class="progress-fill" id="importProgressFill" style="width:0%;"></div></div>
+    <div class="help-text" id="importProgressLabel" style="margin-top:10px;margin-bottom:0;text-align:center;">Preparando...</div>`);
+}
+function updateProgressModal(done, total){
+  const pct = total>0 ? Math.round((done/total)*100) : 100;
+  const fill = document.getElementById('importProgressFill');
+  const label = document.getElementById('importProgressLabel');
+  if(fill) fill.style.width = pct+'%';
+  if(label) label.textContent = `${done} / ${total} (${pct}%)`;
+}
+
