@@ -9,11 +9,14 @@ Frontend em HTML/CSS/JS puro (sem build step) + backend em Node.js/Express
 
 - **Frontend**: https://thiagoribeiro-sys.github.io/kronoopoficial/ (GitHub Pages)
 - **Backend**: https://kronoopoficial.onrender.com (Render) — `/api/health`
-  responde `{"status":"ok"}`, mas o login ainda está com um bug em
-  investigação (`401` na verificação do token, provavelmente credencial do
-  Firebase mal configurada nas variáveis de ambiente do Render). Até isso
-  ser corrigido, o site cai no modo demonstração (offline) em vez de usar
-  o banco de dados real.
+  responde `{"status":"ok"}`. O bug de `401` na verificação do token
+  (credencial do Firebase mal configurada nas variáveis de ambiente do
+  Render, causado por colar a chave privada manualmente no painel) foi
+  corrigido sincronizando as variáveis via
+  `backend/scripts/sync-render-env.js` — ver
+  [`backend/README.md`](backend/README.md) → "Sincronizar variáveis de
+  ambiente com o Render". Login real (Firebase Auth) testado ponta a
+  ponta contra o backend publicado.
 - **Banco de dados**: projeto `kronosop-prod` (Firebase), separado do
   projeto de desenvolvimento — ver `docs/ROADMAP.md`, item 6.
 
