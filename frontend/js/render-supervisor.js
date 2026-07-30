@@ -309,8 +309,9 @@ function supTransmissao(myAnalistas){
         </div>
       </div>`;
     }
+    const destinatario = item.target && item.target.startsWith('all_ana_') ? 'Toda a equipe' : (userById(item.target)?.name || '—');
     return `<div class="msg-item">
-      <div class="msg-meta"><span class="pill pill-suplente">Lembrete</span> ${timeAgo(item.ts)}${item.data?` · para ${item.data}`:''}${item.hora?` ${item.hora}`:''}</div>
+      <div class="msg-meta"><span class="pill pill-suplente">Lembrete</span> para ${destinatario} · ${timeAgo(item.ts)}${item.data?` · ${item.data}`:''}${item.hora?` ${item.hora}`:''}</div>
       ${item.titulo ? `<div style="font-weight:700;font-size:14px;margin-top:6px;">${escapeHtml(item.titulo)}</div>` : ''}
       <div style="margin-top:4px;">${escapeHtml(item.texto)}</div>
       ${item.observacoes ? `<div style="font-size:12.5px;color:var(--text-faint);margin-top:6px;white-space:pre-wrap;">${escapeHtml(item.observacoes)}</div>` : ''}
