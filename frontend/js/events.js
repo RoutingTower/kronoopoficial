@@ -672,6 +672,46 @@ function bindMainEvents(){
     });
   });
 
+  main.querySelectorAll('[data-editar-analista]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const u = userById(btn.dataset.editarAnalista);
+      if(!u) return;
+      const diasAtuais = (u.jornada && u.jornada.dias) || ['seg','ter','qua','qui','sex'];
+      openModal(`<h3>Editar Analista</h3>
+        <div class="field"><label>Nome completo</label><input id="fEditName" value="${u.name}"></div>
+        <div class="field"><label>E-mail</label><input id="fEditEmail" value="${u.email}"></div>
+        <div class="field"><label>Dias de trabalho</label>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            ${WEEKDAYS.map(d=>`<label style="display:flex;align-items:center;gap:4px;font-size:12px;background:var(--bg-2);padding:5px 8px;border-radius:6px;"><input type="checkbox" class="fEditDia" value="${d}" ${diasAtuais.includes(d)?'checked':''}> ${d}</label>`).join('')}
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field"><label>Jornada — início</label><select id="fEditJHi">${HOURS.map(h=>`<option ${h===(u.jornada?.horaInicio||'19:00')?'selected':''}>${h}</option>`).join('')}</select></div>
+          <div class="field"><label>Jornada — fim</label><select id="fEditJHf">${HOURS.map(h=>`<option ${h===(u.jornada?.horaFim||'01:00')?'selected':''}>${h}</option>`).join('')}</select></div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn" data-modal-cancel>Cancelar</button>
+          <button class="btn btn-brand" id="confirmEditarAnalista">Salvar</button>
+        </div>`);
+      const cancelBtn = document.querySelector('[data-modal-cancel]');
+      if(cancelBtn) cancelBtn.onclick = closeModal;
+      document.getElementById('confirmEditarAnalista').onclick = async ()=>{
+        const name = document.getElementById('fEditName').value.trim();
+        const email = document.getElementById('fEditEmail').value.trim();
+        const dias = Array.from(document.querySelectorAll('.fEditDia:checked')).map(c=>c.value);
+        const horaInicio = document.getElementById('fEditJHi').value;
+        const horaFim = document.getElementById('fEditJHf').value;
+        if(!name || !email) return;
+        const patch = { name, email, jornada: {dias, horaInicio, horaFim} };
+        try{
+          const atualizado = await apiUpdateUser(u.id, patch);
+          DB.users = DB.users.map(x=>x.id===u.id ? atualizado : x);
+          closeModal(); renderMain();
+        }catch(e){ alert('Não foi possível salvar: '+e.message); }
+      };
+    });
+  });
+
   main.querySelectorAll('[data-excluir-analista]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       const u = userById(btn.dataset.excluirAnalista);

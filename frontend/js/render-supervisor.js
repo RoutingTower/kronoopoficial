@@ -34,6 +34,7 @@ function supCadastros(myAnalistas){
       <td class="jornada-tag">${jornadaLabel(a)}</td>
       <td>${a.active?'<span class="pill pill-done">Ativo</span>':'<span class="pill pill-off">Inativo</span>'}</td>
       <td style="text-align:right;white-space:nowrap;">
+        <button class="btn" data-editar-analista="${a.id}">Editar</button>
         <button class="btn" data-resetpw="${a.id}">Resetar senha</button>
         <button class="btn btn-danger" data-excluir-analista="${a.id}">Excluir</button>
       </td>
