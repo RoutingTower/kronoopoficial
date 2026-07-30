@@ -147,6 +147,26 @@ function downloadXLSX(filename, headers, exampleRow){
   XLSX.writeFile(wb, filename);
 }
 
+const XLSX_TIME_KEYS = new Set(['hora_inicio','hora_fim']);
+
+// Células de hora no Excel chegam de formas diferentes dependendo de como a
+// célula foi formatada na planilha original: string "19:00", Date (com data
+// fixa 1899-12-30 + a hora) ou número serial fracionário (ex.: 0.791666... =
+// 19:00, pois o Excel guarda hora como fração de um dia de 24h). Sem esse
+// tratamento os dois últimos casos vazam como "1899-12-30" ou "0.79166..." nos
+// horários de analistas (Cadastros), Operações Fixas e Coberturas avulsas.
+function excelCellToHHMM(v){
+  if(v instanceof Date){
+    return String(v.getHours()).padStart(2,'0')+':'+String(v.getMinutes()).padStart(2,'0');
+  }
+  if(typeof v === 'number' && isFinite(v)){
+    const totalMin = Math.round((v % 1) * 24 * 60);
+    const h = Math.floor(totalMin/60) % 24, m = totalMin % 60;
+    return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+  }
+  return String(v).trim();
+}
+
 async function parseXLSX(file){
   const buf = await readFileAsArrayBuffer(file);
   // cellDates:true — sem isso, uma célula formatada como data no Excel vira
@@ -158,8 +178,13 @@ async function parseXLSX(file){
     const obj = {};
     Object.keys(row).forEach(k=>{
       const v = row[k];
-      // Mesma convenção de data usada no resto do app (todayISO() etc.).
-      obj[k.trim().toLowerCase()] = v instanceof Date ? v.toISOString().slice(0,10) : String(v).trim();
+      const key = k.trim().toLowerCase();
+      if(XLSX_TIME_KEYS.has(key)){
+        obj[key] = excelCellToHHMM(v);
+      }else{
+        // Mesma convenção de data usada no resto do app (todayISO() etc.).
+        obj[key] = v instanceof Date ? v.toISOString().slice(0,10) : String(v).trim();
+      }
     });
     return obj;
   });
