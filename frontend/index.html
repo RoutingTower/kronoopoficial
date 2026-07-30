@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KronoOP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script>
+(function(){
+  try{
+    var saved = localStorage.getItem('kronoop-theme');
+    var theme = saved || ((window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  }catch(e){}
+})();
+</script>
+</head>
+<body>
+<div id="view-login">
+  <div class="grid-floor"><div class="plane"></div></div>
+  <div class="glow-orb orb-1"></div>
+  <div class="glow-orb orb-2"></div>
+  <div class="login-card">
+    <div class="login-eyebrow">KronoOP · Ops Control</div>
+    <div class="title-row">
+      <h1 class="login-title display">KronoOP</h1>
+      <label class="theme-switch" title="Alternar tema">
+        <input type="checkbox" class="theme-switch-input" aria-label="Alternar tema">
+        <span class="theme-switch-track"><span class="theme-switch-thumb">🌙</span></span>
+      </label>
+    </div>
+    <p class="login-sub">Entre com seu e-mail e senha cadastrados.</p>
+
+    <div id="view-login-real">
+      <div id="loginErrorReal" class="login-error"></div>
+      <div class="field">
+        <label>E-mail</label>
+        <input type="email" id="loginEmail" placeholder="voce@empresa.com" autocomplete="username">
+      </div>
+      <div class="field">
+        <label>Senha</label>
+        <input type="password" id="loginPassReal" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="btn-primary" id="loginBtnReal">Entrar</button>
+      <div class="login-hint"><a href="#" id="toggleDemoMode">Usar modo demonstração (sem conta)</a></div>
+    </div>
+
+    <div id="view-login-demo" style="display:none;">
+      <div id="loginError" class="login-error"></div>
+      <div class="role-grid" id="roleGrid">
+        <button class="role-btn active" data-role="analista">Analista</button>
+        <button class="role-btn" data-role="supervisor">Supervisor</button>
+        <button class="role-btn" data-role="coordenador">Coordenador</button>
+      </div>
+      <div class="field">
+        <label>Nome cadastrado</label>
+        <select id="loginName"></select>
+      </div>
+      <div class="field">
+        <label>Senha</label>
+        <input type="password" id="loginPass" placeholder="••••••••">
+      </div>
+      <button class="btn-primary" id="loginBtn">Entrar</button>
+      <div class="login-hint">Modo demonstração — senha: <span class="mono">demo123</span> para todos os perfis. Dados ficam só nesta sessão, nada é salvo.</div>
+      <div class="login-hint"><a href="#" id="toggleRealMode">Voltar para login com conta</a></div>
+    </div>
+  </div>
+</div>
+
+<div id="view-app">
+  <div class="shell">
+    <div class="sidebar">
+      <div class="brand-row">
+        <div class="brand-dot"></div>
+        <div class="brand-name">KronoOP</div>
+        <label class="theme-switch" style="margin-left:auto;" title="Alternar tema">
+          <input type="checkbox" class="theme-switch-input" aria-label="Alternar tema">
+          <span class="theme-switch-track"><span class="theme-switch-thumb">🌙</span></span>
+        </label>
+      </div>
+      <div id="navEyebrow" class="nav-eyebrow">Menu</div>
+      <div id="navItems"></div>
+      <button class="menu-config-btn" id="btnPersonalizarMenu">⚙ Personalizar menu</button>
+      <div class="sidebar-foot">
+        <div class="user-chip">
+          <div class="user-name" id="chipName">—</div>
+          <div class="user-role" id="chipRole">—</div>
+          <div class="user-sup" id="chipSup"></div>
+        </div>
+        <button class="logout-btn" id="logoutBtn">Sair</button>
+      </div>
+    </div>
+    <div class="main" id="mainArea"></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal" id="modalBody"></div>
+</div>
+
+
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+<script src="js/config.js"></script>
+<script src="js/firebase-init.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/state.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/render-analista.js"></script>
+<script src="js/render-supervisor.js"></script>
+<script src="js/render-coordenador.js"></script>
+<script src="js/events.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

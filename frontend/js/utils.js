@@ -1,0 +1,192 @@
+/* Funções utilitárias puras: datas, formatação, CSV/Excel, escala do dia. */
+
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+function addDaysISO(dateStr, n){ const d = new Date(dateStr+'T00:00:00'); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+
+function uid(prefix){ return prefix+'_'+Math.random().toString(36).slice(2,9); }
+
+function hourSortValue(hora){ const h = parseInt(hora.split(':')[0],10); return h < 7 ? h + 24 : h; }
+
+function rangesOverlap(s1,e1,s2,e2){ return s1 < e2 && s2 < e1; }
+
+
+function usersByRole(role){ return DB.users.filter(u=>u.role===role); }
+
+function userById(id){ return DB.users.find(u=>u.id===id); }
+
+function jornadaLabel(u){
+  if(!u.jornada) return '—';
+  const dias = (u.jornada.dias||[]).map(d=>d.charAt(0).toUpperCase()+d.slice(1)).join('/');
+  return `${dias||'—'} · ${u.jornada.horaInicio}–${u.jornada.horaFim}`;
+}
+
+
+const RAIOX_MIN_OBS_LEN = 150;
+
+// Raio-X = o registro obrigatório de finalização de uma operação (estrelas +
+// observação). Enquanto ele não existe, a operação não está "finalizada" de
+// verdade — só o horário passou.
+function isOperacaoFinalizada(analistaId, operacao, hora, dataStr){
+  return DB.raioX.some(r=>r.analistaId===analistaId && r.operacao===operacao && r.hora===hora && r.data===dataStr);
+}
+
+function computeStatus(hora, dataStr, analistaId, operacao, isOff){
+  const atrasada = () => (analistaId && operacao && !isOff && !isOperacaoFinalizada(analistaId, operacao, hora, dataStr)) ? 'atraso' : 'done';
+  const isToday = dataStr === todayISO();
+  if(!isToday) return dataStr < todayISO() ? atrasada() : 'wait';
+  const now = new Date();
+  const nowH = now.getHours() + now.getMinutes()/60;
+  const effSlot = hourSortValue(hora);
+  const effNow = nowH < 19 ? nowH + 24 : nowH;
+  if(effNow < effSlot) return 'wait';
+  if(effNow >= effSlot && effNow < effSlot+1) return 'live';
+  return atrasada();
+}
+
+function statusPill(status){
+  const map = { wait:['pill-wait','⏳ A Iniciar'], live:['pill-live','🏃 Em Andamento'], done:['pill-done','✅ Finalizada'], off:['pill-off','🌙 Ausente'], atraso:['pill-atraso','🚨 Atraso de Roteirização'] };
+  const [cls,label] = map[status] || map.wait;
+  return `<span class="pill ${cls}">${label}</span>`;
+}
+
+function starDisplay(n){
+  const v = Math.max(0, Math.min(5, n||0));
+  return `<span style="color:var(--brand);letter-spacing:1px;">${'★'.repeat(v)}${'☆'.repeat(5-v)}</span>`;
+}
+
+
+function getDaySlots(analistaId, dateStr){
+  const bmEntries = DB.baseMestra.filter(b=>b.analistaId===analistaId && dateStr>=b.dataInicio && dateStr<=b.dataFim);
+  const slots = bmEntries.map(bm=>{
+    const aus = DB.ausencias.find(a=>a.baseMestraId===bm.id && a.data===dateStr);
+    if(aus){
+      const sup = userById(aus.suplenteId);
+      return {...bm, isOff:true, tipo:aus.tipo, responsavelNome: sup?.name || aus.suplenteNome || '—', responsavelId: aus.suplenteId||null, isSuplente:true};
+    }
+    return {...bm, isOff:false, responsavelNome: bm.titular, responsavelId: bm.analistaId, isSuplente:false};
+  });
+  const adhoc = DB.suplencias.filter(s=>s.analistaOriginalId===analistaId && s.dataCobertura===dateStr)
+    .map(s=>({id:s.id, operacao:s.operacao, ciclo:s.ciclo, horaInicio:s.horaInicio, horaFim:s.horaFim, isOff:true, tipo:'cobertura', responsavelNome:s.suplente, responsavelId:null, isSuplente:true}));
+  return [...slots, ...adhoc].sort((a,b)=> hourSortValue(a.horaInicio)-hourSortValue(b.horaInicio));
+}
+
+function getReunioesForDate(analistaId, dateStr){
+  const me = userById(analistaId);
+  return DB.reunioes.filter(r=> r.data===dateStr && r.supervisorId===me.supervisorId &&
+    (r.tipo==='grupo' ? (r.analistaIds.length===0 || r.analistaIds.includes(analistaId)) : r.analistaIds.includes(analistaId)));
+}
+
+function plantaoBannerFor(analistaId, dateStr){
+  const me = userById(analistaId);
+  const pl = DB.plantoes.find(p=>p.supervisorAusenteId===me.supervisorId && p.data===dateStr);
+  if(!pl) return '';
+  const sup = userById(me.supervisorId);
+  return `<div class="banner">🔔 Seu supervisor <b>${sup?.name||''}</b> está ausente nesta data. Plantão: <b>${pl.coberturaNome}</b> (${pl.coberturaRole}).</div>`;
+}
+
+
+function userSupKey(userId){ const u=userById(userId); return u.supervisorId; }
+
+
+function getLembretesForAnalista(analistaId){
+  const me = userById(analistaId);
+  return DB.lembretes.filter(l=> (l.origem==='self' && l.analistaId===analistaId) || (l.origem==='supervisor' && (l.target===analistaId || l.target==='all_ana_'+me.supervisorId)));
+}
+
+
+function timeAgo(ts){
+  const min = Math.round((Date.now()-ts)/60000);
+  if(min<60) return `há ${min} min`;
+  const h = Math.round(min/60); if(h<24) return `há ${h}h`;
+  return `há ${Math.round(h/24)}d`;
+}
+
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+
+function candidatosParaSlot(myAnalistas, titularId, bm, dataStr){
+  const s1 = hourSortValue(bm.horaInicio), e1 = hourSortValue(bm.horaFim);
+  const mesRef = dataStr.slice(0,7);
+  const candidatos = myAnalistas.filter(a=>a.id!==titularId).map(a=>{
+    const estaDeFolga = DB.ausencias.some(x=>x.analistaId===a.id && x.data===dataStr);
+    if(estaDeFolga) return null;
+    const opsProprias = DB.baseMestra.filter(b=>b.analistaId===a.id && dataStr>=b.dataInicio && dataStr<=b.dataFim)
+      .filter(b=>!DB.ausencias.some(x=>x.baseMestraId===b.id && x.data===dataStr));
+    const conflitaComProprias = opsProprias.some(b=> rangesOverlap(s1,e1, hourSortValue(b.horaInicio), hourSortValue(b.horaFim)));
+    if(conflitaComProprias) return null;
+    const jaSuplente = DB.ausencias.filter(x=>x.suplenteId===a.id && x.data===dataStr);
+    const conflitaComCoberturas = jaSuplente.some(x=> rangesOverlap(s1,e1, hourSortValue(x.horaInicio), hourSortValue(x.horaFim)));
+    if(conflitaComCoberturas) return null;
+    const coberturasNoMes = DB.ausencias.filter(x=>x.suplenteId===a.id && x.data.slice(0,7)===mesRef).length;
+    return { id:a.id, name:a.name, opsHoje:opsProprias.length, coberturasNoMes };
+  }).filter(Boolean);
+  candidatos.sort((x,y)=> x.opsHoje-y.opsHoje || x.coberturasNoMes-y.coberturasNoMes || x.name.localeCompare(y.name));
+  return candidatos;
+}
+
+
+function downloadCSV(filename, headers, exampleRow){
+  const csv = [headers.join(','), exampleRow.join(',')].join('\n');
+  const blob = new Blob(["\uFEFF"+csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function parseCSV(text){
+  const lines = text.split(/\r?\n/).filter(l=>l.trim().length>0);
+  if(lines.length<2) return [];
+  const headers = lines[0].split(',').map(h=>h.trim().toLowerCase());
+  return lines.slice(1).map(line=>{
+    const cells = line.split(',').map(c=>c.trim().replace(/^"|"$/g,''));
+    const obj = {};
+    headers.forEach((h,i)=>obj[h]=cells[i]||'');
+    return obj;
+  });
+}
+
+function findAnalistaByName(myAnalistas, name){
+  const n = (name||'').trim().toLowerCase();
+  return myAnalistas.find(a=>a.name.trim().toLowerCase()===n);
+}
+
+function readFileAsText(file){
+  return new Promise((res,rej)=>{
+    const r = new FileReader();
+    r.onload = ()=>res(r.result);
+    r.onerror = rej;
+    r.readAsText(file, 'utf-8');
+  });
+}
+
+function readFileAsArrayBuffer(file){
+  return new Promise((res,rej)=>{
+    const r = new FileReader();
+    r.onload = ()=>res(r.result);
+    r.onerror = rej;
+    r.readAsArrayBuffer(file);
+  });
+}
+
+function downloadXLSX(filename, headers, exampleRow){
+  const ws = XLSX.utils.aoa_to_sheet([headers, exampleRow]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Modelo');
+  XLSX.writeFile(wb, filename);
+}
+
+async function parseXLSX(file){
+  const buf = await readFileAsArrayBuffer(file);
+  const wb = XLSX.read(buf, {type:'array'});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+  return rows.map(row=>{
+    const obj = {};
+    Object.keys(row).forEach(k=>{ obj[k.trim().toLowerCase()] = String(row[k]).trim(); });
+    return obj;
+  });
+}
+

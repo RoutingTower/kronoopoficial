@@ -1,0 +1,31 @@
+rules_version = '2';
+
+// KronoOP — regras do Firestore.
+//
+// O backend (Admin SDK, backend/src/services/firestoreService.js) ignora
+// estas regras por completo — elas só entram em jogo se algum cliente
+// (o frontend, ou qualquer outra coisa) tentar falar com o Firestore
+// diretamente, sem passar pela API. Hoje isso não acontece (o frontend só
+// usa fetch() contra o backend), mas Firestore em "modo produção" nega
+// tudo por padrão até existir uma regra explícita — então este arquivo é
+// o que mantém esse "modo produção" efetivo em vez de virar um buraco
+// aberto por omissão.
+//
+// Política: leitura liberada pra qualquer usuário autenticado (espelha o
+// que a API já faz hoje — ver backend/README.md → "Autenticação": nenhum
+// GET tem checagem de role ainda). Escrita sempre negada — toda escrita
+// tem que passar pela API, que é quem aplica a autorização por role
+// (backend/src/services/authz.js) e as validações de cada recurso.
+//
+// Se um dia o app passar a usar listeners em tempo real do Firestore
+// direto do navegador (cogitado em db/README.md como vantagem do
+// Firestore), pense em apertar a leitura por coleção/role antes de
+// liberar esse acesso — este arquivo é só o ponto de partida.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+  }
+}
