@@ -87,7 +87,19 @@ function getDaySlots(analistaId, dateStr){
     return {id:s.id, operacao:s.operacao, ciclo:s.ciclo, horaInicio:s.horaInicio, horaFim:s.horaFim, isOff:false, isCobertura:true, tipo:'cobertura', responsavelNome: titular?.name || '—', responsavelId: s.analistaOriginalId||null, isSuplente:false};
   }) : [];
 
-  return [...slots, ...adhoc, ...coberturaAusencias, ...coberturaAdhoc].sort((a,b)=> hourSortValue(a.horaInicio)-hourSortValue(b.horaInicio));
+  const all = [...slots, ...adhoc, ...coberturaAusencias, ...coberturaAdhoc];
+
+  // Base mestra às vezes tem entrada duplicada pra mesma operação/horário
+  // (sobra de importação em massa repetida) — quando isso acontece, só UMA
+  // das cópias tem a ausência/cobertura vinculada (ela vira "com tag":
+  // Folga do titular ou Cobrindo X); a(s) outra(s) cópia(s) aparecem como
+  // operação normal, duplicando o card à toa. Já que a versão com tag é a
+  // que reflete o que realmente está acontecendo, descarta a(s) sem tag
+  // quando há uma com tag pro mesmo par operação+horário.
+  const comTag = new Set(all.filter(s=>s.isOff||s.isCobertura).map(s=>s.operacao+'|'+s.horaInicio));
+  const deduped = all.filter(s=> s.isOff || s.isCobertura || !comTag.has(s.operacao+'|'+s.horaInicio));
+
+  return deduped.sort((a,b)=> hourSortValue(a.horaInicio)-hourSortValue(b.horaInicio));
 }
 
 function getReunioesForDate(analistaId, dateStr){
