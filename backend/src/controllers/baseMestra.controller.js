@@ -20,8 +20,9 @@ async function createBaseMestra(req, res) {
       message: "analistaId, operacao, horaInicio, horaFim, dataInicio e dataFim são obrigatórios",
     });
   }
-  const caller = await getCaller(req);
-  const supervisorId = await supervisorIdDoAnalista(analistaId);
+  // As duas leituras são independentes — paralelizar corta um round-trip
+  // ao Firestore fora do caminho crítico de toda escrita deste recurso.
+  const [caller, supervisorId] = await Promise.all([getCaller(req), supervisorIdDoAnalista(analistaId)]);
   if (!caller || (!caller.isAdmin && (caller.role !== "supervisor" || supervisorId !== caller.id))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode gerenciar a base mestra da sua equipe." });
   }
@@ -39,11 +40,9 @@ async function createBaseMestra(req, res) {
 }
 
 async function assertDonoDaEquipe(req, existing) {
-  const caller = await getCaller(req);
+  const [caller, supervisorId] = await Promise.all([getCaller(req), supervisorIdDoAnalista(existing.analistaId)]);
   if (!caller) return false;
-  if (caller.isAdmin) return true;
-  const supervisorId = await supervisorIdDoAnalista(existing.analistaId);
-  return caller.role === "supervisor" && supervisorId === caller.id;
+  return caller.isAdmin || (caller.role === "supervisor" && supervisorId === caller.id);
 }
 
 async function updateBaseMestra(req, res) {

@@ -20,8 +20,7 @@ async function createSuplencia(req, res) {
       message: "operacao, horaInicio, horaFim, suplente, dataCobertura e analistaOriginalId são obrigatórios",
     });
   }
-  const caller = await getCaller(req);
-  const supervisorId = await supervisorIdDoAnalista(analistaOriginalId);
+  const [caller, supervisorId] = await Promise.all([getCaller(req), supervisorIdDoAnalista(analistaOriginalId)]);
   if (!caller || (!caller.isAdmin && (caller.role !== "supervisor" || supervisorId !== caller.id))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode gerenciar coberturas da sua equipe." });
   }
@@ -38,11 +37,9 @@ async function createSuplencia(req, res) {
 }
 
 async function assertDonoDaEquipe(req, existing) {
-  const caller = await getCaller(req);
+  const [caller, supervisorId] = await Promise.all([getCaller(req), supervisorIdDoAnalista(existing.analistaOriginalId)]);
   if (!caller) return false;
-  if (caller.isAdmin) return true;
-  const supervisorId = await supervisorIdDoAnalista(existing.analistaOriginalId);
-  return caller.role === "supervisor" && supervisorId === caller.id;
+  return caller.isAdmin || (caller.role === "supervisor" && supervisorId === caller.id);
 }
 
 async function updateSuplencia(req, res) {

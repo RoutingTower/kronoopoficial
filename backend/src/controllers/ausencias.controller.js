@@ -23,8 +23,7 @@ async function createAusencia(req, res) {
   if (tipo !== "folga" && tipo !== "ferias") {
     return res.status(400).json({ error: "bad_request", message: "tipo deve ser 'folga' ou 'ferias'" });
   }
-  const caller = await getCaller(req);
-  const supervisorId = await supervisorIdDoAnalista(analistaId);
+  const [caller, supervisorId] = await Promise.all([getCaller(req), supervisorIdDoAnalista(analistaId)]);
   if (!caller || (!caller.isAdmin && (caller.role !== "supervisor" || supervisorId !== caller.id))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode gerenciar ausências da sua equipe." });
   }
@@ -44,11 +43,9 @@ async function createAusencia(req, res) {
 }
 
 async function assertDonoDaEquipe(req, existing) {
-  const caller = await getCaller(req);
+  const [caller, supervisorId] = await Promise.all([getCaller(req), supervisorIdDoAnalista(existing.analistaId)]);
   if (!caller) return false;
-  if (caller.isAdmin) return true;
-  const supervisorId = await supervisorIdDoAnalista(existing.analistaId);
-  return caller.role === "supervisor" && supervisorId === caller.id;
+  return caller.isAdmin || (caller.role === "supervisor" && supervisorId === caller.id);
 }
 
 async function updateAusencia(req, res) {
