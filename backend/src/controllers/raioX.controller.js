@@ -1,4 +1,5 @@
 const firestoreService = require("../services/firestoreService");
+const { getCaller } = require("../services/authz");
 
 const COLLECTION = "raioX";
 const MIN_OBSERVACAO_LEN = 150;
@@ -26,7 +27,8 @@ async function createRaioX(req, res) {
       message: "analistaId, operacao, hora e data são obrigatórios",
     });
   }
-  if (analistaId !== req.user.uid) {
+  const caller = await getCaller(req);
+  if (!caller?.isAdmin && analistaId !== req.user.uid) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode finalizar operações em seu próprio nome." });
   }
   const nota = Number(estrelas);
@@ -54,7 +56,8 @@ async function createRaioX(req, res) {
 async function deleteRaioX(req, res) {
   const existing = await firestoreService.getById(COLLECTION, req.params.id);
   if (!existing) return res.status(404).json({ error: "not_found" });
-  if (existing.analistaId !== req.user.uid) {
+  const caller = await getCaller(req);
+  if (!caller?.isAdmin && existing.analistaId !== req.user.uid) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode excluir finalizações em seu próprio nome." });
   }
   await firestoreService.remove(COLLECTION, req.params.id);

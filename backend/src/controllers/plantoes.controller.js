@@ -22,7 +22,7 @@ async function createPlantao(req, res) {
     });
   }
   const caller = await getCaller(req);
-  if (!caller || caller.role !== "supervisor" || supervisorAusenteId !== caller.id) {
+  if (!caller || (!caller.isAdmin && (caller.role !== "supervisor" || supervisorAusenteId !== caller.id))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode declarar plantão em seu próprio nome." });
   }
   const plantao = await firestoreService.create(COLLECTION, {
@@ -34,9 +34,14 @@ async function createPlantao(req, res) {
   res.status(201).json(plantao);
 }
 
+// Não há UI de excluir plantão hoje, mas a rota existe — mesma regra do create.
 async function deletePlantao(req, res) {
   const existing = await firestoreService.getById(COLLECTION, req.params.id);
   if (!existing) return res.status(404).json({ error: "not_found" });
+  const caller = await getCaller(req);
+  if (!caller || (!caller.isAdmin && (caller.role !== "supervisor" || existing.supervisorAusenteId !== caller.id))) {
+    return res.status(403).json({ error: "forbidden", message: "Você só pode excluir plantão em seu próprio nome." });
+  }
   await firestoreService.remove(COLLECTION, req.params.id);
   res.status(204).send();
 }

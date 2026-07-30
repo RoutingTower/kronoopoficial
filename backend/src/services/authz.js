@@ -2,6 +2,12 @@
 // de auth (../middleware/auth.js) só confere que o token é válido; aqui é
 // onde checamos se ESTE usuário pode fazer ESTA ação. Mantido separado do
 // firestoreService porque é regra de negócio, não acesso a dado.
+//
+// users/{uid}.isAdmin === true ignora todas as checagens de "só a própria
+// equipe" em todo controller (fica de fora do modelo analista/supervisor/
+// coordenador de propósito). Não existe NENHUM endpoint que permita setar
+// esse campo — só é possível ligar direto no Firestore (Console ou
+// firestoreService), nunca via API, pra ninguém conseguir se autopromover.
 
 const firestoreService = require("./firestoreService");
 

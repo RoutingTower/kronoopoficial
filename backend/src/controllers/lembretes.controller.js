@@ -50,11 +50,13 @@ async function createLembrete(req, res) {
 
   const caller = await getCaller(req);
   if (!caller) return res.status(403).json({ error: "forbidden", message: "Usuário autenticado não encontrado." });
-  if (origem === "self" && analistaId !== caller.id) {
-    return res.status(403).json({ error: "forbidden", message: "Você só pode criar lembretes para si mesmo." });
-  }
-  if (origem === "supervisor" && !(await isSupervisorDoTarget(caller, target))) {
-    return res.status(403).json({ error: "forbidden", message: "Você só pode enviar lembretes para a sua própria equipe." });
+  if (!caller.isAdmin) {
+    if (origem === "self" && analistaId !== caller.id) {
+      return res.status(403).json({ error: "forbidden", message: "Você só pode criar lembretes para si mesmo." });
+    }
+    if (origem === "supervisor" && !(await isSupervisorDoTarget(caller, target))) {
+      return res.status(403).json({ error: "forbidden", message: "Você só pode enviar lembretes para a sua própria equipe." });
+    }
   }
 
   const lembrete = await firestoreService.create(COLLECTION, {
@@ -89,7 +91,7 @@ async function updateLembrete(req, res) {
     (existing.target === caller.id || (caller.supervisorId && existing.target === `all_ana_${caller.supervisorId}`));
 
   const { done, texto, observacoes, data, hora } = req.body;
-  if (!isDono) {
+  if (!caller.isAdmin && !isDono) {
     if (!isDestinatario) {
       return res.status(403).json({ error: "forbidden", message: "Você não tem permissão para editar este lembrete." });
     }
@@ -119,7 +121,7 @@ async function deleteLembrete(req, res) {
   const caller = await getCaller(req);
   const isDono = caller && existing.origem === "self" && existing.analistaId === caller.id;
   const isRemetente = caller && existing.origem === "supervisor" && (await isSupervisorDoTarget(caller, existing.target));
-  if (!isDono && !isRemetente) {
+  if (!caller?.isAdmin && !isDono && !isRemetente) {
     return res.status(403).json({ error: "forbidden", message: "Você não tem permissão para excluir este lembrete." });
   }
 

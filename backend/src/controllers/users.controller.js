@@ -47,6 +47,7 @@ async function createUser(req, res) {
   const caller = await getCaller(req);
   if (!caller) return res.status(403).json({ error: "forbidden", message: "Usuário autenticado não encontrado." });
   const autorizado =
+    caller.isAdmin ||
     (role === "analista" && caller.role === "supervisor" && supervisorId === caller.id) ||
     (role === "supervisor" && caller.role === "coordenador" && coordenadorId === caller.id);
   if (!autorizado) {
@@ -84,12 +85,14 @@ async function updateUser(req, res) {
   const isSupervisorDaEquipe = caller.role === "supervisor" && existing.role === "analista" && existing.supervisorId === caller.id;
   const isCoordenadorDaEquipe = caller.role === "coordenador" && existing.role === "supervisor" && existing.coordenadorId === caller.id;
 
-  if (isSelf) {
-    if (!bodyKeys.every((k) => k === "navConfig")) {
-      return res.status(403).json({ error: "forbidden", message: "Você só pode editar sua própria personalização de menu." });
+  if (!caller.isAdmin) {
+    if (isSelf) {
+      if (!bodyKeys.every((k) => k === "navConfig")) {
+        return res.status(403).json({ error: "forbidden", message: "Você só pode editar sua própria personalização de menu." });
+      }
+    } else if (!isSupervisorDaEquipe && !isCoordenadorDaEquipe) {
+      return res.status(403).json({ error: "forbidden", message: "Você não tem permissão para editar este usuário." });
     }
-  } else if (!isSupervisorDaEquipe && !isCoordenadorDaEquipe) {
-    return res.status(403).json({ error: "forbidden", message: "Você não tem permissão para editar este usuário." });
   }
 
   const patch = {};
@@ -113,7 +116,8 @@ async function deleteUser(req, res) {
   if (!existing) return res.status(404).json({ error: "not_found" });
 
   const caller = await getCaller(req);
-  const autorizado = caller && caller.role === "supervisor" && existing.role === "analista" && existing.supervisorId === caller.id;
+  const autorizado =
+    caller && (caller.isAdmin || (caller.role === "supervisor" && existing.role === "analista" && existing.supervisorId === caller.id));
   if (!autorizado) {
     return res.status(403).json({ error: "forbidden", message: "Você não tem permissão para excluir este usuário." });
   }

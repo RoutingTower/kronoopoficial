@@ -141,6 +141,24 @@ O que não está nessa lista — todo `GET` (lista/detalhe) de qualquer
 recurso — continua exigindo só um token válido, sem checagem de papel: não
 há isolamento de leitura por equipe hoje (ver `../docs/ROADMAP.md`, item 5).
 
+### Conta admin (`isAdmin`)
+
+`users/{uid}.isAdmin === true` faz esse usuário ignorar **todas** as
+checagens de "só a própria equipe" listadas acima, em todo recurso —
+continua precisando de um token válido, só não é mais limitado a
+equipe/supervisor/coordenador próprio. Não existe nenhum endpoint que
+permita ligar esse campo (não está na whitelist de nenhum `PATCH`) — só é
+possível via `backend/scripts/create-admin.js`, que precisa da service
+account local:
+```powershell
+cd backend
+node scripts/create-admin.js "email@exemplo.com" "senha" "Nome Completo"
+```
+Cria a conta como `coordenador` com `isAdmin:true` (ou promove uma
+existente, se o e-mail já tiver conta no Firebase Auth). Pra criar em
+produção em vez de dev, aponte `ENV_FILE` antes — ver
+`docs/FIREBASE-SETUP.md` → "Ambiente de produção separado".
+
 Criar/editar/excluir usuário (`POST`/`PATCH`/`DELETE /api/users`) também
 gerencia a conta correspondente no Firebase Auth (cria com
 `admin.auth().createUser`, o `uid` retornado vira o ID do documento

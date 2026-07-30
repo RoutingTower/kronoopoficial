@@ -21,7 +21,7 @@ async function createRecado(req, res) {
     return res.status(400).json({ error: "bad_request", message: "from, to e texto são obrigatórios" });
   }
   const caller = await getCaller(req);
-  if (!caller || caller.role !== "supervisor" || to !== `all_ana_${caller.id}`) {
+  if (!caller || (!caller.isAdmin && (caller.role !== "supervisor" || to !== `all_ana_${caller.id}`))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode enviar comunicados para a sua própria equipe." });
   }
   const recado = await firestoreService.create(COLLECTION, {
@@ -47,7 +47,7 @@ async function updateRecado(req, res) {
   const editaConteudo = titulo !== undefined || texto !== undefined || observacoes !== undefined || lidoPor !== undefined;
   if (editaConteudo) {
     const caller = await getCaller(req);
-    if (!caller || caller.role !== "supervisor" || existing.to !== `all_ana_${caller.id}`) {
+    if (!caller || (!caller.isAdmin && (caller.role !== "supervisor" || existing.to !== `all_ana_${caller.id}`))) {
       return res.status(403).json({ error: "forbidden", message: "Você só pode editar comunicados enviados pela sua própria equipe." });
     }
   }
@@ -70,7 +70,7 @@ async function deleteRecado(req, res) {
   const existing = await firestoreService.getById(COLLECTION, req.params.id);
   if (!existing) return res.status(404).json({ error: "not_found" });
   const caller = await getCaller(req);
-  if (!caller || caller.role !== "supervisor" || existing.to !== `all_ana_${caller.id}`) {
+  if (!caller || (!caller.isAdmin && (caller.role !== "supervisor" || existing.to !== `all_ana_${caller.id}`))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode excluir comunicados enviados pela sua própria equipe." });
   }
   await firestoreService.remove(COLLECTION, req.params.id);

@@ -22,7 +22,7 @@ async function createSuplencia(req, res) {
   }
   const caller = await getCaller(req);
   const supervisorId = await supervisorIdDoAnalista(analistaOriginalId);
-  if (!caller || caller.role !== "supervisor" || supervisorId !== caller.id) {
+  if (!caller || (!caller.isAdmin && (caller.role !== "supervisor" || supervisorId !== caller.id))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode gerenciar coberturas da sua equipe." });
   }
   const entry = await firestoreService.create(COLLECTION, {
@@ -39,8 +39,10 @@ async function createSuplencia(req, res) {
 
 async function assertDonoDaEquipe(req, existing) {
   const caller = await getCaller(req);
+  if (!caller) return false;
+  if (caller.isAdmin) return true;
   const supervisorId = await supervisorIdDoAnalista(existing.analistaOriginalId);
-  return caller && caller.role === "supervisor" && supervisorId === caller.id;
+  return caller.role === "supervisor" && supervisorId === caller.id;
 }
 
 async function updateSuplencia(req, res) {
