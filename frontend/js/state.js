@@ -17,7 +17,7 @@ let uiState = {
   gradeFilters:{ data: todayISO(), hora:'all', analista:'all', op:'all', nome:'all', status:'all' },
   metricasFiltro:{ inicio: addDaysISO(todayISO(), -7), fim: todayISO() },
   envioFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO() },
-  ocorrenciasFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), analista: 'all' },
+  ocorrenciasFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), analista: 'all', operacao: 'all', avaliacaoMax: '' },
   progAnalista:'all', progDate: todayISO(), progView:'diaria',
   sugerir: null, inboxSelected: null, lembretesDate: todayISO(), lembretesView: 'semanal'
 };

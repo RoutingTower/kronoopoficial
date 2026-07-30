@@ -500,38 +500,6 @@ function bindMainEvents(){
     });
   });
 
-  const btnBaixarModeloAusencia = document.getElementById('btnBaixarModeloAusencia');
-  if(btnBaixarModeloAusencia) btnBaixarModeloAusencia.addEventListener('click', ()=>{
-    const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
-    const exemplo = myAnalistas[0]?.name || 'Nome do Analista';
-    const opExemplo = DB.baseMestra.find(b=>b.analistaId===myAnalistas[0]?.id)?.operacao || 'COL-A';
-    downloadXLSX('modelo_folgas_ferias_por_operacao.xlsx',
-      ['analista','operacao','data','tipo','suplente'],
-      [exemplo, opExemplo, todayISO(), 'folga', 'Nome do Suplente']);
-  });
-  const fileImportAusencia = document.getElementById('fileImportAusencia');
-  if(fileImportAusencia) fileImportAusencia.addEventListener('change', async ()=>{
-    const file = fileImportAusencia.files[0]; if(!file) return;
-    const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
-    let rows;
-    try { rows = await parseXLSX(file); }
-    catch(e){ fileImportAusencia.value=''; alert('Não foi possível ler o arquivo Excel: '+e.message); return; }
-    let ok=0, fail=0;
-    for(const r of rows){
-      const a = findAnalistaByName(myAnalistas, r.analista);
-      const tipo = (r.tipo||'').trim().toLowerCase();
-      if(!a || !r.data || !r.operacao || (tipo!=='folga' && tipo!=='ferias')){ fail++; continue; }
-      const bm = DB.baseMestra.find(b=>b.analistaId===a.id && b.operacao===r.operacao && r.data>=b.dataInicio && r.data<=b.dataFim);
-      if(!bm){ fail++; continue; }
-      const suplenteMatch = myAnalistas.find(x=>x.name.trim().toLowerCase()===(r.suplente||'').trim().toLowerCase());
-      const entrada = {analistaId:a.id, baseMestraId:bm.id, operacao:bm.operacao, ciclo:bm.ciclo,
-        horaInicio:bm.horaInicio, horaFim:bm.horaFim, data:r.data, tipo, suplenteId:suplenteMatch?.id||null, suplenteNome:suplenteMatch?null:(r.suplente||'')};
-      try{ DB.ausencias.push(await apiCreateAusencia(entrada)); ok++; }
-      catch(e){ console.error('Falha ao importar ausência', e); fail++; }
-    }
-    fileImportAusencia.value=''; renderMain();
-    alert(`Importação concluída: ${ok} registro(s) adicionado(s)${fail?`, ${fail} linha(s) ignorada(s) (analista/operação não encontrados)`:''}.`);
-  });
 
   main.querySelectorAll('[data-editar-ausencia]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -679,7 +647,7 @@ function bindMainEvents(){
     inp.addEventListener('change', ()=>{
       const key = inp.dataset.ocorrenciafiltro;
       uiState.ocorrenciasFiltro[key] = inp.value;
-      if(key!=='analista' && uiState.ocorrenciasFiltro.inicio > uiState.ocorrenciasFiltro.fim){
+      if((key==='inicio'||key==='fim') && uiState.ocorrenciasFiltro.inicio > uiState.ocorrenciasFiltro.fim){
         uiState.ocorrenciasFiltro[key==='inicio'?'fim':'inicio'] = inp.value;
       }
       renderMain();

@@ -84,12 +84,6 @@ function supSuplencias(myAnalistas){
   <td style="text-align:right;"><button class="btn btn-danger" data-excluir-suplencia="${s.id}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="6" class="empty">Nenhuma cobertura avulsa registrada</td></tr>'}
   </tbody></table></div>
 
-  <div class="csv-row">
-    <span class="csv-label">Carga em massa de folgas e férias — por operação (Excel)</span>
-    <button class="btn" id="btnBaixarModeloAusencia">⭳ Baixar modelo Excel</button>
-    <label class="btn" style="margin:0;">⭱ Importar Excel<input type="file" accept=".xlsx,.xls" id="fileImportAusencia" style="display:none;"></label>
-  </div>
-  <div class="help-text">Cada linha da planilha cobre UMA operação de UM analista. Se o titular tiver 3 operações no dia, use 3 linhas (uma por operação), podendo indicar um suplente diferente em cada.</div>
   <div class="card">
   <table><thead><tr><th>Analista</th><th>Operação</th><th>Data</th><th>Tipo</th><th>Suplente</th><th></th></tr></thead><tbody>
   ${ausencias.map(a=>`<tr><td>${userById(a.analistaId)?.name||'—'}</td><td>${a.operacao}</td><td class="mono">${a.data}</td><td>${a.tipo==='ferias'?'Férias':'Folga'}</td><td>${userById(a.suplenteId)?.name||a.suplenteNome||'—'}</td>
@@ -344,9 +338,12 @@ function supOcorrencias(myAnalistas){
   const f = uiState.ocorrenciasFiltro;
   const inicio = f.inicio || addDaysISO(todayISO(), -30);
   const fim = f.fim || todayISO();
-  const rows = DB.raioX.filter(r=> ids.includes(r.analistaId)
+  const operacoesTime = [...new Set(DB.baseMestra.filter(b=>ids.includes(b.analistaId)).map(b=>b.operacao))].sort();
+
+  let rows = DB.raioX.filter(r=> ids.includes(r.analistaId)
     && (r.data||'')>=inicio && (r.data||'')<=fim
     && (f.analista==='all' || r.analistaId===f.analista)
+    && (!f.operacao || f.operacao==='all' || r.operacao===f.operacao)
   ).sort((a,b)=>b.ts-a.ts);
 
   const porOperacao = {};
@@ -354,9 +351,20 @@ function supOcorrencias(myAnalistas){
     if(!porOperacao[r.operacao]) porOperacao[r.operacao] = [];
     porOperacao[r.operacao].push(r.estrelas||0);
   });
-  const ranking = Object.entries(porOperacao)
+  let ranking = Object.entries(porOperacao)
     .map(([op, vals])=>({ op, media: vals.reduce((a,b)=>a+b,0)/vals.length, n: vals.length }))
     .sort((a,b)=> a.media-b.media);
+
+  // Filtro de "avaliação média" é por operação (não por finalização
+  // individual): só entram no ranking e na lista as operações cuja média
+  // no período está no teto escolhido — pensado pra achar rápido as
+  // operações com pior desempenho.
+  const avaliacaoMax = f.avaliacaoMax ? parseInt(f.avaliacaoMax,10) : null;
+  if(avaliacaoMax){
+    ranking = ranking.filter(r=> r.media<=avaliacaoMax);
+    const opsAbaixo = new Set(ranking.map(r=>r.op));
+    rows = rows.filter(r=> opsAbaixo.has(r.operacao));
+  }
 
   return `
   <div class="filter-row">
@@ -369,6 +377,17 @@ function supOcorrencias(myAnalistas){
     <select data-ocorrenciafiltro="analista">
       <option value="all">Analista: todos</option>
       ${myAnalistas.map(a=>`<option value="${a.id}" ${f.analista===a.id?'selected':''}>${a.name}</option>`).join('')}
+    </select>
+    <select data-ocorrenciafiltro="operacao">
+      <option value="all">Operação: todas</option>
+      ${operacoesTime.map(op=>`<option value="${op}" ${f.operacao===op?'selected':''}>${op}</option>`).join('')}
+    </select>
+    <select data-ocorrenciafiltro="avaliacaoMax">
+      <option value="">Avaliação média: todas</option>
+      <option value="1" ${f.avaliacaoMax==='1'?'selected':''}>≤ 1 estrela</option>
+      <option value="2" ${f.avaliacaoMax==='2'?'selected':''}>≤ 2 estrelas</option>
+      <option value="3" ${f.avaliacaoMax==='3'?'selected':''}>≤ 3 estrelas</option>
+      <option value="4" ${f.avaliacaoMax==='4'?'selected':''}>≤ 4 estrelas</option>
     </select>
   </div>
   <div class="card" style="margin-bottom:18px;"><div class="section-title">Avaliação média por operação (Raio-X)</div>
