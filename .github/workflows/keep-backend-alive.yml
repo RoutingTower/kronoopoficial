@@ -1,0 +1,20 @@
+name: Keep Render backend alive
+
+# O backend no Render (plano free) "dorme" depois de ~15min sem receber
+# requisição e o primeiro acesso seguinte demora 30-50s pra responder (ver
+# docs/COMO-PUBLICAR.md -> "Nota sobre o plano gratuito"). Esse ping
+# periódico no health check evita o serviço dormir durante o horário em que
+# alguém normalmente estaria usando o site, sem custo (plano free do
+# GitHub Actions).
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /api/health
+        run: curl -fsS https://kronoopoficial.onrender.com/api/health

@@ -113,12 +113,27 @@ async function loadDB(){
 // Chamada genérica a um endpoint por recurso (ex.: /users, /raio-x) — usada
 // pelos recursos já migrados do blob genérico (ver docs/ROADMAP.md, item 4).
 // Lança com a mensagem amigável que o backend manda em {message}.
-async function apiRequest(method, path, body){
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers:{ 'Content-Type':'application/json', ...(await authHeaders()) },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+//
+// Reexperimenta em caso de falha de rede (fetch rejeita, sem nem chegar a
+// resposta HTTP) — o backend no Render (plano free) "dorme" após ~15min
+// parado, e o primeiro acesso do dia recusa conexão por alguns segundos
+// enquanto o container sobe (ver docs/COMO-PUBLICAR.md → "Nota sobre o
+// plano gratuito"). Sem isso, esse primeiro acesso caía direto no catch de
+// loadDB() e trocava silenciosamente pros dados de demonstração.
+async function apiRequest(method, path, body, _attempt){
+  const attempt = _attempt || 0;
+  let res;
+  try{
+    res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers:{ 'Content-Type':'application/json', ...(await authHeaders()) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }catch(networkErr){
+    if(attempt >= 6) throw networkErr; // ~30s tentando — cobre o cold-start documentado (30-50s)
+    await new Promise(r=>setTimeout(r, 5000));
+    return apiRequest(method, path, body, attempt+1);
+  }
   if(!res.ok){
     const parsed = await res.json().catch(()=>({}));
     throw new Error(parsed.message || `${method} ${path} -> ${res.status}`);

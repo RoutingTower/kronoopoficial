@@ -211,7 +211,15 @@ Deve responder `{"status":"ok"}`.
 
 **Nota sobre o plano gratuito**: o serviço "dorme" após ~15 min sem
 receber requisição — o primeiro acesso depois disso demora 30–50s pra
-responder. Normal no plano free; upgrade remove esse comportamento.
+responder. Normal no plano free; upgrade remove esse comportamento. Este
+pacote já vem com
+[`.github/workflows/keep-backend-alive.yml`](../.github/workflows/keep-backend-alive.yml),
+que faz um ping em `/api/health` a cada 10 minutos pra reduzir a chance do
+serviço dormir durante o uso — não precisa configurar nada, já roda
+sozinho assim que o repositório estiver no GitHub (o frontend
+(`frontend/js/state.js`/`main.js`) também reexperimenta chamadas que
+falharem por causa desse "acordar", então mesmo um cold-start ocasional
+não derruba pro modo demonstração).
 
 ---
 

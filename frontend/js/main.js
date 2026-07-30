@@ -37,11 +37,15 @@ firebase.auth().onAuthStateChanged(async (user)=>{
   if(session?.demoMode) return; // sessão local, não depende do Firebase Auth
   const myReq = ++authRequestSeq;
   if(!user){ return; } // tela de login (real) já é a exibida por padrão
+  const btn = document.getElementById('loginBtnReal');
+  const btnLabel = btn.textContent;
+  btn.disabled = true;
+  // Avisa só se passar de 4s — a maioria dos acessos carrega bem mais
+  // rápido que isso, não vale mostrar o aviso de "conectando" toda vez.
+  const slowHintTimer = setTimeout(()=>{ btn.textContent = 'Conectando ao servidor...'; }, 4000);
   try{
     await loadDB();
-    const res = await fetch(`${API_BASE}/users/me`, { headers: await authHeaders() });
-    if(!res.ok) throw new Error(`GET /users/me -> ${res.status}`);
-    const me = await res.json();
+    const me = await apiRequest('GET', '/users/me');
     if(myReq !== authRequestSeq) return; // ficou obsoleto enquanto isso — um evento mais novo já assumiu
     session = { role: me.role, userId: me.id, name: me.name, demoMode:false };
     enterApp();
@@ -50,5 +54,9 @@ firebase.auth().onAuthStateChanged(async (user)=>{
     console.error('KronoOP: falha ao carregar perfil autenticado.', e);
     showLoginErrorReal('Não foi possível carregar seu perfil. Tente novamente.');
     await KronoAuth.signOutUser();
+  }finally{
+    clearTimeout(slowHintTimer);
+    btn.disabled = false;
+    btn.textContent = btnLabel;
   }
 });
