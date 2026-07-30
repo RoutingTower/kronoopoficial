@@ -14,11 +14,6 @@ function bindMainEvents(){
     const lembreteData = dataInput.value || todayISO();
     const entrada = {origem:'self', analistaId:session.userId, criadoPor:session.name, texto:txt, observacoes: obsInput.value.trim(), data: lembreteData, hora: horaInput.value||''};
     uiState.lembretesDate = lembreteData;
-    if(session.demoMode){
-      DB.lembretes.push({id:uid('lb'), ...entrada, done:false, ts:Date.now()});
-      renderMain();
-      return;
-    }
     try{
       const novo = await apiCreateLembrete(entrada);
       DB.lembretes.push(novo);
@@ -34,7 +29,6 @@ function bindMainEvents(){
       const l = DB.lembretes.find(x=>x.id===el.dataset.lembreteToggle);
       if(!l) return;
       const done = !l.done;
-      if(session.demoMode){ l.done = done; renderMain(); return; }
       try{ await apiUpdateLembrete(l.id, {done}); l.done = done; renderMain(); }
       catch(e){ alert('Não foi possível atualizar o lembrete: '+e.message); }
     });
@@ -43,7 +37,6 @@ function bindMainEvents(){
     btn.addEventListener('click', async (e)=>{
       e.stopPropagation();
       const id = btn.dataset.lembreteDel;
-      if(session.demoMode){ DB.lembretes = DB.lembretes.filter(x=>x.id!==id); renderMain(); return; }
       try{ await apiDeleteLembrete(id); DB.lembretes = DB.lembretes.filter(x=>x.id!==id); renderMain(); }
       catch(e){ alert('Não foi possível excluir o lembrete: '+e.message); }
     });
@@ -60,10 +53,6 @@ function bindMainEvents(){
     btn.addEventListener('click', async ()=>{
       const r = DB.recados.find(x=>x.id===btn.dataset.confirmarLeitura);
       if(!r) return;
-      if(session.demoMode){
-        r.lidoPor = r.lidoPor||[]; if(!r.lidoPor.includes(session.userId)) r.lidoPor.push(session.userId);
-        renderMain(); return;
-      }
       try{
         const atualizado = await apiUpdateRecado(r.id, {marcarLido: session.userId});
         r.lidoPor = atualizado.lidoPor;
@@ -148,11 +137,6 @@ function bindMainEvents(){
         const observacao = obsEl.value.trim();
         if(estrelas<1 || observacao.length<RAIOX_MIN_OBS_LEN) return;
         const entrada = {analistaId:session.userId, operacao:op, hora, data, estrelas, observacao};
-        if(session.demoMode){
-          DB.raioX.push({id:uid('rx'), ...entrada, ts:Date.now()});
-          closeModal(); renderMain();
-          return;
-        }
         confirmBtn.disabled = true;
         try{
           const novo = await apiCreateRaioX(entrada);
@@ -193,11 +177,6 @@ function bindMainEvents(){
       const horaFim = document.getElementById('fJHf').value;
       if(!name || !email) return;
       const jornada = {dias, horaInicio, horaFim};
-      if(session.demoMode){
-        DB.users.push({id:uid('u_ana'), role:'analista', name, email, supervisorId:session.userId, active:true, jornada});
-        closeModal(); renderMain();
-        return;
-      }
       try{
         const novo = await apiCreateUser({ role:'analista', name, email, password, supervisorId:session.userId, jornada });
         DB.users.push(novo);
@@ -225,10 +204,6 @@ function bindMainEvents(){
       if(!name || !email){ fail++; continue; }
       const dias = (r.dias||'').split(',').map(d=>d.trim().toLowerCase()).filter(Boolean);
       const jornada = { dias: dias.length?dias:['seg','ter','qua','qui','sex'], horaInicio:r.hora_inicio||'19:00', horaFim:r.hora_fim||'01:00' };
-      if(session.demoMode){
-        DB.users.push({id:uid('u_ana'), role:'analista', name, email, supervisorId:session.userId, active:true, jornada});
-        ok++; continue;
-      }
       const password = (r.senha||'').trim() || 'demo123';
       try{
         const novo = await apiCreateUser({ role:'analista', name, email, password, supervisorId:session.userId, jornada });
@@ -263,7 +238,6 @@ function bindMainEvents(){
       const entrada = {analistaId, operacao:document.getElementById('fOp').value||'OP', ciclo:document.getElementById('fCiclo').value,
         horaInicio:document.getElementById('fHi').value, horaFim:document.getElementById('fHf').value, titular,
         dataInicio:document.getElementById('fDi').value, dataFim:document.getElementById('fDf').value};
-      if(session.demoMode){ DB.baseMestra.push({id:uid('bm'), ...entrada}); closeModal(); renderMain(); return; }
       try{
         const novo = await apiCreateBaseMestra(entrada);
         DB.baseMestra.push(novo);
@@ -293,7 +267,6 @@ function bindMainEvents(){
       const entrada = {operacao:document.getElementById('fOp2').value||'OP', ciclo:'T3',
         horaInicio:document.getElementById('fHi2').value, horaFim:document.getElementById('fHf2').value,
         suplente:document.getElementById('fSup').value||'—', dataCobertura:document.getElementById('fData').value, analistaOriginalId};
-      if(session.demoMode){ DB.suplencias.push({id:uid('sp'), ...entrada}); closeModal(); renderMain(); return; }
       try{
         const novo = await apiCreateSuplencia(entrada);
         DB.suplencias.push(novo);
@@ -351,10 +324,6 @@ function bindMainEvents(){
       const bm = DB.baseMestra.find(b=>b.id===it.bmId);
       const entrada = {analistaId:st.analistaId, baseMestraId:bm.id, operacao:bm.operacao, ciclo:bm.ciclo,
         horaInicio:bm.horaInicio, horaFim:bm.horaFim, data:st.data, tipo:st.tipo, suplenteId:it.chosenId};
-      if(session.demoMode){
-        DB.ausencias.push({id:uid('af'), ...entrada});
-        count++; continue;
-      }
       try{
         const novo = await apiCreateAusencia(entrada);
         DB.ausencias.push(novo);
@@ -389,7 +358,6 @@ function bindMainEvents(){
       const analistaIds = tipo==='individual' ? [document.getElementById('fRAnalista').value] : [];
       const entrada = {tipo, titulo:document.getElementById('fRTitulo').value||'Reunião', data:document.getElementById('fRData').value,
         hora:document.getElementById('fRHora').value, analistaIds, supervisorId:session.userId, criadoPor:session.name};
-      if(session.demoMode){ DB.reunioes.push({id:uid('rn'), ...entrada}); closeModal(); renderMain(); return; }
       try{
         const novo = await apiCreateReuniao(entrada);
         DB.reunioes.push(novo);
@@ -413,7 +381,6 @@ function bindMainEvents(){
     document.getElementById('confirmNovoPlantao').onclick = async ()=>{
       const entrada = {supervisorAusenteId:session.userId, data:document.getElementById('fPData').value,
         coberturaRole:document.getElementById('fPRole').value, coberturaNome:document.getElementById('fPNome').value||'—'};
-      if(session.demoMode){ DB.plantoes.push({id:uid('pl'), ...entrada}); closeModal(); renderMain(); return; }
       try{
         const novo = await apiCreatePlantao(entrada);
         DB.plantoes.push(novo);
@@ -444,7 +411,6 @@ function bindMainEvents(){
       const entrada = {analistaId:a.id, operacao:r.operacao, ciclo:r.ciclo||'T3',
         horaInicio:r.hora_inicio, horaFim:r.hora_fim, titular:a.name,
         dataInicio:r.data_inicio||todayISO(), dataFim:r.data_fim||'2026-12-31'};
-      if(session.demoMode){ DB.baseMestra.push({id:uid('bm'), ...entrada}); ok++; continue; }
       try{ DB.baseMestra.push(await apiCreateBaseMestra(entrada)); ok++; }
       catch(e){ console.error('Falha ao importar', r.analista, e); fail++; }
     }
@@ -456,7 +422,6 @@ function bindMainEvents(){
     btn.addEventListener('click', async ()=>{
       if(!confirm('Excluir esta operação fixa? Ela deixará de aparecer na base do analista.')) return;
       const id = btn.dataset.excluirMestra;
-      if(session.demoMode){ DB.baseMestra = DB.baseMestra.filter(x=>x.id!==id); renderMain(); return; }
       try{ await apiDeleteBaseMestra(id); DB.baseMestra = DB.baseMestra.filter(x=>x.id!==id); renderMain(); }
       catch(e){ alert('Não foi possível excluir: '+e.message); }
     });
@@ -484,7 +449,6 @@ function bindMainEvents(){
       const entrada = {operacao:r.operacao, ciclo:r.ciclo||'T3',
         horaInicio:r.hora_inicio, horaFim:r.hora_fim, suplente:r.suplente,
         dataCobertura:r.data_cobertura, analistaOriginalId:orig.id};
-      if(session.demoMode){ DB.suplencias.push({id:uid('sp'), ...entrada}); ok++; continue; }
       try{ DB.suplencias.push(await apiCreateSuplencia(entrada)); ok++; }
       catch(e){ console.error('Falha ao importar cobertura', e); fail++; }
     }
@@ -496,7 +460,6 @@ function bindMainEvents(){
     btn.addEventListener('click', async ()=>{
       if(!confirm('Excluir esta cobertura avulsa?')) return;
       const id = btn.dataset.excluirSuplencia;
-      if(session.demoMode){ DB.suplencias = DB.suplencias.filter(x=>x.id!==id); renderMain(); return; }
       try{ await apiDeleteSuplencia(id); DB.suplencias = DB.suplencias.filter(x=>x.id!==id); renderMain(); }
       catch(e){ alert('Não foi possível excluir: '+e.message); }
     });
@@ -528,7 +491,6 @@ function bindMainEvents(){
       const suplenteMatch = myAnalistas.find(x=>x.name.trim().toLowerCase()===(r.suplente||'').trim().toLowerCase());
       const entrada = {analistaId:a.id, baseMestraId:bm.id, operacao:bm.operacao, ciclo:bm.ciclo,
         horaInicio:bm.horaInicio, horaFim:bm.horaFim, data:r.data, tipo, suplenteId:suplenteMatch?.id||null, suplenteNome:suplenteMatch?null:(r.suplente||'')};
-      if(session.demoMode){ DB.ausencias.push({id:uid('af'), ...entrada}); ok++; continue; }
       try{ DB.ausencias.push(await apiCreateAusencia(entrada)); ok++; }
       catch(e){ console.error('Falha ao importar ausência', e); fail++; }
     }
@@ -572,7 +534,6 @@ function bindMainEvents(){
           suplenteId: supMatch?.id || null,
           suplenteNome: supMatch ? null : (supName || ''),
         };
-        if(session.demoMode){ Object.assign(a, patch); closeModal(); renderMain(); return; }
         try{
           const atualizado = await apiUpdateAusencia(a.id, patch);
           Object.assign(a, atualizado);
@@ -585,7 +546,6 @@ function bindMainEvents(){
     btn.addEventListener('click', async ()=>{
       if(!confirm('Excluir este registro de folga/férias?')) return;
       const id = btn.dataset.excluirAusencia;
-      if(session.demoMode){ DB.ausencias = DB.ausencias.filter(x=>x.id!==id); renderMain(); return; }
       try{ await apiDeleteAusencia(id); DB.ausencias = DB.ausencias.filter(x=>x.id!==id); renderMain(); }
       catch(e){ alert('Não foi possível excluir: '+e.message); }
     });
@@ -612,7 +572,6 @@ function bindMainEvents(){
           titulo: document.getElementById('fEditRecadoTitulo').value.trim(),
           observacoes: document.getElementById('fEditRecadoObs').value.trim(),
         };
-        if(session.demoMode){ Object.assign(r, patch, {editado:true}); closeModal(); renderMain(); return; }
         try{
           const atualizado = await apiUpdateRecado(r.id, patch);
           Object.assign(r, atualizado);
@@ -625,7 +584,6 @@ function bindMainEvents(){
     btn.addEventListener('click', async ()=>{
       if(!confirm('Excluir este comunicado? Ele deixará de aparecer para os analistas.')) return;
       const id = btn.dataset.excluirRecado;
-      if(session.demoMode){ DB.recados = DB.recados.filter(x=>x.id!==id); renderMain(); return; }
       try{ await apiDeleteRecado(id); DB.recados = DB.recados.filter(x=>x.id!==id); renderMain(); }
       catch(e){ alert('Não foi possível excluir: '+e.message); }
     });
@@ -642,7 +600,6 @@ function bindMainEvents(){
     const data = document.getElementById('lembreteData').value || todayISO();
     const hora = document.getElementById('lembreteHora').value || '';
     const entrada = {origem:'supervisor', target, criadoPor:session.name, titulo, texto:txt, observacoes: obs, data, hora};
-    if(session.demoMode){ DB.lembretes.push({id:uid('lb'), ...entrada, done:false, ts:Date.now()}); renderMain(); return; }
     try{
       const novo = await apiCreateLembrete(entrada);
       DB.lembretes.push(novo);
@@ -657,7 +614,6 @@ function bindMainEvents(){
     const titulo = document.getElementById('transmTitulo').value.trim();
     const obs = document.getElementById('transmObs').value.trim();
     const entrada = {from:`${session.name} (Supervisor)`, to:'all_ana_'+session.userId, titulo, texto:txt, observacoes: obs};
-    if(session.demoMode){ DB.recados.push({id:uid('rc'), ...entrada, ts:Date.now(), lidoPor:[]}); renderMain(); return; }
     try{
       const novo = await apiCreateRecado(entrada);
       DB.recados.push(novo);
@@ -679,7 +635,6 @@ function bindMainEvents(){
     btn.addEventListener('click', async ()=>{
       if(!confirm('Excluir este lembrete enviado?')) return;
       const id = btn.dataset.excluirLembreteEnviado;
-      if(session.demoMode){ DB.lembretes = DB.lembretes.filter(x=>x.id!==id); renderMain(); return; }
       try{ await apiDeleteLembrete(id); DB.lembretes = DB.lembretes.filter(x=>x.id!==id); renderMain(); }
       catch(e){ alert('Não foi possível excluir: '+e.message); }
     });
@@ -709,7 +664,6 @@ function bindMainEvents(){
       if(cancelBtn) cancelBtn.onclick = closeModal;
       document.getElementById('confirmReset').onclick = async ()=>{
         const novaSenha = document.getElementById('fNewPass').value || 'demo123';
-        if(session.demoMode){ closeModal(); return; } // sem conta real pra resetar
         try{
           await apiUpdateUser(u.id, { password: novaSenha });
           closeModal();
@@ -723,11 +677,6 @@ function bindMainEvents(){
       const u = userById(btn.dataset.excluirAnalista);
       if(!u) return;
       if(!confirm(`Excluir ${u.name}? Essa ação não pode ser desfeita.`)) return;
-      if(session.demoMode){
-        DB.users = DB.users.filter(x=>x.id!==u.id);
-        renderMain();
-        return;
-      }
       try{
         await apiDeleteUser(u.id);
         DB.users = DB.users.filter(x=>x.id!==u.id);
@@ -753,11 +702,6 @@ function bindMainEvents(){
       const email = document.getElementById('fEmail2').value.trim();
       const password = document.getElementById('fPass2').value.trim() || 'demo123';
       if(!name || !email) return;
-      if(session.demoMode){
-        DB.users.push({id:uid('u_sup'), role:'supervisor', name, email, coordenadorId:session.userId, active:true});
-        closeModal(); renderMain();
-        return;
-      }
       try{
         const novo = await apiCreateUser({ role:'supervisor', name, email, password, coordenadorId:session.userId });
         DB.users.push(novo);

@@ -14,7 +14,7 @@ const KronoAuth = {
     try{ await _fbAuth.signOut(); }catch(e){ /* sessão local já é limpa de qualquer forma */ }
   },
   // Token do usuário logado, para anexar em "Authorization: Bearer <token>".
-  // Retorna null se não houver sessão real do Firebase Auth (ex.: modo demonstração).
+  // Retorna null se não houver sessão ativa do Firebase Auth.
   async getIdToken(){
     const user = _fbAuth.currentUser;
     if(!user) return null;

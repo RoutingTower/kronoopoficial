@@ -33,39 +33,16 @@
     </div>
     <p class="login-sub">Entre com seu e-mail e senha cadastrados.</p>
 
-    <div id="view-login-real">
-      <div id="loginErrorReal" class="login-error"></div>
-      <div class="field">
-        <label>E-mail</label>
-        <input type="email" id="loginEmail" placeholder="voce@empresa.com" autocomplete="username">
-      </div>
-      <div class="field">
-        <label>Senha</label>
-        <input type="password" id="loginPassReal" placeholder="••••••••" autocomplete="current-password">
-      </div>
-      <button class="btn-primary" id="loginBtnReal">Entrar</button>
-      <div class="login-hint"><a href="#" id="toggleDemoMode">Usar modo demonstração (sem conta)</a></div>
+    <div id="loginErrorReal" class="login-error"></div>
+    <div class="field">
+      <label>E-mail</label>
+      <input type="email" id="loginEmail" placeholder="voce@empresa.com" autocomplete="username">
     </div>
-
-    <div id="view-login-demo" style="display:none;">
-      <div id="loginError" class="login-error"></div>
-      <div class="role-grid" id="roleGrid">
-        <button class="role-btn active" data-role="analista">Analista</button>
-        <button class="role-btn" data-role="supervisor">Supervisor</button>
-        <button class="role-btn" data-role="coordenador">Coordenador</button>
-      </div>
-      <div class="field">
-        <label>Nome cadastrado</label>
-        <select id="loginName"></select>
-      </div>
-      <div class="field">
-        <label>Senha</label>
-        <input type="password" id="loginPass" placeholder="••••••••">
-      </div>
-      <button class="btn-primary" id="loginBtn">Entrar</button>
-      <div class="login-hint">Modo demonstração — senha: <span class="mono">demo123</span> para todos os perfis. Dados ficam só nesta sessão, nada é salvo.</div>
-      <div class="login-hint"><a href="#" id="toggleRealMode">Voltar para login com conta</a></div>
+    <div class="field">
+      <label>Senha</label>
+      <input type="password" id="loginPassReal" placeholder="••••••••" autocomplete="current-password">
     </div>
+    <button class="btn-primary" id="loginBtnReal">Entrar</button>
   </div>
 </div>
 

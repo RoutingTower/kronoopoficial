@@ -55,7 +55,7 @@ significa, volte aqui.
 
 - [ ] Parte 0 — Pré-requisitos (contas, cartão, programas)
 - [ ] Parte 1 — Instalar ferramentas na sua máquina
-- [ ] Parte 2 — Testar o projeto localmente (modo demonstração)
+- [ ] Parte 2 — Conferir que o frontend abre
 - [ ] Parte 3 — Criar o banco de dados real (Firebase)
 - [ ] Parte 4 — Testar o backend local com o banco real
 - [ ] Parte 5 — Publicar o backend (Cloud Run)
@@ -152,22 +152,21 @@ sua máquina está pronta.
 
 ---
 
-## Parte 2 — Testar o projeto localmente (modo demonstração)
+## Parte 2 — Conferir que o frontend abre
 
-Antes de mexer em qualquer conta, confirme que o projeto que você
-recebeu funciona por si só.
+Não existe modo offline neste projeto — login e dados sempre exigem o
+backend e o Firebase configurados (próximas partes). Por enquanto, só
+confirme que o arquivo abre sem erro:
 
 1. Encontre a pasta do projeto (`KronoOP-cliente` ou o nome que você deu
    a ela) no Explorador de Arquivos.
 2. Entre na pasta `frontend/` e dê duplo-clique em `index.html`. Ele deve
-   abrir no seu navegador.
-3. Faça login com qualquer nome de usuário mostrado na tela e a senha
-   `demo123`.
+   abrir no seu navegador, mostrando a tela de login (campos de e-mail e
+   senha).
 
-Se o login funcionou e você viu a tela principal do sistema, o frontend
-está OK — os dados neste momento são simulados (não fica salvo nada
-ainda, é só para conferir que o código funciona). Feche essa aba, vamos
-seguir para o banco de dados real.
+Se a tela apareceu sem erro no console (F12 → Console), o frontend está
+OK. Tentar logar agora vai dar erro de conexão — normal, ainda não existe
+backend rodando. Feche essa aba, vamos seguir para o banco de dados real.
 
 ---
 
@@ -200,8 +199,8 @@ seguir para o banco de dados real.
 2. Aba **"Sign-in method"** → clique em **"E-mail/senha"**.
 3. Ative o primeiro toggle e clique em **"Salvar"**.
 
-(Isso só deixa o método pronto para uso futuro — o login de hoje ainda é
-simplificado, ver [`ROADMAP.md`](ROADMAP.md) para essa evolução depois.)
+(É esse método que o login do app usa de verdade — sem isso ativado,
+ninguém consegue logar.)
 
 ### 3.4 — Gerar a service account (a credencial do backend)
 
@@ -279,16 +278,24 @@ erros. **Deixe essa janela aberta e rodando** — ela é o backend.
 Se aparecer um erro de credencial aqui, volte ao Passo 3.5 — é quase
 sempre o `FIREBASE_PRIVATE_KEY` colado errado.
 
+Popule o Firestore com os dados de demonstração — em outro terminal,
+dentro de `backend/`:
+```powershell
+node scripts/seed-firestore.js
+```
+Isso cria 7 usuários de verdade no Firebase Auth (senha `demo123` para
+todos) e popula as coleções (`baseMestra`, `ausencias`, etc.) no
+Firestore. Confira no [Firebase Console](https://console.firebase.google.com)
+→ seu projeto → Firestore Database — devem aparecer várias coleções com
+documentos.
+
 Agora, para testar de ponta a ponta:
 1. Abra `frontend/index.html` de novo no navegador.
-2. Faça login com um usuário de demonstração (senha `demo123`).
-3. Como o Firestore está vazio, o próprio app popula ele sozinho na
-   primeira vez que carrega — você não precisa rodar nenhum script.
-4. Crie um lembrete, ou finalize uma operação qualquer.
-5. Vá no [Firebase Console](https://console.firebase.google.com) → seu
-   projeto → Firestore Database. Deve aparecer uma coleção `state` com um
-   documento `main` — e, se você criou um lembrete, também uma coleção
-   `lembretes`.
+2. Faça login com um dos usuários criados pelo seed — ex.:
+   `marina.cordeiro@kronoop.local`, senha `demo123`.
+3. Crie um lembrete, ou finalize uma operação qualquer.
+4. Volte ao Firestore Database no console — o dado que você criou deve
+   aparecer na coleção correspondente (ex.: `lembretes`).
 
 **Se os dados apareceram no Firestore Console, o banco está funcionando
 de ponta a ponta.** Pode deixar esse backend local rodando ou parar com
@@ -403,18 +410,17 @@ firebase deploy --only hosting
 Ao final, aparece uma linha **"Hosting URL"** — algo como
 `https://kronoop-a1b2c.web.app`. **Esse é o endereço do seu site.**
 
-### 6.3 — Conferir que o site abriu (ainda em modo demonstração)
+### 6.3 — Conferir que o site abriu
 
-Abra a Hosting URL no navegador e faça login com um usuário de
-demonstração. Neste momento o site ainda não está falando com o backend
-publicado (só com o de demonstração local), porque falta o próximo
-passo.
+Abra a Hosting URL no navegador. Como não existe modo offline, tentar
+logar agora dá erro de conexão — normal, falta o próximo passo (apontar o
+frontend pro backend publicado).
 
 ---
 
 ## Parte 7 — Conectar frontend e backend publicados
 
-1. Abra o arquivo `frontend/js/state.js` num editor de texto.
+1. Abra o arquivo `frontend/js/config.js` num editor de texto.
 2. Encontre esta linha (perto do topo do arquivo):
    ```js
    const API_BASE = isLocalDev ? 'http://localhost:3001/api' : 'https://SEU-BACKEND.onrender.com/api';
@@ -437,11 +443,12 @@ passo.
 
 1. Abra a Hosting URL (`https://kronoop-a1b2c.web.app`) — se possível,
    numa aba anônima/privada, para garantir que não é cache antigo.
-2. Faça login com um usuário de demonstração (senha `demo123`).
+2. Faça login com um dos usuários criados pelo seed (Parte 4) — ex.:
+   `marina.cordeiro@kronoop.local`, senha `demo123`.
 3. Crie um lembrete, ou finalize uma operação qualquer.
-4. **Recarregue a página inteira** (F5). O dado deve continuar lá — isso
-   prova que está gravando no Firestore real, e não caindo de volta no
-   modo demonstração.
+4. **Recarregue a página inteira** (F5). O dado deve continuar lá e você
+   deve continuar logado — isso prova que está gravando no Firestore real
+   e que a sessão persiste.
 5. Confira no [Firebase Console](https://console.firebase.google.com) →
    Firestore Database → o documento/coleção apareceu.
 

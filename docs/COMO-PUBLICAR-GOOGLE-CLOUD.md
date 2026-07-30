@@ -54,11 +54,11 @@ firebase --version
 
 ---
 
-## Passo 1 — Rodar localmente com dados de demonstração
+## Passo 1 — Conferir o frontend e preparar o backend local
 
-Igual ao guia original — veja [`COMO-PUBLICAR.md`, Passo 1](COMO-PUBLICAR.md#passo-1--rodar-localmente-com-dados-de-demonstração).
-Confirme que `frontend/index.html` abre e loga com senha `demo123` antes
-de tocar em qualquer conta.
+Igual ao guia original — veja [`COMO-PUBLICAR.md`, Passo 1](COMO-PUBLICAR.md#passo-1--conferir-o-frontend-e-preparar-o-backend-local).
+Confirme que `frontend/index.html` abre e mostra a tela de login
+(e-mail/senha), sem erro no console, antes de tocar em qualquer conta.
 
 ---
 
@@ -188,7 +188,8 @@ aqui.
 ## Passo 6 — Verificação final
 
 1. Abra `https://seu-project-id.web.app`.
-2. Faça login com um usuário de demonstração (senha `demo123`).
+2. Faça login com e-mail/senha de um usuário real (criado via
+   `backend/scripts/seed-firestore.js` ou pelo próprio app).
 3. Crie um lembrete ou finalize uma operação.
 4. Recarregue a página — o dado deve continuar lá (prova que está
    gravando no Firestore real).

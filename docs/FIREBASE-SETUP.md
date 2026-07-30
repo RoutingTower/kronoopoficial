@@ -90,9 +90,9 @@ app faz essa primeira escrita sozinho (Passo 7).
    de login sem senha. Clique em **"Salvar"**.
 
 Isso deixa o provedor pronto, mas **nenhum usuário existe ainda** — os
-usuários de hoje (`DB.users` no `seedDB()`) não viram usuários do Firebase
-Auth automaticamente. Criar os usuários reais é trabalho do Passo 9
-(trocar o login), não deste passo.
+documentos em `users/` no Firestore não viram usuários do Firebase Auth
+automaticamente. Criar os usuários reais é trabalho do Passo 9 (trocar o
+login), não deste passo.
 
 ---
 
@@ -271,8 +271,8 @@ tarefa pendente:
   `/health`) exige um Firebase ID token válido, e cada mutação tem
   autorização por `role` (supervisor só mexe na própria equipe, etc.) —
   ver [`../backend/README.md`](../backend/README.md) → "Autenticação"
-  para a lista completa. Um "modo demonstração" na tela de login preserva
-  o uso 100% offline sem precisar de conta.
+  para a lista completa. Não existe modo offline/demonstração — login
+  sempre passa pelo Firebase Auth e pelo backend de verdade.
 
 ---
 

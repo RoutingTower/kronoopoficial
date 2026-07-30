@@ -14,9 +14,9 @@ frontend/
   js/
     config.js                API_BASE e firebaseConfig — único arquivo que muda entre dev/produção
     firebase-init.js         inicializa o Firebase Auth (SDK "compat") e expõe window.KronoAuth
-    utils.js                 funções puras: datas, formatação, CSV/Excel, cálculo de status
-    state.js                 DB em memória, seedDB(), loadDB(), apiRequest() + apiCreateX/apiUpdateX/apiDeleteX por recurso, uiState
-    ui.js                    login (real + modo demonstração), navegação (NAV, buildNav, visibleNavItems), modal, renderMain (roteador)
+    utils.js                 funções puras: datas, formatação, Excel, cálculo de status
+    state.js                 DB em memória, loadDB(), apiRequest() + apiCreateX/apiUpdateX/apiDeleteX por recurso, uiState
+    ui.js                    login, navegação (NAV, buildNav, visibleNavItems), modal, renderMain (roteador)
     render-analista.js       telas do papel Analista
     render-supervisor.js     telas do papel Supervisor
     render-coordenador.js    telas do papel Coordenador
@@ -53,10 +53,9 @@ Elementos **fixos** que nunca são recriados (`#logoutBtn`, `#modalBg`,
 ### Mutações (criar/editar/excluir)
 Cada recurso tem endpoint próprio (ver `backend/README.md` → "Módulos
 implementados") — não existe mais um `saveDB()` genérico. Todo handler de
-mutação segue o mesmo padrão: monta o objeto (`entrada`/`patch`) → se
-`session.demoMode`, muta `DB` localmente e re-renderiza (sem tocar rede) →
-senão, `try { await apiCreateX/apiUpdateX/apiDeleteX(...); muta DB local
-com a resposta; renderMain(); } catch(e){ alert('Não foi possível ...: '+e.message); }`.
+mutação segue o mesmo padrão: monta o objeto (`entrada`/`patch`) →
+`try { await apiCreateX/apiUpdateX/apiDeleteX(...); muta DB local com a
+resposta; renderMain(); } catch(e){ alert('Não foi possível ...: '+e.message); }`.
 Os helpers `apiCreateX`/`apiUpdateX`/`apiDeleteX` (em `state.js`) já
 anexam o Firebase ID token e lançam com a mensagem que o backend manda.
 Exemplo (`data-excluir-suplencia`):
@@ -65,7 +64,6 @@ main.querySelectorAll('[data-excluir-suplencia]').forEach(btn=>{
   btn.addEventListener('click', async ()=>{
     if(!confirm('Excluir esta cobertura avulsa?')) return;
     const id = btn.dataset.excluirSuplencia;
-    if(session.demoMode){ DB.suplencias = DB.suplencias.filter(x=>x.id!==id); renderMain(); return; }
     try{ await apiDeleteSuplencia(id); DB.suplencias = DB.suplencias.filter(x=>x.id!==id); renderMain(); }
     catch(e){ alert('Não foi possível excluir: '+e.message); }
   });
@@ -77,7 +75,7 @@ main.querySelectorAll('[data-excluir-suplencia]').forEach(btn=>{
 `#modalBody` fixo e mostram `#modalBg`. Todo modal de formulário segue:
 botão `data-modal-cancel` → `closeModal`, botão de confirmar com `id`
 próprio (`confirmXxx`) → valida, segue o padrão de mutação acima
-(demoMode local vs. `apiCreateX`/`apiUpdateX` com try/catch), termina com
+(`apiCreateX`/`apiUpdateX` com try/catch), termina com
 `closeModal(); renderMain();`.
 
 ### Filtros com estado (data + dropdown)

@@ -1,9 +1,7 @@
-// Popula o Firestore real com os dados de demonstração do projeto —
-// os mesmos que frontend/js/state.js gera em seedDB(), mas com IDs fixos
-// (em vez de aleatórios) para manter as referências entre coleções
-// estáveis a cada execução. Roda uma vez (ou quando quiser resetar os
-// dados de demonstração): `node scripts/seed-firestore.js` (a partir de
-// backend/).
+// Popula o Firestore real com um dataset de exemplo, com IDs fixos (em
+// vez de aleatórios) para manter as referências entre coleções estáveis
+// a cada execução. Roda uma vez (ou quando quiser resetar os dados):
+// `node scripts/seed-firestore.js` (a partir de backend/).
 //
 // Popula as coleções individuais (users, baseMestra, ausencias, suplencias,
 // raioX, recados, reunioes, plantoes, lembretes) — cada uma com endpoint

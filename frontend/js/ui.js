@@ -14,17 +14,6 @@ function showLoginErrorReal(msg){
 function initLogin(){
   document.getElementById('loginBtnReal').addEventListener('click', doRealLogin);
   document.getElementById('loginPassReal').addEventListener('keydown', e=>{ if(e.key==='Enter') doRealLogin(); });
-  document.getElementById('toggleDemoMode').addEventListener('click', e=>{
-    e.preventDefault();
-    document.getElementById('view-login-real').style.display='none';
-    document.getElementById('view-login-demo').style.display='block';
-  });
-  document.getElementById('toggleRealMode').addEventListener('click', e=>{
-    e.preventDefault();
-    document.getElementById('view-login-demo').style.display='none';
-    document.getElementById('view-login-real').style.display='block';
-  });
-  initDemoLogin();
 }
 
 async function doRealLogin(){
@@ -44,45 +33,6 @@ async function doRealLogin(){
     btn.disabled = false;
   }
 }
-
-// --- Modo demonstração (offline, sem Firebase) -------------------------
-
-function populateLoginNames(role){
-  const sel = document.getElementById('loginName');
-  const list = usersByRole(role).filter(u=>u.active);
-  sel.innerHTML = list.map(u=>`<option value="${u.id}">${u.name}</option>`).join('') || '<option value="">Nenhum cadastrado</option>';
-}
-
-function initDemoLogin(){
-  let currentRole = 'analista';
-  DB = DB || seedDB();
-  populateLoginNames(currentRole);
-  document.getElementById('roleGrid').addEventListener('click', e=>{
-    const btn = e.target.closest('.role-btn'); if(!btn) return;
-    document.querySelectorAll('.role-btn').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    currentRole = btn.dataset.role;
-    populateLoginNames(currentRole);
-  });
-  document.getElementById('loginBtn').addEventListener('click', ()=>{
-    DB = seedDB(); // modo demonstração nunca reaproveita dados reais já carregados
-    populateLoginNames(currentRole);
-    const id = document.getElementById('loginName').value;
-    const pass = document.getElementById('loginPass').value;
-    const errEl = document.getElementById('loginError');
-    const u = userById(id);
-    if(!u || u.pass !== pass){
-      errEl.textContent = 'Credenciais inválidas. Verifique o nome e a senha.';
-      errEl.style.display='block';
-      return;
-    }
-    errEl.style.display='none';
-    session = { role:u.role, userId:u.id, name:u.name, demoMode:true };
-    enterApp();
-  });
-}
-
-// --- Comum aos dois modos ------------------------------------------------
 
 function enterApp(){
   const loginEl = document.getElementById('view-login');
@@ -106,7 +56,6 @@ function enterApp(){
 }
 
 async function exitApp(){
-  const wasDemo = session?.demoMode;
   session = null;
   const loginEl = document.getElementById('view-login');
   const appEl = document.getElementById('view-app');
@@ -114,9 +63,8 @@ async function exitApp(){
   appEl.style.display='none';
   loginEl.style.display='flex';
   loginEl.classList.remove('leaving');
-  document.getElementById('loginPass').value='';
   document.getElementById('loginPassReal').value='';
-  if(!wasDemo) await KronoAuth.signOutUser(); // dispara onAuthStateChanged(null) -> volta pro login real
+  await KronoAuth.signOutUser(); // dispara onAuthStateChanged(null) -> volta pro login
 }
 
 
@@ -217,8 +165,7 @@ function openMenuConfigModal(){
   document.getElementById('menucfgSave').onclick = async ()=>{
     if(order.length - hidden.length === 0){ alert('Deixe ao menos um item visível.'); return; }
     const navConfig = { order, hidden };
-    me.navConfig = navConfig; // users já migrado do blob (ver state.js/loadDB) — atualiza local pra UI refletir na hora
-    if(session.demoMode){ closeModal(); buildNav(); renderMain(); return; }
+    me.navConfig = navConfig; // atualiza local pra UI refletir na hora, antes da resposta do backend
     try{
       await apiUpdateUser(session.userId, { navConfig });
       closeModal(); buildNav(); renderMain();

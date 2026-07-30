@@ -80,9 +80,10 @@ melhorias futuras, veja [`docs/README.md`](docs/README.md).
 
 ## Estado do código
 
-- **Frontend**: funcional, roda sozinho abrindo `frontend/index.html`
-  (cai em dados de demonstração — `seedDB()` — se não houver backend
-  configurado).
+- **Frontend**: exige login real (Firebase Authentication) e o backend
+  configurado — não existe mais modo offline/demonstração. Abrir
+  `frontend/index.html` sem um backend acessível mostra erro de conexão
+  na tela de login, em vez de cair em dados fictícios.
 - **Backend**: todos os recursos têm CRUD completo — ver
   `backend/README.md` → "Módulos implementados". Já conectado a um
   projeto Firebase de produção (`kronosop-prod`) e publicado no Render —
@@ -90,9 +91,7 @@ melhorias futuras, veja [`docs/README.md`](docs/README.md).
 - **Login**: e-mail/senha via Firebase Authentication — não existe mais
   senha em texto plano em nenhuma coleção do Firestore. Toda rota da API
   exige um token válido, e cada mutação tem autorização por `role`
-  (supervisor só mexe na própria equipe, etc.). Um "modo demonstração"
-  opcional na tela de login preserva o uso 100% offline (sem conta, sem
-  backend) para quem só quer testar o protótipo. Ver `backend/README.md`
+  (supervisor só mexe na própria equipe, etc.). Ver `backend/README.md`
   → "Autenticação".
 - **Segurança do Firestore**: `firestore.rules` publicado (leitura
   autenticada, escrita só via backend) — ver `docs/ROADMAP.md`, item 5.

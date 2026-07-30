@@ -46,8 +46,7 @@ precisa existir nos dois lados:
 
 Padrão usado em todas as listas do projeto (Cadastros, Operações Fixas,
 Cobertura, folgas/férias, etc.) — ver [`FRONTEND.md`](FRONTEND.md) →
-"Mutações" para o modelo completo (inclusive o desvio de modo
-demonstração):
+"Mutações" para o modelo completo:
 
 ```js
 // no template de render:
@@ -58,7 +57,6 @@ main.querySelectorAll('[data-excluir-x]').forEach(btn=>{
   btn.addEventListener('click', async ()=>{
     if(!confirm('Excluir <descrição do que some>?')) return;
     const id = btn.dataset.excluirX;
-    if(session.demoMode){ DB.x = DB.x.filter(i=>i.id!==id); renderMain(); return; }
     try{ await apiDeleteX(id); DB.x = DB.x.filter(i=>i.id!==id); renderMain(); }
     catch(e){ alert('Não foi possível excluir: '+e.message); }
   });
@@ -66,7 +64,7 @@ main.querySelectorAll('[data-excluir-x]').forEach(btn=>{
 ```
 Para editar, troque o `confirm` por `openModal(...)` com os campos
 preenchidos com os valores atuais do item, e o botão de confirmar chama
-`apiUpdateX(id, patch)` (mesmo padrão demoMode/try-catch). Se o recurso
+`apiUpdateX(id, patch)` (mesmo padrão try/catch). Se o recurso
 tem regra de "quem pode mexer em quê" (a maioria tem — ver
 `backend/README.md` → "Autenticação"), lembre de adicionar o
 `apiCreateX`/`apiUpdateX`/`apiDeleteX` correspondente em `state.js` antes,
@@ -91,15 +89,14 @@ desenvolvimento deste projeto:
    seu projeto Firebase, e sirva `frontend/` (`npx http-server frontend
    -p 8080` ou abra `frontend/index.html` direto via `file://`, ambos
    funcionam).
-2. Faça login de verdade (e-mail/senha de um usuário existente) — é o que
-   exercita o caminho real (Firebase Auth + endpoints por recurso). Pra
-   testar sem depender do backend, use o link "Usar modo demonstração" na
-   tela de login.
+2. Faça login com e-mail/senha de um usuário existente — não existe mais
+   modo offline/demonstração, login sempre passa pelo Firebase Auth e pelo
+   backend de verdade.
 3. Navegue manualmente até a tela alterada, nos três papéis relevantes
    (analista/supervisor/coordenador) quando a mudança os afeta.
 4. Confira o console do navegador — não deve aparecer nenhum erro. Se o
-   backend estiver fora do ar, o login real falha explicitamente (mensagem
-   na tela); só o modo demonstração funciona sem backend.
+   backend estiver fora do ar, o login falha explicitamente (mensagem na
+   tela), não existe fallback silencioso.
 5. Se a mudança envolve fluxo de várias etapas (formulário → salvar →
    aparecer na lista → editar → excluir), teste o ciclo completo — inclusive
    um **reload da página** depois de salvar, pra confirmar que gravou de

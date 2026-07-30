@@ -52,10 +52,11 @@ recurso — **foi removido** depois que o último recurso migrou (ver
 [`ROADMAP.md`](ROADMAP.md), item 4). Se você ver alguma referência a ele
 em código ou histórico, é vestígio dessa fase; a rota não existe mais.
 
-**Modo demonstração** (tela de login → "Usar modo demonstração") é a
-exceção deliberada: nunca chama nenhum endpoint, usa só `seedDB()` local.
-Toda mutação no frontend checa `session.demoMode` primeiro — ver o padrão
-repetido em `frontend/js/events.js`.
+Não existe mais modo offline/demonstração — login e persistência exigem
+backend e Firestore reais o tempo todo (removido depois que a Fase 1
+comprovou que o modo demonstração escondia o comportamento real da API em
+produção). Se o backend estiver fora do ar, a tela de login mostra o erro
+em vez de cair em dados fictícios.
 
 **Implicação prática**: ao adicionar um campo novo em qualquer entidade,
 ele precisa existir tanto no controller do recurso (`backend/src/controllers/`)

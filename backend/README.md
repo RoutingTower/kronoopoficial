@@ -60,8 +60,8 @@ mesmo padrão em `src/controllers/<recurso>.controller.js` +
 
 ## Popular dados de demonstração
 
-`scripts/seed-firestore.js` recria todas as coleções acima com o mesmo
-dataset de demonstração do `seedDB()` do frontend, usando IDs fixos para
+`scripts/seed-firestore.js` recria todas as coleções acima com um dataset
+de demonstração fixo (usuários, operações, etc.), usando IDs fixos para
 manter as referências entre coleções
 (ex.: `ausencias.baseMestraId` → `baseMestra` de verdade). Rodar quando
 quiser resetar os dados de demonstração no Firestore:

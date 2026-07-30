@@ -21,7 +21,7 @@ GitHub Pages (frontend, estático)  --fetch-->  Render (backend, Node.js)  --fir
 ## Checklist
 
 - [ ] 0. Pré-requisitos (contas e ferramentas)
-- [ ] 1. Rodar localmente com dados de demonstração
+- [ ] 1. Conferir o frontend e preparar o backend local
 - [ ] 2. Criar e conectar seu projeto Firebase
 - [ ] 3. Colocar o projeto no GitHub
 - [ ] 4. Publicar o frontend no GitHub Pages
@@ -57,16 +57,15 @@ gh --version
 
 ---
 
-## Passo 1 — Rodar localmente com dados de demonstração
+## Passo 1 — Conferir o frontend e preparar o backend local
 
-Antes de mexer em qualquer conta/serviço externo, confirme que o projeto
-roda:
+Não existe modo offline neste projeto — login e dados sempre exigem
+backend e Firebase reais (próximos passos). Por enquanto:
 
-1. Abra `frontend/index.html` direto no navegador (duplo-clique). Você
-   deve conseguir logar com qualquer nome da lista e a senha `demo123` —
-   os dados são simulados em memória (`seedDB()` em `frontend/js/state.js`),
-   nada é salvo ainda.
-2. (Opcional, para testar o backend também) Em outro terminal:
+1. Abra `frontend/index.html` direto no navegador (duplo-clique). Deve
+   aparecer a tela de login (e-mail/senha), sem erro no console. Tentar
+   logar agora dá erro de conexão — normal, ainda não existe backend.
+2. Prepare o backend local (vamos rodar de verdade no Passo 2):
    ```
    cd backend
    npm install
@@ -154,8 +153,8 @@ Depois de ativar, o primeiro deploy dispara sozinho (ou dê um novo
 "Actions" até aparecer ✅. A URL do site é
 `https://SEU-USUARIO.github.io/NOME-DO-SEU-REPO/`.
 
-Nesse ponto o site já está no ar, mas ainda em **modo demonstração**
-(sem backend conectado) — o próximo passo resolve isso.
+Nesse ponto o site já está no ar, mas ainda **sem backend conectado**
+(login vai falhar) — o próximo passo resolve isso.
 
 ---
 
@@ -219,13 +218,13 @@ serviço dormir durante o uso — não precisa configurar nada, já roda
 sozinho assim que o repositório estiver no GitHub (o frontend
 (`frontend/js/state.js`/`main.js`) também reexperimenta chamadas que
 falharem por causa desse "acordar", então mesmo um cold-start ocasional
-não derruba pro modo demonstração).
+tende a se resolver sozinho em vez de mostrar erro).
 
 ---
 
 ## Passo 6 — Conectar o frontend ao backend publicado
 
-Edite `frontend/js/state.js` e troque o placeholder pela URL real do seu
+Edite `frontend/js/config.js` e troque o placeholder pela URL real do seu
 backend (do passo 5):
 
 ```js
@@ -234,7 +233,7 @@ const API_BASE = isLocalDev ? 'http://localhost:3001/api' : 'https://NOME-DO-SER
 
 Depois:
 ```
-git add frontend/js/state.js
+git add frontend/js/config.js
 git commit -m "Conecta o frontend ao backend publicado"
 git push
 ```
@@ -249,11 +248,12 @@ incluindo o GitHub Pages — não precisa mexer em nada aqui.
 ## Passo 7 — Verificação final
 
 1. Abra `https://SEU-USUARIO.github.io/NOME-DO-SEU-REPO/`.
-2. Faça login com um dos usuários de demonstração (senha `demo123`).
+2. Faça login com e-mail/senha de um usuário real (criado via
+   `backend/scripts/seed-firestore.js` ou pelo próprio app).
 3. Crie um lembrete, ou finalize uma operação, ou qualquer ação que
    grave dado.
 4. Recarregue a página — o dado deve continuar lá (prova que está
-   gravando no Firestore de verdade, não caindo no modo demonstração).
+   gravando no Firestore de verdade).
 5. Confira no Firebase Console → Firestore Database que o documento
    apareceu.
 

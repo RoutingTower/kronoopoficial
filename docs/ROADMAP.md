@@ -34,9 +34,8 @@ removido do Firestore e do blob `state/main`. Toda rota `/api/*` (exceto
 `/health`) exige um Firebase ID token válido (`backend/src/middleware/auth.js`).
 Criar/editar/excluir usuário (Cadastros) passa por `POST/PATCH/DELETE
 /api/users`, que também gerencia a conta no Auth — nunca mais grava senha
-em texto plano. Um "modo demonstração" opcional na tela de login preserva
-o uso 100% offline (sem Firebase, sem backend) para quem só quer testar o
-protótipo — ver `frontend/js/ui.js` → `initDemoLogin()`.
+em texto plano. O antigo "modo demonstração" (login offline sem Firebase)
+foi removido — login sempre exige backend e Firestore reais.
 
 ## ✅ 3.5. Autorização por role na API — feito
 

@@ -29,8 +29,8 @@ Passo a passo completo (com verificação em cada etapa e troubleshooting):
 
 ## Coleções
 
-Baseado nas entidades hoje simuladas em `seedDB()`
-(`frontend/js/state.js`). Diferente de uma planilha, o Firestore aceita
+Baseado no dataset de demonstração de `backend/scripts/seed-firestore.js`.
+Diferente de uma planilha, o Firestore aceita
 campos aninhados (mapa/array) direto no documento — não precisa achatar em
 colunas.
 

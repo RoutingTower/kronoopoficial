@@ -24,9 +24,9 @@ syncThemeSwitches();
 
 initLogin();
 
-// Fonte da verdade da sessão "real" (não-demonstração): dispara tanto após
-// um login manual (KronoAuth.signIn em ui.js) quanto ao recarregar a página
-// com uma sessão Firebase já persistida — os dois casos convergem aqui.
+// Fonte da verdade da sessão: dispara tanto após um login manual
+// (KronoAuth.signIn em ui.js) quanto ao recarregar a página com uma sessão
+// Firebase já persistida — os dois casos convergem aqui.
 //
 // authRequestSeq evita corrida: se dois eventos disparam em sequência rápida
 // (ex.: sessão persistida resolvendo bem na hora em que um novo login manual
@@ -34,7 +34,6 @@ initLogin();
 // sobrescrever a sessão já atualizada por um evento mais novo.
 let authRequestSeq = 0;
 firebase.auth().onAuthStateChanged(async (user)=>{
-  if(session?.demoMode) return; // sessão local, não depende do Firebase Auth
   const myReq = ++authRequestSeq;
   if(!user){ return; } // tela de login (real) já é a exibida por padrão
   const btn = document.getElementById('loginBtnReal');
@@ -47,7 +46,7 @@ firebase.auth().onAuthStateChanged(async (user)=>{
     await loadDB();
     const me = await apiRequest('GET', '/users/me');
     if(myReq !== authRequestSeq) return; // ficou obsoleto enquanto isso — um evento mais novo já assumiu
-    session = { role: me.role, userId: me.id, name: me.name, demoMode:false };
+    session = { role: me.role, userId: me.id, name: me.name };
     enterApp();
   }catch(e){
     if(myReq !== authRequestSeq) return;
