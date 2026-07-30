@@ -8,7 +8,7 @@ const isLocalDev = location.protocol === 'file:' || ['localhost','127.0.0.1'].in
 // como frontend e backend ficam em domínios diferentes, precisa ser uma URL
 // absoluta — um caminho relativo tipo "/api" resolveria contra o próprio
 // domínio do frontend, que não serve a API.
-const API_BASE = isLocalDev ? 'http://localhost:3001/api' : 'https://SEU-BACKEND.onrender.com/api';
+const API_BASE = isLocalDev ? 'http://localhost:3001/api' : 'https://kronoopoficial.onrender.com/api';
 
 // Configuração pública do Firebase Web App (Firebase Console > Configurações
 // do projeto > Seus aplicativos > app Web > ícone de engrenagem/config).
