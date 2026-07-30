@@ -127,6 +127,8 @@ input,select,textarea{font-family:inherit;}
 .login-hint a:hover{text-decoration:underline;}
 .login-error{background:rgba(217,54,46,0.08);border:1px solid rgba(217,54,46,0.35);color:var(--alert);
   padding:9px 12px;border-radius:7px;font-size:12.5px;margin-bottom:14px;display:none;}
+.form-success{background:rgba(47,174,96,0.1);border:1px solid rgba(47,174,96,0.35);color:var(--done);
+  padding:9px 12px;border-radius:7px;font-size:12.5px;margin-bottom:14px;display:none;}
 
 #view-app{display:none;min-height:100vh;opacity:0;transform:scale(1.02);transition:opacity .4s ease, transform .4s ease;}
 #view-app.entered{opacity:1;transform:scale(1);}

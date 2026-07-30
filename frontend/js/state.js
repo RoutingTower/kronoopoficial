@@ -99,6 +99,7 @@ const apiCreateRaioX = (data) => apiRequest('POST', '/raio-x', data);
 
 // baseMestra
 const apiCreateBaseMestra = (data) => apiRequest('POST', '/base-mestra', data);
+const apiUpdateBaseMestra = (id, patch) => apiRequest('PATCH', `/base-mestra/${id}`, patch);
 const apiDeleteBaseMestra = (id) => apiRequest('DELETE', `/base-mestra/${id}`);
 
 // ausencias

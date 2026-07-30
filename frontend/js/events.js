@@ -418,6 +418,41 @@ function bindMainEvents(){
     alert(`Importação concluída: ${ok} entrada(s) adicionada(s)${fail?`, ${fail} linha(s) ignorada(s) (analista ou campos não reconhecidos)`:''}.`);
   });
 
+  main.querySelectorAll('[data-editar-mestra]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const b = DB.baseMestra.find(x=>x.id===btn.dataset.editarMestra);
+      if(!b) return;
+      openModal(`<h3>Editar operação fixa</h3>
+        <div class="field"><label>Operação (sigla)</label><input id="fEditOp" value="${b.operacao}"></div>
+        <div class="field"><label>Ciclo</label><input id="fEditCiclo" value="${b.ciclo}"></div>
+        <div class="grid-2"><div class="field"><label>Início</label><select id="fEditHi">${HOURS.map(h=>`<option ${h===b.horaInicio?'selected':''}>${h}</option>`).join('')}</select></div>
+        <div class="field"><label>Fim</label><select id="fEditHf">${HOURS.map(h=>`<option ${h===b.horaFim?'selected':''}>${h}</option>`).join('')}</select></div></div>
+        <div class="grid-2"><div class="field"><label>Vigência início</label><input type="date" id="fEditDi" value="${b.dataInicio}"></div>
+        <div class="field"><label>Vigência fim</label><input type="date" id="fEditDf" value="${b.dataFim}"></div></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn" data-modal-cancel>Cancelar</button>
+          <button class="btn btn-brand" id="confirmEditarMestra">Salvar</button>
+        </div>`);
+      const cancelBtn = document.querySelector('[data-modal-cancel]');
+      if(cancelBtn) cancelBtn.onclick = closeModal;
+      document.getElementById('confirmEditarMestra').onclick = async ()=>{
+        const patch = {
+          operacao: document.getElementById('fEditOp').value || b.operacao,
+          ciclo: document.getElementById('fEditCiclo').value || b.ciclo,
+          horaInicio: document.getElementById('fEditHi').value,
+          horaFim: document.getElementById('fEditHf').value,
+          dataInicio: document.getElementById('fEditDi').value,
+          dataFim: document.getElementById('fEditDf').value,
+        };
+        try{
+          const atualizado = await apiUpdateBaseMestra(b.id, patch);
+          DB.baseMestra = DB.baseMestra.map(x=>x.id===b.id ? atualizado : x);
+          closeModal(); renderMain();
+        }catch(e){ alert('Não foi possível salvar: '+e.message); }
+      };
+    });
+  });
+
   main.querySelectorAll('[data-excluir-mestra]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       if(!confirm('Excluir esta operação fixa? Ela deixará de aparecer na base do analista.')) return;
@@ -748,5 +783,51 @@ function bindMainEvents(){
         closeModal(); renderMain();
       }catch(e){ alert('Não foi possível cadastrar: '+e.message); }
     };
+  });
+
+  const cfgSaveEmail = document.getElementById('cfgSaveEmail');
+  if(cfgSaveEmail) cfgSaveEmail.addEventListener('click', async ()=>{
+    const msgEl = document.getElementById('cfgEmailMsg');
+    setFormMsg(msgEl, '', true);
+    const me = userById(session.userId);
+    const newEmail = document.getElementById('cfgNewEmail').value.trim();
+    const curPass = document.getElementById('cfgEmailCurPass').value;
+    if(!newEmail || !curPass){ setFormMsg(msgEl, 'Preencha o novo e-mail e a senha atual.', true); return; }
+    cfgSaveEmail.disabled = true;
+    try{
+      await KronoAuth.reauthenticate(me.email, curPass);
+      const atualizado = await apiUpdateUser(session.userId, { email: newEmail });
+      DB.users = DB.users.map(x=>x.id===session.userId ? atualizado : x);
+      renderMain();
+      setFormMsg(document.getElementById('cfgEmailMsg'), 'E-mail atualizado com sucesso.', false);
+    }catch(e){
+      setFormMsg(msgEl, KronoAuth.friendlyError(e), true);
+      cfgSaveEmail.disabled = false;
+    }
+  });
+
+  const cfgSavePass = document.getElementById('cfgSavePass');
+  if(cfgSavePass) cfgSavePass.addEventListener('click', async ()=>{
+    const msgEl = document.getElementById('cfgPassMsg');
+    setFormMsg(msgEl, '', true);
+    const me = userById(session.userId);
+    const curPass = document.getElementById('cfgCurPass').value;
+    const newPass = document.getElementById('cfgNewPass').value;
+    const newPass2 = document.getElementById('cfgNewPass2').value;
+    if(!curPass || !newPass){ setFormMsg(msgEl, 'Preencha a senha atual e a nova senha.', true); return; }
+    if(newPass !== newPass2){ setFormMsg(msgEl, 'A confirmação não confere com a nova senha.', true); return; }
+    if(newPass.length < 6){ setFormMsg(msgEl, 'A nova senha deve ter ao menos 6 caracteres.', true); return; }
+    cfgSavePass.disabled = true;
+    try{
+      await KronoAuth.reauthenticate(me.email, curPass);
+      await KronoAuth.changePassword(newPass);
+      document.getElementById('cfgCurPass').value='';
+      document.getElementById('cfgNewPass').value='';
+      document.getElementById('cfgNewPass2').value='';
+      setFormMsg(msgEl, 'Senha atualizada com sucesso.', false);
+    }catch(e){
+      setFormMsg(msgEl, KronoAuth.friendlyError(e), true);
+    }
+    cfgSavePass.disabled = false;
   });
 }

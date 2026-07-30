@@ -69,9 +69,9 @@ async function exitApp(){
 
 
 const NAV = {
-  analista:[ {k:'flashcards', label:'Programação'}, {k:'recados', label:'Caixa de Entrada'}, {k:'lembretes', label:'Lembretes'} ],
-  supervisor:[ {k:'cadastros', label:'Cadastros'}, {k:'basemestra', label:'Operações Fixas'}, {k:'suplencias', label:'Cobertura'}, {k:'programacao', label:'Programação Analista'}, {k:'grade', label:'Grade do Dia'}, {k:'reunioes', label:'Eventos'}, {k:'metricas', label:'Métricas'}, {k:'transmissao', label:'Caixa de Envio'}, {k:'ocorrencias', label:'Ocorrências'} ],
-  coordenador:[ {k:'acessos', label:'Gestão de Acessos'}, {k:'dashboard', label:'Dashboard Global'}, {k:'comunicados', label:'Comunicados'}, {k:'painel', label:'Painel Hora a Hora'}, {k:'status', label:'Status Operacional'}, {k:'anomalias', label:'Ocorrências'} ],
+  analista:[ {k:'flashcards', label:'Programação'}, {k:'recados', label:'Caixa de Entrada'}, {k:'lembretes', label:'Lembretes'}, {k:'configuracoes', label:'Configurações'} ],
+  supervisor:[ {k:'cadastros', label:'Cadastros'}, {k:'basemestra', label:'Operações Fixas'}, {k:'suplencias', label:'Cobertura'}, {k:'programacao', label:'Programação Analista'}, {k:'grade', label:'Grade do Dia'}, {k:'reunioes', label:'Eventos'}, {k:'metricas', label:'Métricas'}, {k:'transmissao', label:'Caixa de Envio'}, {k:'ocorrencias', label:'Ocorrências'}, {k:'configuracoes', label:'Configurações'} ],
+  coordenador:[ {k:'acessos', label:'Gestão de Acessos'}, {k:'dashboard', label:'Dashboard Global'}, {k:'comunicados', label:'Comunicados'}, {k:'painel', label:'Painel Hora a Hora'}, {k:'status', label:'Status Operacional'}, {k:'anomalias', label:'Ocorrências'}, {k:'configuracoes', label:'Configurações'} ],
 };
 
 let activeNavKey = null;
@@ -176,10 +176,42 @@ function openMenuConfigModal(){
 
 function renderMain(){
   const main = document.getElementById('mainArea');
-  if(session.role==='analista') main.innerHTML = activeNavKey==='recados' ? renderRecadosAnalista() : activeNavKey==='lembretes' ? renderLembretes() : renderAnalista();
-  if(session.role==='supervisor') main.innerHTML = renderSupervisor();
-  if(session.role==='coordenador') main.innerHTML = renderCoordenador();
+  if(activeNavKey==='configuracoes') main.innerHTML = renderConfiguracoes();
+  else if(session.role==='analista') main.innerHTML = activeNavKey==='recados' ? renderRecadosAnalista() : activeNavKey==='lembretes' ? renderLembretes() : renderAnalista();
+  else if(session.role==='supervisor') main.innerHTML = renderSupervisor();
+  else if(session.role==='coordenador') main.innerHTML = renderCoordenador();
   bindMainEvents();
+}
+
+
+// Tela de "Configurações" — mesma para os três papéis (analista, supervisor,
+// coordenador): cada usuário troca o próprio e-mail de login e senha aqui,
+// sem depender de outra pessoa (ver backend/README.md → "Autenticação").
+function renderConfiguracoes(){
+  const me = userById(session.userId);
+  return `<div class="page-head"><div><h1 class="page-title">Configurações</h1><div class="page-desc">Seu e-mail e senha de login</div></div></div>
+  <div class="card" style="max-width:420px;">
+    <div class="section-title">Alterar e-mail de login</div>
+    <div class="help-text">E-mail atual: ${me.email}</div>
+    <div id="cfgEmailMsg" class="login-error"></div>
+    <div class="field"><label>Novo e-mail</label><input type="email" id="cfgNewEmail" autocomplete="off"></div>
+    <div class="field"><label>Senha atual</label><input type="password" id="cfgEmailCurPass" autocomplete="current-password"></div>
+    <button class="btn btn-brand" id="cfgSaveEmail">Salvar novo e-mail</button>
+  </div>
+  <div class="card" style="max-width:420px;margin-top:16px;">
+    <div class="section-title">Alterar senha</div>
+    <div id="cfgPassMsg" class="login-error"></div>
+    <div class="field"><label>Senha atual</label><input type="password" id="cfgCurPass" autocomplete="current-password"></div>
+    <div class="field"><label>Nova senha</label><input type="password" id="cfgNewPass" autocomplete="new-password"></div>
+    <div class="field"><label>Confirmar nova senha</label><input type="password" id="cfgNewPass2" autocomplete="new-password"></div>
+    <button class="btn btn-brand" id="cfgSavePass">Salvar nova senha</button>
+  </div>`;
+}
+
+function setFormMsg(el, msg, isError){
+  el.textContent = msg;
+  el.className = isError ? 'login-error' : 'form-success';
+  el.style.display = msg ? 'block' : 'none';
 }
 
 

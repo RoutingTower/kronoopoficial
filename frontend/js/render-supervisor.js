@@ -59,7 +59,7 @@ function supBaseMestra(myAnalistas){
   <div class="card">
   <table><thead><tr><th>Operação</th><th>Ciclo</th><th>Horário</th><th>Titular</th><th>Vigência</th><th></th></tr></thead><tbody>
   ${rows.map(b=>`<tr><td>${b.operacao}</td><td>${b.ciclo}</td><td class="mono">${b.horaInicio}–${b.horaFim}</td><td>${b.titular}</td><td class="mono" style="color:var(--text-muted);">${b.dataInicio} → ${b.dataFim}</td>
-  <td style="text-align:right;"><button class="btn btn-danger" data-excluir-mestra="${b.id}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="6" class="empty">Nenhuma operação fixa cadastrada</td></tr>'}
+  <td style="text-align:right;white-space:nowrap;"><button class="btn" data-editar-mestra="${b.id}">Editar</button> <button class="btn btn-danger" data-excluir-mestra="${b.id}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="6" class="empty">Nenhuma operação fixa cadastrada</td></tr>'}
   </tbody></table></div>`;
 }
 

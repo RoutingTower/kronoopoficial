@@ -87,8 +87,13 @@ async function updateUser(req, res) {
 
   if (!caller.isAdmin) {
     if (isSelf) {
-      if (!bodyKeys.every((k) => k === "navConfig")) {
-        return res.status(403).json({ error: "forbidden", message: "Você só pode editar sua própria personalização de menu." });
+      // Qualquer usuário pode trocar seu próprio e-mail de login (tela de
+      // Configurações, frontend/js/events.js) — o Firebase Auth já exige
+      // reautenticação recente pra essa chamada chegar aqui. Senha não passa
+      // por aqui: troca direto no Auth via SDK client-side (não fica em
+      // nenhuma coleção do Firestore).
+      if (!bodyKeys.every((k) => k === "navConfig" || k === "email")) {
+        return res.status(403).json({ error: "forbidden", message: "Você só pode editar sua própria personalização de menu e e-mail." });
       }
     } else if (!isSupervisorDaEquipe && !isCoordenadorDaEquipe) {
       return res.status(403).json({ error: "forbidden", message: "Você não tem permissão para editar este usuário." });
