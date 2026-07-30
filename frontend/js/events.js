@@ -255,7 +255,8 @@ function bindMainEvents(){
     openModal(`<h3>Nova cobertura avulsa</h3>
       <div class="field"><label>Analista original (quem está sendo coberto)</label><select id="fOrig">${myAnalistas.map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}</select></div>
       <div class="field"><label>Suplente</label><select id="fSup">${myAnalistas.map(a=>`<option value="${a.name}">${a.name}</option>`).join('')}</select></div>
-      <div class="field"><label>Operação</label><input id="fOp2" placeholder="ex: COL-B"></div>
+      <div class="grid-2"><div class="field"><label>Operação</label><input id="fOp2" placeholder="ex: COL-B"></div>
+      <div class="field"><label>Ciclo</label><input id="fCiclo2" value="T3"></div></div>
       <div class="grid-2"><div class="field"><label>Início</label><select id="fHi2">${HOURS.map(h=>`<option>${h}</option>`).join('')}</select></div>
       <div class="field"><label>Fim</label><select id="fHf2">${HOURS.map(h=>`<option>${h}</option>`).join('')}</select></div></div>
       <div class="field"><label>Data da cobertura</label><input type="date" id="fData" value="${todayISO()}"></div>
@@ -267,7 +268,7 @@ function bindMainEvents(){
     if(cancelBtn) cancelBtn.onclick = closeModal;
     document.getElementById('confirmNovaSuplencia').onclick = async ()=>{
       const analistaOriginalId = document.getElementById('fOrig').value;
-      const entrada = {operacao:document.getElementById('fOp2').value||'OP', ciclo:'T3',
+      const entrada = {operacao:document.getElementById('fOp2').value||'OP', ciclo:document.getElementById('fCiclo2').value||'T3',
         horaInicio:document.getElementById('fHi2').value, horaFim:document.getElementById('fHf2').value,
         suplente:document.getElementById('fSup').value||'—', dataCobertura:document.getElementById('fData').value, analistaOriginalId};
       try{
@@ -507,6 +508,71 @@ function bindMainEvents(){
       try{ await apiDeleteSuplencia(id); DB.suplencias = DB.suplencias.filter(x=>x.id!==id); renderMain(); }
       catch(e){ alert('Não foi possível excluir: '+e.message); }
     });
+  });
+
+  main.querySelectorAll('[data-editar-suplencia]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const s = DB.suplencias.find(x=>x.id===btn.dataset.editarSuplencia);
+      if(!s) return;
+      const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
+      openModal(`<h3>Editar cobertura avulsa</h3>
+        <div class="help-text">Cobrindo: ${userById(s.analistaOriginalId)?.name||'—'}</div>
+        <div class="field"><label>Suplente</label><select id="fEditSupSuplente">${myAnalistas.map(a=>`<option value="${a.name}" ${a.name===s.suplente?'selected':''}>${a.name}</option>`).join('')}</select></div>
+        <div class="grid-2"><div class="field"><label>Operação</label><input id="fEditSupOp" value="${s.operacao}"></div>
+        <div class="field"><label>Ciclo</label><input id="fEditSupCiclo" value="${s.ciclo||'T3'}"></div></div>
+        <div class="grid-2"><div class="field"><label>Início</label><select id="fEditSupHi">${HOURS.map(h=>`<option ${h===s.horaInicio?'selected':''}>${h}</option>`).join('')}</select></div>
+        <div class="field"><label>Fim</label><select id="fEditSupHf">${HOURS.map(h=>`<option ${h===s.horaFim?'selected':''}>${h}</option>`).join('')}</select></div></div>
+        <div class="field"><label>Data da cobertura</label><input type="date" id="fEditSupData" value="${s.dataCobertura}"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn" data-modal-cancel>Cancelar</button>
+          <button class="btn btn-brand" id="confirmEditarSuplencia">Salvar</button>
+        </div>`);
+      const cancelBtn = document.querySelector('[data-modal-cancel]');
+      if(cancelBtn) cancelBtn.onclick = closeModal;
+      document.getElementById('confirmEditarSuplencia').onclick = async ()=>{
+        const patch = {
+          operacao: document.getElementById('fEditSupOp').value || s.operacao,
+          ciclo: document.getElementById('fEditSupCiclo').value || s.ciclo || 'T3',
+          horaInicio: document.getElementById('fEditSupHi').value,
+          horaFim: document.getElementById('fEditSupHf').value,
+          suplente: document.getElementById('fEditSupSuplente').value,
+          dataCobertura: document.getElementById('fEditSupData').value,
+        };
+        try{
+          const atualizado = await apiUpdateSuplencia(s.id, patch);
+          DB.suplencias = DB.suplencias.map(x=>x.id===s.id ? atualizado : x);
+          closeModal(); renderMain();
+        }catch(e){ alert('Não foi possível salvar: '+e.message); }
+      };
+    });
+  });
+
+  main.querySelectorAll('[data-suplenciafiltro]').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const key = inp.dataset.suplenciafiltro;
+      uiState.suplenciasFiltro[key] = inp.value;
+      if((key==='inicio'||key==='fim') && uiState.suplenciasFiltro.inicio && uiState.suplenciasFiltro.fim && uiState.suplenciasFiltro.inicio > uiState.suplenciasFiltro.fim){
+        uiState.suplenciasFiltro[key==='inicio'?'fim':'inicio'] = inp.value;
+      }
+      renderMain();
+    });
+  });
+
+  const btnExcluirTodasSuplencias = document.getElementById('btnExcluirTodasSuplencias');
+  if(btnExcluirTodasSuplencias) btnExcluirTodasSuplencias.addEventListener('click', async ()=>{
+    const ids = Array.from(main.querySelectorAll('[data-excluir-suplencia]')).map(b=>b.dataset.excluirSuplencia);
+    if(ids.length===0) return;
+    if(!confirm(`Excluir ${ids.length} cobertura(s) avulsa(s) (conforme o filtro atual)? Essa ação não pode ser desfeita.`)) return;
+    let ok=0, fail=0;
+    openProgressModal('Excluindo coberturas avulsas...');
+    for(const [idx, id] of ids.entries()){
+      try{ await apiDeleteSuplencia(id); DB.suplencias = DB.suplencias.filter(x=>x.id!==id); ok++; }
+      catch(e){ fail++; }
+      updateProgressModal(idx+1, ids.length);
+    }
+    closeModal();
+    renderMain();
+    if(fail) alert(`${ok} excluída(s), ${fail} falharam.`);
   });
 
   main.querySelectorAll('[data-editar-recado]').forEach(btn=>{

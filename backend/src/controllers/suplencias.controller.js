@@ -50,7 +50,7 @@ async function updateSuplencia(req, res) {
   }
 
   const patch = {};
-  for (const key of ["operacao", "horaInicio", "horaFim", "suplente", "dataCobertura"]) {
+  for (const key of ["operacao", "ciclo", "horaInicio", "horaFim", "suplente", "dataCobertura"]) {
     if (req.body[key] !== undefined) patch[key] = req.body[key];
   }
   const updated = await firestoreService.update(COLLECTION, req.params.id, patch);

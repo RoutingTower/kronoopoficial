@@ -18,6 +18,7 @@ let uiState = {
   metricasFiltro:{ inicio: addDaysISO(todayISO(), -7), fim: todayISO() },
   envioFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO() },
   ocorrenciasFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), analista: 'all', operacao: 'all', avaliacaoMax: '' },
+  suplenciasFiltro:{ operacao:'', horario:'', suplente:'all', cobrindo:'all', inicio:'', fim:'' },
   progAnalista:'all', progDate: todayISO(), progView:'diaria',
   sugerir: null, inboxSelected: null, lembretesDate: todayISO(), lembretesView: 'semanal'
 };
@@ -107,6 +108,7 @@ const apiCreateAusencia = (data) => apiRequest('POST', '/ausencias', data);
 
 // suplencias
 const apiCreateSuplencia = (data) => apiRequest('POST', '/suplencias', data);
+const apiUpdateSuplencia = (id, patch) => apiRequest('PATCH', `/suplencias/${id}`, patch);
 const apiDeleteSuplencia = (id) => apiRequest('DELETE', `/suplencias/${id}`);
 
 // recados

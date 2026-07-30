@@ -66,7 +66,17 @@ function supBaseMestra(myAnalistas){
 
 function supSuplencias(myAnalistas){
   const ids = myAnalistas.map(a=>a.id);
-  const rows = DB.suplencias.filter(s=>ids.includes(s.analistaOriginalId));
+  const f = uiState.suplenciasFiltro;
+  const allRows = DB.suplencias.filter(s=>ids.includes(s.analistaOriginalId));
+  const rows = allRows.filter(s=>
+    (!f.operacao || s.operacao.toLowerCase().includes(f.operacao.toLowerCase())) &&
+    (!f.horario || `${s.horaInicio}–${s.horaFim}`.includes(f.horario)) &&
+    (f.suplente==='all' || s.suplente===f.suplente) &&
+    (f.cobrindo==='all' || s.analistaOriginalId===f.cobrindo) &&
+    (!f.inicio || s.dataCobertura>=f.inicio) &&
+    (!f.fim || s.dataCobertura<=f.fim)
+  );
+  const suplentesUnicos = [...new Set(allRows.map(s=>s.suplente))].filter(Boolean).sort();
   return `
   <div class="section-title">Cobertura</div>
   <div class="csv-row">
@@ -77,10 +87,31 @@ function supSuplencias(myAnalistas){
   <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
     <button class="btn btn-brand" id="btnNovaSuplencia">+ Nova cobertura avulsa</button>
   </div>
+  <div class="filter-row">
+    <input placeholder="Filtrar por operação..." data-suplenciafiltro="operacao" value="${f.operacao}">
+    <input placeholder="Filtrar por horário (ex: 19:00)" data-suplenciafiltro="horario" value="${f.horario}">
+    <select data-suplenciafiltro="suplente">
+      <option value="all">Suplente: todos</option>
+      ${suplentesUnicos.map(n=>`<option value="${n}" ${f.suplente===n?'selected':''}>${n}</option>`).join('')}
+    </select>
+    <select data-suplenciafiltro="cobrindo">
+      <option value="all">Cobrindo: todos</option>
+      ${myAnalistas.map(a=>`<option value="${a.id}" ${f.cobrindo===a.id?'selected':''}>${a.name}</option>`).join('')}
+    </select>
+    <label style="font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">Início
+      <input type="date" data-suplenciafiltro="inicio" value="${f.inicio}">
+    </label>
+    <label style="font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">Fim
+      <input type="date" data-suplenciafiltro="fim" value="${f.fim}">
+    </label>
+  </div>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+    <button class="btn btn-danger" id="btnExcluirTodasSuplencias" ${rows.length===0?'disabled':''}>Excluir todos (${rows.length})</button>
+  </div>
   <div class="card" style="margin-bottom:22px;">
-  <table><thead><tr><th>Operação</th><th>Horário</th><th>Suplente</th><th>Cobrindo</th><th>Data</th><th></th></tr></thead><tbody>
-  ${rows.map(s=>`<tr><td>${s.operacao}</td><td class="mono">${s.horaInicio}–${s.horaFim}</td><td>${s.suplente}</td><td>${userById(s.analistaOriginalId)?.name||'—'}</td><td class="mono">${s.dataCobertura}</td>
-  <td style="text-align:right;"><button class="btn btn-danger" data-excluir-suplencia="${s.id}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="6" class="empty">Nenhuma cobertura avulsa registrada</td></tr>'}
+  <table><thead><tr><th>Operação</th><th>Ciclo</th><th>Horário</th><th>Suplente</th><th>Cobrindo</th><th>Data</th><th></th></tr></thead><tbody>
+  ${rows.map(s=>`<tr><td>${s.operacao}</td><td>${s.ciclo||'—'}</td><td class="mono">${s.horaInicio}–${s.horaFim}</td><td>${s.suplente}</td><td>${userById(s.analistaOriginalId)?.name||'—'}</td><td class="mono">${s.dataCobertura}</td>
+  <td style="text-align:right;white-space:nowrap;"><button class="btn" data-editar-suplencia="${s.id}">Editar</button> <button class="btn btn-danger" data-excluir-suplencia="${s.id}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="7" class="empty">Nenhuma cobertura avulsa registrada</td></tr>'}
   </tbody></table></div>`;
 }
 
