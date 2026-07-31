@@ -47,9 +47,8 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes){
 function renderAnalista(){
   const dateStr = uiState.analistaDate;
   let coberturas=0, folgas=0;
-  const d0 = new Date(dateStr);
   for(let i=-3;i<=3;i++){
-    const dd = new Date(d0); dd.setDate(dd.getDate()+i); const ds = dd.toISOString().slice(0,10);
+    const ds = addDaysISO(dateStr, i);
     const slots = getDaySlots(session.userId, ds);
     if(slots.some(s=>s.isOff)) folgas++;
   }
@@ -84,11 +83,11 @@ function renderAnalista(){
 
 
 function renderAnalistaSemanal(analistaId, dateStr){
-  const d0 = new Date(dateStr);
   let cols='';
   for(let i=0;i<7;i++){
-    const dd=new Date(d0); dd.setDate(dd.getDate()+i); const ds=dd.toISOString().slice(0,10);
+    const ds = addDaysISO(dateStr, i);
     const slots = getDaySlots(analistaId, ds);
+    const dd = new Date(ds+'T00:00:00');
     const label = dd.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
     cols += `<div class="flash-col" style="min-width:160px;">
       <div class="flash-time">${label}</div>
