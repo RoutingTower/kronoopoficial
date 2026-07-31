@@ -9,7 +9,23 @@ function renderCoordenador(){
   else if(activeNavKey==='painel') content = coordPainelHoraAHora();
   else if(activeNavKey==='status') content = coordStatus();
   else if(activeNavKey==='anomalias') content = coordAnomalias();
+  else if(activeNavKey==='feedbacks') content = coordFeedbacks();
   return `<div class="page-head"><div><h1 class="page-title">${tabLabel}</h1><div class="page-desc">Visão executiva de toda a operação</div></div></div>${content}`;
+}
+
+
+// Só o coordenador vê isso — o analista só tem a tela de envio (ver
+// renderFeedbackAnalista em render-analista.js).
+function coordFeedbacks(){
+  const items = [...DB.feedbacks].sort((a,b)=>b.ts-a.ts);
+  return `
+  <div class="card">
+  ${items.length===0 ? '<div class="empty">Nenhum feedback recebido ainda.</div>' : items.map(f=>`<div class="msg-item">
+    <div class="msg-meta">${escapeHtml(f.analistaNome||userById(f.analistaId)?.name||'—')} · ${timeAgo(f.ts)}</div>
+    <div style="margin-top:4px;white-space:pre-wrap;">${escapeHtml(f.texto)}</div>
+    <div style="margin-top:8px;"><button class="btn btn-danger" data-excluir-feedback="${f.id}">Excluir</button></div>
+  </div>`).join('')}
+  </div>`;
 }
 
 

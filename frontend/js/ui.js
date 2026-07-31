@@ -80,9 +80,9 @@ async function exitApp(){
 
 
 const NAV = {
-  analista:[ {k:'flashcards', label:'Programação'}, {k:'recados', label:'Caixa de Entrada'}, {k:'lembretes', label:'Lembretes'}, {k:'configuracoes', label:'Configurações'} ],
+  analista:[ {k:'flashcards', label:'Programação'}, {k:'recados', label:'Caixa de Entrada'}, {k:'lembretes', label:'Lembretes'}, {k:'feedback', label:'Feedback'}, {k:'configuracoes', label:'Configurações'} ],
   supervisor:[ {k:'cadastros', label:'Cadastros'}, {k:'basemestra', label:'Operações Fixas'}, {k:'suplencias', label:'Cobertura'}, {k:'programacao', label:'Programação Analista'}, {k:'grade', label:'Grade do Dia'}, {k:'reunioes', label:'Eventos'}, {k:'metricas', label:'Métricas'}, {k:'transmissao', label:'Caixa de Envio'}, {k:'ocorrencias', label:'Ocorrências'}, {k:'configuracoes', label:'Configurações'} ],
-  coordenador:[ {k:'acessos', label:'Gestão de Acessos'}, {k:'dashboard', label:'Dashboard Global'}, {k:'comunicados', label:'Comunicados'}, {k:'painel', label:'Painel Hora a Hora'}, {k:'status', label:'Status Operacional'}, {k:'anomalias', label:'Ocorrências'}, {k:'configuracoes', label:'Configurações'} ],
+  coordenador:[ {k:'acessos', label:'Gestão de Acessos'}, {k:'dashboard', label:'Dashboard Global'}, {k:'comunicados', label:'Comunicados'}, {k:'painel', label:'Painel Hora a Hora'}, {k:'status', label:'Status Operacional'}, {k:'anomalias', label:'Ocorrências'}, {k:'feedbacks', label:'Feedbacks'}, {k:'configuracoes', label:'Configurações'} ],
 };
 
 let activeNavKey = null;
@@ -203,7 +203,7 @@ function openMenuConfigModal(){
 function renderMain(){
   const main = document.getElementById('mainArea');
   if(activeNavKey==='configuracoes') main.innerHTML = renderConfiguracoes();
-  else if(session.role==='analista') main.innerHTML = activeNavKey==='recados' ? renderRecadosAnalista() : activeNavKey==='lembretes' ? renderLembretes() : renderAnalista();
+  else if(session.role==='analista') main.innerHTML = activeNavKey==='recados' ? renderRecadosAnalista() : activeNavKey==='lembretes' ? renderLembretes() : activeNavKey==='feedback' ? renderFeedbackAnalista() : renderAnalista();
   else if(session.role==='supervisor') main.innerHTML = renderSupervisor();
   else if(session.role==='coordenador') main.innerHTML = renderCoordenador();
   bindMainEvents();

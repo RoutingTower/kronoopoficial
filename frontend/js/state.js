@@ -42,7 +42,7 @@ async function authHeaders(){
 // de onde o dado vem. Se o backend não responder, propaga o erro — quem
 // chama (main.js) mostra isso na tela de login, sem fallback silencioso.
 async function loadDB(){
-  const [users, raioX, baseMestra, ausencias, suplencias, recados, reunioes, plantoes, lembretes] = await Promise.all([
+  const [users, raioX, baseMestra, ausencias, suplencias, recados, reunioes, plantoes, lembretes, feedbacks] = await Promise.all([
     apiRequest('GET', '/users'),
     apiRequest('GET', '/raio-x'),
     apiRequest('GET', '/base-mestra'),
@@ -52,8 +52,9 @@ async function loadDB(){
     apiRequest('GET', '/reunioes'),
     apiRequest('GET', '/plantoes'),
     apiRequest('GET', '/lembretes'),
+    apiRequest('GET', '/feedbacks'),
   ]);
-  DB = { users, raioX, baseMestra, ausencias, suplencias, recados, reunioes, plantoes, lembretes };
+  DB = { users, raioX, baseMestra, ausencias, suplencias, recados, reunioes, plantoes, lembretes, feedbacks };
 }
 
 // Chamada genérica a um endpoint por recurso (ex.: /users, /raio-x) — usada
@@ -126,4 +127,8 @@ const apiCreatePlantao = (data) => apiRequest('POST', '/plantoes', data);
 const apiCreateLembrete = (data) => apiRequest('POST', '/lembretes', data);
 const apiUpdateLembrete = (id, patch) => apiRequest('PATCH', `/lembretes/${id}`, patch);
 const apiDeleteLembrete = (id) => apiRequest('DELETE', `/lembretes/${id}`);
+
+// feedbacks — analista cria, só coordenador lista/exclui na UI.
+const apiCreateFeedback = (data) => apiRequest('POST', '/feedbacks', data);
+const apiDeleteFeedback = (id) => apiRequest('DELETE', `/feedbacks/${id}`);
 

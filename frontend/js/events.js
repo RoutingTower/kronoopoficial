@@ -45,6 +45,23 @@ function bindMainEvents(){
     btn.addEventListener('click', ()=>{ uiState.lembretesDate = btn.dataset.lembretenav; renderMain(); });
   });
 
+  const btnEnviarFeedback = document.getElementById('btnEnviarFeedback');
+  if(btnEnviarFeedback) btnEnviarFeedback.addEventListener('click', async ()=>{
+    const msgEl = document.getElementById('feedbackMsg');
+    setFormMsg(msgEl, '', true);
+    const txt = document.getElementById('feedbackTxt').value.trim();
+    if(!txt){ setFormMsg(msgEl, 'Escreva sua mensagem antes de enviar.', true); return; }
+    btnEnviarFeedback.disabled = true;
+    try{
+      await apiCreateFeedback({texto: txt});
+      document.getElementById('feedbackTxt').value = '';
+      setFormMsg(document.getElementById('feedbackMsg'), 'Feedback enviado — obrigado!', false);
+    }catch(e){
+      setFormMsg(msgEl, 'Não foi possível enviar: '+e.message, true);
+    }
+    btnEnviarFeedback.disabled = false;
+  });
+
   main.querySelectorAll('[data-inbox-row]').forEach(row=>{
     row.addEventListener('click', ()=>{ uiState.inboxSelected = row.dataset.inboxRow; renderMain(); });
   });
@@ -660,6 +677,15 @@ function bindMainEvents(){
       if(!confirm('Excluir este lembrete enviado?')) return;
       const id = btn.dataset.excluirLembreteEnviado;
       try{ await apiDeleteLembrete(id); DB.lembretes = DB.lembretes.filter(x=>x.id!==id); renderMain(); }
+      catch(e){ alert('Não foi possível excluir: '+e.message); }
+    });
+  });
+
+  main.querySelectorAll('[data-excluir-feedback]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(!confirm('Excluir este feedback?')) return;
+      const id = btn.dataset.excluirFeedback;
+      try{ await apiDeleteFeedback(id); DB.feedbacks = DB.feedbacks.filter(x=>x.id!==id); renderMain(); }
       catch(e){ alert('Não foi possível excluir: '+e.message); }
     });
   });

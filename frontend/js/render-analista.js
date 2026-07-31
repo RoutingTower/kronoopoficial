@@ -138,6 +138,25 @@ function renderAnalistaMensal(analistaId, dateStr){
 }
 
 
+// Só a tela de envio — o analista não vê os feedbacks que já mandou
+// (nem os de outros); só o coordenador tem uma tela de listagem (ver
+// coordFeedbacks em render-coordenador.js).
+function renderFeedbackAnalista(){
+  return `
+  <div class="page-head"><div><h1 class="page-title">Feedback</h1><div class="page-desc">Sugestões e melhorias pra ferramenta — só o coordenador lê</div></div></div>
+  <div class="card" style="max-width:560px;">
+    <div id="feedbackMsg" class="login-error"></div>
+    <div class="field">
+      <label>Sua mensagem</label>
+      <textarea id="feedbackTxt" rows="6" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;" placeholder="O que poderia melhorar no KronoOP? Conte um problema, uma ideia, o que fizer sentido..."></textarea>
+    </div>
+    <div style="display:flex;justify-content:flex-end;">
+      <button class="btn btn-brand" id="btnEnviarFeedback">Enviar feedback</button>
+    </div>
+  </div>`;
+}
+
+
 function renderRecadosAnalista(){
   const my = recadosParaAnalista(session.userId).sort((a,b)=>b.ts-a.ts);
   if(!uiState.inboxSelected || !my.find(m=>m.id===uiState.inboxSelected)) uiState.inboxSelected = my[0]?.id || null;
