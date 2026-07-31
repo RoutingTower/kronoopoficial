@@ -11,7 +11,7 @@ async function listReunioes(req, res) {
 }
 
 // Só supervisor agenda reunião, e só em nome da própria equipe (espelha
-// frontend/js/events.js, "Eventos"). Não há UI de editar/excluir reunião.
+// frontend/js/events.js, "Eventos").
 async function createReuniao(req, res) {
   const { tipo, titulo, data, hora, analistaIds, supervisorId, criadoPor } = req.body;
   if (!tipo || !data || !hora || !supervisorId) {
@@ -39,8 +39,7 @@ async function createReuniao(req, res) {
   res.status(201).json(reuniao);
 }
 
-// updateReuniao/deleteReuniao não têm UI hoje, mas as rotas existem — mesma
-// regra do create: só o supervisor dono (ou admin).
+// Mesma regra do create: só o supervisor dono (ou admin).
 async function assertDonoDaEquipe(req, existing) {
   const caller = await getCaller(req);
   return !!caller && (caller.isAdmin || (caller.role === "supervisor" && existing.supervisorId === caller.id));

@@ -117,11 +117,15 @@ const apiCreateRecado = (data) => apiRequest('POST', '/recados', data);
 const apiUpdateRecado = (id, patch) => apiRequest('PATCH', `/recados/${id}`, patch);
 const apiDeleteRecado = (id) => apiRequest('DELETE', `/recados/${id}`);
 
-// reunioes — só criação, não há edição/exclusão na UI.
+// reunioes
 const apiCreateReuniao = (data) => apiRequest('POST', '/reunioes', data);
+const apiUpdateReuniao = (id, patch) => apiRequest('PATCH', `/reunioes/${id}`, patch);
+const apiDeleteReuniao = (id) => apiRequest('DELETE', `/reunioes/${id}`);
 
-// plantoes — só criação, não há edição/exclusão na UI.
+// plantoes
 const apiCreatePlantao = (data) => apiRequest('POST', '/plantoes', data);
+const apiUpdatePlantao = (id, patch) => apiRequest('PATCH', `/plantoes/${id}`, patch);
+const apiDeletePlantao = (id) => apiRequest('DELETE', `/plantoes/${id}`);
 
 // lembretes
 const apiCreateLembrete = (data) => apiRequest('POST', '/lembretes', data);

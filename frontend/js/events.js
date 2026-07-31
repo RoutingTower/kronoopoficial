@@ -413,6 +413,86 @@ function bindMainEvents(){
     };
   });
 
+  main.querySelectorAll('[data-editar-reuniao]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const r = DB.reunioes.find(x=>x.id===btn.dataset.editarReuniao);
+      if(!r) return;
+      const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
+      openModal(`<h3>Editar reunião</h3>
+        <div class="field"><label>Tipo</label><select id="fEditRTipo"><option value="grupo" ${r.tipo==='grupo'?'selected':''}>Grupo</option><option value="individual" ${r.tipo==='individual'?'selected':''}>Individual</option></select></div>
+        <div class="field"><label>Título</label><input id="fEditRTitulo" value="${r.titulo}"></div>
+        <div class="grid-2"><div class="field"><label>Data</label><input type="date" id="fEditRData" value="${r.data}"></div>
+        <div class="field"><label>Hora</label><select id="fEditRHora">${HOURS.map(h=>`<option ${h===r.hora?'selected':''}>${h}</option>`).join('')}</select></div></div>
+        <div class="field" id="fEditRAnalistaWrap" style="${r.tipo==='individual'?'':'display:none;'}"><label>Analista</label><select id="fEditRAnalista">${myAnalistas.map(a=>`<option value="${a.id}" ${a.id===r.analistaIds[0]?'selected':''}>${a.name}</option>`).join('')}</select></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn" data-modal-cancel>Cancelar</button>
+          <button class="btn btn-brand" id="confirmEditarReuniao">Salvar</button>
+        </div>`);
+      const cancelBtn = document.querySelector('[data-modal-cancel]');
+      if(cancelBtn) cancelBtn.onclick = closeModal;
+      const tipoSel = document.getElementById('fEditRTipo');
+      const wrap = document.getElementById('fEditRAnalistaWrap');
+      tipoSel.addEventListener('change', ()=>{ wrap.style.display = tipoSel.value==='individual' ? 'block':'none'; });
+      document.getElementById('confirmEditarReuniao').onclick = async ()=>{
+        const tipo = tipoSel.value;
+        const analistaIds = tipo==='individual' ? [document.getElementById('fEditRAnalista').value] : [];
+        const patch = {tipo, titulo:document.getElementById('fEditRTitulo').value||'Reunião',
+          data:document.getElementById('fEditRData').value, hora:document.getElementById('fEditRHora').value, analistaIds};
+        try{
+          const atualizado = await apiUpdateReuniao(r.id, patch);
+          DB.reunioes = DB.reunioes.map(x=>x.id===r.id ? atualizado : x);
+          closeModal(); renderMain();
+        }catch(e){ alert('Não foi possível salvar: '+e.message); }
+      };
+    });
+  });
+
+  main.querySelectorAll('[data-excluir-reuniao]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(!confirm('Excluir esta reunião?')) return;
+      const id = btn.dataset.excluirReuniao;
+      try{ await apiDeleteReuniao(id); DB.reunioes = DB.reunioes.filter(x=>x.id!==id); renderMain(); }
+      catch(e){ alert('Não foi possível excluir: '+e.message); }
+    });
+  });
+
+  main.querySelectorAll('[data-editar-plantao]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const p = DB.plantoes.find(x=>x.id===btn.dataset.editarPlantao);
+      if(!p) return;
+      openModal(`<h3>Editar plantão</h3>
+        <div class="field"><label>Data da ausência</label><input type="date" id="fEditPData" value="${p.data}"></div>
+        <div class="field"><label>Cargo do plantonista</label><select id="fEditPRole">
+          ${['Supervisor','Analista','Coordenador'].map(r=>`<option ${p.coberturaRole===r?'selected':''}>${r}</option>`).join('')}
+        </select></div>
+        <div class="field"><label>Nome do plantonista</label><input id="fEditPNome" value="${p.coberturaNome}"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn" data-modal-cancel>Cancelar</button>
+          <button class="btn btn-brand" id="confirmEditarPlantao">Salvar</button>
+        </div>`);
+      const cancelBtn = document.querySelector('[data-modal-cancel]');
+      if(cancelBtn) cancelBtn.onclick = closeModal;
+      document.getElementById('confirmEditarPlantao').onclick = async ()=>{
+        const patch = {data:document.getElementById('fEditPData').value,
+          coberturaRole:document.getElementById('fEditPRole').value, coberturaNome:document.getElementById('fEditPNome').value||'—'};
+        try{
+          const atualizado = await apiUpdatePlantao(p.id, patch);
+          DB.plantoes = DB.plantoes.map(x=>x.id===p.id ? atualizado : x);
+          closeModal(); renderMain();
+        }catch(e){ alert('Não foi possível salvar: '+e.message); }
+      };
+    });
+  });
+
+  main.querySelectorAll('[data-excluir-plantao]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(!confirm('Excluir este plantão?')) return;
+      const id = btn.dataset.excluirPlantao;
+      try{ await apiDeletePlantao(id); DB.plantoes = DB.plantoes.filter(x=>x.id!==id); renderMain(); }
+      catch(e){ alert('Não foi possível excluir: '+e.message); }
+    });
+  });
+
   const btnBaixarModeloMestra = document.getElementById('btnBaixarModeloMestra');
   if(btnBaixarModeloMestra) btnBaixarModeloMestra.addEventListener('click', ()=>{
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);

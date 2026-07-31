@@ -229,9 +229,13 @@ function supReunioes(myAnalistas){
   <div class="section-title">Reuniões</div>
   <div style="display:flex;justify-content:flex-end;margin-bottom:14px;"><button class="btn btn-brand" id="btnNovaReuniao">+ Nova reunião</button></div>
   <div class="card" style="margin-bottom:22px;">
-  <table><thead><tr><th>Título</th><th>Tipo</th><th>Data</th><th>Hora</th><th>Participantes</th></tr></thead><tbody>
+  <table><thead><tr><th>Título</th><th>Tipo</th><th>Data</th><th>Hora</th><th>Participantes</th><th></th></tr></thead><tbody>
   ${rows.map(r=>`<tr><td>${r.titulo}</td><td>${r.tipo==='grupo'?'Grupo':'Individual'}</td><td class="mono">${r.data}</td><td class="mono">${r.hora}</td>
-  <td>${r.tipo==='grupo' ? (r.analistaIds.length===0?'Toda a equipe':r.analistaIds.map(id=>userById(id)?.name).join(', ')) : (userById(r.analistaIds[0])?.name||'—')}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">Nenhuma reunião agendada</td></tr>'}
+  <td>${r.tipo==='grupo' ? (r.analistaIds.length===0?'Toda a equipe':r.analistaIds.map(id=>userById(id)?.name).join(', ')) : (userById(r.analistaIds[0])?.name||'—')}</td>
+  <td style="text-align:right;white-space:nowrap;">
+    <button class="btn" data-editar-reuniao="${r.id}">Editar</button>
+    <button class="btn btn-danger" data-excluir-reuniao="${r.id}">Excluir</button>
+  </td></tr>`).join('') || '<tr><td colspan="6" class="empty">Nenhuma reunião agendada</td></tr>'}
   </tbody></table></div>`;
 }
 
@@ -243,8 +247,12 @@ function supPlantao(){
   <div class="help-text">Defina quem cobre sua ausência (Supervisor, Analista ou Coordenador) em uma data específica. A informação aparece para os analistas da sua equipe.</div>
   <div style="display:flex;justify-content:flex-end;margin-bottom:14px;"><button class="btn btn-brand" id="btnNovoPlantao">+ Definir plantão</button></div>
   <div class="card">
-  <table><thead><tr><th>Data</th><th>Cargo do plantonista</th><th>Nome</th></tr></thead><tbody>
-  ${rows.map(p=>`<tr><td class="mono">${p.data}</td><td>${p.coberturaRole}</td><td>${p.coberturaNome}</td></tr>`).join('') || '<tr><td colspan="3" class="empty">Nenhum plantão definido</td></tr>'}
+  <table><thead><tr><th>Data</th><th>Cargo do plantonista</th><th>Nome</th><th></th></tr></thead><tbody>
+  ${rows.map(p=>`<tr><td class="mono">${p.data}</td><td>${p.coberturaRole}</td><td>${p.coberturaNome}</td>
+  <td style="text-align:right;white-space:nowrap;">
+    <button class="btn" data-editar-plantao="${p.id}">Editar</button>
+    <button class="btn btn-danger" data-excluir-plantao="${p.id}">Excluir</button>
+  </td></tr>`).join('') || '<tr><td colspan="4" class="empty">Nenhum plantão definido</td></tr>'}
   </tbody></table></div>`;
 }
 
