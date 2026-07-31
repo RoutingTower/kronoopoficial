@@ -12,6 +12,7 @@
   --done:#2FAE60;
   --alert:#D9362E;
   --suplente:#7C4DFF;
+  --folga:#B8860B;
   --brand:#EE4D2D;
   --brand-2:#FF8A5B;
   --brand-ink:#FFFFFF;
@@ -31,6 +32,7 @@
   --done:#3FC97A;
   --alert:#FF5C51;
   --suplente:#9C7CFF;
+  --folga:#E0B020;
   --brand:#FF6B45;
   --brand-2:#FF9466;
   --brand-ink:#FFFFFF;
@@ -214,9 +216,36 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .flash-card:hover{box-shadow:0 8px 20px rgba(20,20,20,0.09);transform:translateY(-1px);}
 .flash-card.off{border-style:dashed;box-shadow:none;}
 .flash-card.reuniao{border-color:rgba(124,77,255,0.35);background:rgba(124,77,255,0.04);}
+/* Categoria da operação (ver categoriaOperacao() em utils.js): verde =
+   operação fixa normal, amarelo = folga (outra pessoa cobre você), azul =
+   cobertura (você está cobrindo outra pessoa). flash-card-atraso (acima)
+   tem !important e continua ganhando de qualquer uma dessas quando a
+   operação está atrasada. */
+.flash-card-fixa{border-color:rgba(47,174,96,0.35);background:rgba(47,174,96,0.05);}
+.flash-card-folga{border-color:rgba(184,134,11,0.4);background:rgba(184,134,11,0.06);}
+.flash-card-cobertura{border-color:rgba(47,128,237,0.35);background:rgba(47,128,237,0.05);}
 .flash-sigla{font-weight:600;font-size:14.5px;}
 .flash-meta{color:var(--text-muted);font-size:11.5px;margin-top:3px;}
 .flash-cover{font-size:11px;color:var(--suplente);margin-top:6px;font-weight:600;}
+
+/* Grid de calendário (semanal/mensal da Programação) — substitui o kanban
+   de colunas horizontais por um grid de verdade, com o mês inteiro visível
+   sem precisar rolar pros lados; cada célula ainda pode rolar na vertical
+   se tiver operação demais num dia só. */
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}
+.cal-weekday-header{text-align:center;font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.06em;padding-bottom:4px;}
+.cal-day-cell{border:1px solid var(--border);border-radius:10px;padding:8px;background:var(--panel);display:flex;flex-direction:column;gap:5px;min-height:110px;max-height:230px;overflow-y:auto;}
+.cal-day-cell.today{border-color:var(--brand);}
+.cal-day-cell.empty-cell{background:var(--bg-2);opacity:0.45;border:none;min-height:60px;}
+.cal-day-num{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-faint);cursor:pointer;}
+.cal-day-num.today{color:var(--brand);font-weight:700;}
+.cal-chip{font-size:10.5px;line-height:1.35;padding:4px 6px;border-radius:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.cal-chip-fixa{background:rgba(47,174,96,0.14);color:var(--done);}
+.cal-chip-folga{background:rgba(184,134,11,0.16);color:var(--folga);}
+.cal-chip-cobertura{background:rgba(47,128,237,0.14);color:var(--wait);}
+@media (max-width:900px){
+  .cal-grid{grid-template-columns:repeat(7,minmax(90px,1fr));overflow-x:auto;}
+}
 .flash-actions{display:flex;gap:6px;margin-top:10px;}
 .flash-actions button{flex:1;font-size:11px;padding:6px 4px;}
 .msg-item{padding:12px 14px;border-radius:9px;background:var(--panel-2);margin-bottom:8px;border:1px solid var(--border);}

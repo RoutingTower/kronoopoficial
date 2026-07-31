@@ -13,7 +13,7 @@ let DB = null;
 let session = null;
 
 let uiState = {
-  analistaView:'diaria', analistaDate: todayISO(),
+  analistaView:'diaria', analistaDate: todayISO(), analistaOpFiltro: 'all',
   gradeFilters:{ data: todayISO(), hora:'all', analista:'all', op:'all', nome:'all', status:'all' },
   metricasFiltro:{ inicio: addDaysISO(todayISO(), -7), fim: todayISO() },
   envioFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO() },

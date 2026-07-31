@@ -4,8 +4,11 @@
 // a "Programação Analista" do supervisor reusa esta mesma função pra ver a
 // rota de qualquer analista da equipe, e lembretes são um to-do pessoal
 // (origem:self), não algo que deva aparecer na visão do supervisor.
-function renderFlashcardRow(analistaId, dateStr, showLembretes){
-  const slots = getDaySlots(analistaId, dateStr);
+// opFiltro (fixa/cobertura/folga) também só vem preenchido da própria
+// Programação do analista — ver categoriaOperacao() em utils.js.
+function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
+  let slots = getDaySlots(analistaId, dateStr);
+  if(opFiltro && opFiltro!=='all') slots = slots.filter(s=>categoriaOperacao(s)===opFiltro);
   const reunioes = getReunioesForDate(analistaId, dateStr);
   const lembretesDoDia = showLembretes ? getLembretesForAnalista(analistaId).filter(l=>(l.data||todayISO())===dateStr) : [];
   const semHora = lembretesDoDia.filter(l=>!l.hora);
@@ -20,7 +23,7 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes){
     let cardsHtml = items.map(it=>{
       const status = computeStatus(hour, dateStr, analistaId, it.operacao, it.isOff);
       const raiox = DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===it.horaInicio && r.data===dateStr);
-      return `<div class="flash-card${status==='atraso'?' flash-card-atraso':''}">
+      return `<div class="flash-card flash-card-${categoriaOperacao(it)}${status==='atraso'?' flash-card-atraso':''}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
           <span class="flash-sigla">${it.operacao}</span>${statusPill(status)}
         </div>
@@ -72,61 +75,73 @@ function renderAnalista(){
     <div class="stat-card"><div class="stat-num">${coberturas}</div><div class="stat-label">Coberturas feitas (total)</div></div>
     <div class="stat-card"><div class="stat-num">${folgas}</div><div class="stat-label">Dias com folga/férias (7 dias)</div></div>
   </div>
-  <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+  <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
     <input type="date" id="analistaDatePick" value="${dateStr}" class="mono" style="background:var(--bg-2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;">
+    <select data-opfiltro="status">
+      <option value="all" ${uiState.analistaOpFiltro==='all'?'selected':''}>Todas as operações</option>
+      <option value="fixa" ${uiState.analistaOpFiltro==='fixa'?'selected':''}>🟢 Operação fixa</option>
+      <option value="cobertura" ${uiState.analistaOpFiltro==='cobertura'?'selected':''}>🔵 Estou cobrindo</option>
+      <option value="folga" ${uiState.analistaOpFiltro==='folga'?'selected':''}>🟡 Estou sendo coberto (folga)</option>
+    </select>
   </div>
-  ${uiState.analistaView==='diaria' ? renderFlashcardRow(session.userId, dateStr, true)
-    : uiState.analistaView==='semanal' ? renderAnalistaSemanal(session.userId, dateStr)
-    : renderAnalistaMensal(session.userId, dateStr)}
+  ${uiState.analistaView==='diaria' ? renderFlashcardRow(session.userId, dateStr, true, uiState.analistaOpFiltro)
+    : uiState.analistaView==='semanal' ? renderAnalistaSemanal(session.userId, dateStr, uiState.analistaOpFiltro)
+    : renderAnalistaMensal(session.userId, dateStr, uiState.analistaOpFiltro)}
   `;
 }
 
 
-function renderAnalistaSemanal(analistaId, dateStr){
-  let cols='';
-  for(let i=0;i<7;i++){
+// Grid de calendário (7 colunas) em vez do kanban de rolagem horizontal —
+// mesmos 7 dias de sempre (a partir de dateStr), só a apresentação muda.
+// opFiltro reusado tanto aqui quanto em renderAnalistaMensal e
+// renderFlashcardRow (ver categoriaOperacao() em utils.js).
+function renderAnalistaSemanal(analistaId, dateStr, opFiltro){
+  const todayStr = todayISO();
+  const header = WEEKDAY_LABELS.map(w=>`<div class="cal-weekday-header">${w}</div>`).join('');
+  const cells = Array.from({length:7}, (_,i)=>{
     const ds = addDaysISO(dateStr, i);
-    const slots = getDaySlots(analistaId, ds);
+    let slots = getDaySlots(analistaId, ds);
+    if(opFiltro && opFiltro!=='all') slots = slots.filter(s=>categoriaOperacao(s)===opFiltro);
     const dd = new Date(ds+'T00:00:00');
     const label = dd.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
-    cols += `<div class="flash-col" style="min-width:160px;">
-      <div class="flash-time">${label}</div>
-      ${slots.length===0 ? `<div class="flash-card off"><span style="color:var(--text-faint);font-size:12px;">Sem operação</span></div>`
-      : slots.map(s=>`<div class="flash-card${s.isOff?' off':''}">
-          <div class="flash-sigla" style="font-size:13px;">${s.operacao}</div>
-          <div class="flash-meta">${s.horaInicio}–${s.horaFim}</div>
-          ${s.isOff?`<div class="flash-cover">${s.tipo==='ferias'?'Férias':'Folga'} · cobre: ${s.responsavelNome}</div>`
-            :s.isCobertura?`<div class="flash-cover">Cobrindo ${s.tipo==='ferias'?'férias':'folga'} de ${s.responsavelNome}</div>`:''}
-        </div>`).join('')}
+    const isToday = ds===todayStr;
+    return `<div class="cal-day-cell${isToday?' today':''}">
+      <div class="cal-day-num${isToday?' today':''}" data-daypick="${ds}">${label}</div>
+      ${slots.length===0 ? `<span style="color:var(--text-faint);font-size:11px;">Sem operação</span>` :
+        slots.map(s=>`<div class="cal-chip cal-chip-${categoriaOperacao(s)}" title="${s.operacao} · ${s.horaInicio}–${s.horaFim}${s.isOff?' · Folga · cobre: '+s.responsavelNome:s.isCobertura?' · Cobrindo '+s.responsavelNome:''}">${s.horaInicio} ${s.operacao}</div>`).join('')}
     </div>`;
-  }
-  return `<div class="flash-row">${cols}</div>`;
+  }).join('');
+  return `<div class="cal-grid" style="margin-bottom:6px;">${header}</div><div class="cal-grid">${cells}</div>`;
 }
 
-/* Mensal no mesmo formato da visão semanal: uma coluna por dia do mês, com flash-cards */
-
-function renderAnalistaMensal(analistaId, dateStr){
+// Grid de calendário de verdade (semanas em linhas, domingo a sábado) —
+// células vazias de preenchimento no início/fim, mesmo padrão de
+// renderLembretesMensal.
+function renderAnalistaMensal(analistaId, dateStr, opFiltro){
+  const todayStr = todayISO();
   const ref = new Date(dateStr+'T00:00:00');
   const year = ref.getFullYear(), month = ref.getMonth();
+  const startWeekday = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month+1, 0).getDate();
   const prevDate = new Date(year, month-1, 1).toISOString().slice(0,10);
   const nextDate = new Date(year, month+1, 1).toISOString().slice(0,10);
-  let cols='';
+  let cells = '';
+  for(let i=0;i<startWeekday;i++){
+    cells += `<div class="cal-day-cell empty-cell"></div>`;
+  }
   for(let day=1; day<=daysInMonth; day++){
     const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    const dd = new Date(ds+'T00:00:00');
-    const slots = getDaySlots(analistaId, ds);
-    const label = dd.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
-    cols += `<div class="flash-col" style="min-width:160px;">
-      <div class="flash-time" data-daypick="${ds}" style="cursor:pointer;">${label}</div>
-      ${slots.length===0 ? `<div class="flash-card off"><span style="color:var(--text-faint);font-size:12px;">Sem operação</span></div>`
-      : slots.map(s=>`<div class="flash-card${s.isOff?' off':''}">
-          <div class="flash-sigla" style="font-size:13px;">${s.operacao}</div>
-          <div class="flash-meta">${s.horaInicio}–${s.horaFim}</div>
-          ${s.isOff?`<div class="flash-cover">${s.tipo==='ferias'?'Férias':'Folga'} · cobre: ${s.responsavelNome}</div>`
-            :s.isCobertura?`<div class="flash-cover">Cobrindo ${s.tipo==='ferias'?'férias':'folga'} de ${s.responsavelNome}</div>`:''}
-        </div>`).join('')}
+    let slots = getDaySlots(analistaId, ds);
+    if(opFiltro && opFiltro!=='all') slots = slots.filter(s=>categoriaOperacao(s)===opFiltro);
+    const isToday = ds===todayStr;
+    cells += `<div class="cal-day-cell${isToday?' today':''}">
+      <div class="cal-day-num${isToday?' today':''}" data-daypick="${ds}">${day}</div>
+      ${slots.map(s=>`<div class="cal-chip cal-chip-${categoriaOperacao(s)}" title="${s.operacao} · ${s.horaInicio}–${s.horaFim}${s.isOff?' · Folga · cobre: '+s.responsavelNome:s.isCobertura?' · Cobrindo '+s.responsavelNome:''}">${s.horaInicio} ${s.operacao}</div>`).join('')}
     </div>`;
+  }
+  const trailing = (7 - ((startWeekday+daysInMonth) % 7)) % 7;
+  for(let i=0;i<trailing;i++){
+    cells += `<div class="cal-day-cell empty-cell"></div>`;
   }
   return `
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
@@ -134,7 +149,8 @@ function renderAnalistaMensal(analistaId, dateStr){
     <div class="section-title" style="margin:0;">${MONTH_NAMES[month]} ${year}</div>
     <button class="btn" data-monthnav="${nextDate}">Próximo mês ›</button>
   </div>
-  <div class="flash-row">${cols}</div>`;
+  <div class="cal-grid" style="margin-bottom:6px;">${WEEKDAY_LABELS.map(w=>`<div class="cal-weekday-header">${w}</div>`).join('')}</div>
+  <div class="cal-grid">${cells}</div>`;
 }
 
 

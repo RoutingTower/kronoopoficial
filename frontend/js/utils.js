@@ -50,6 +50,16 @@ function statusPill(status){
   return `<span class="pill ${cls}">${label}</span>`;
 }
 
+// Categoria visual de um slot de getDaySlots(): fixa (operação normal do
+// analista), folga (ele está ausente, outra pessoa cobre) ou cobertura
+// (ele está cobrindo a operação de outra pessoa) — usado tanto pra colorir
+// os flashcards quanto pro filtro da Programação (ver render-analista.js).
+function categoriaOperacao(s){
+  if(s.isOff) return 'folga';
+  if(s.isCobertura) return 'cobertura';
+  return 'fixa';
+}
+
 function starDisplay(n){
   const v = Math.max(0, Math.min(5, n||0));
   return `<span style="color:var(--brand);letter-spacing:1px;">${'★'.repeat(v)}${'☆'.repeat(5-v)}</span>`;

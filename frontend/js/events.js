@@ -86,6 +86,9 @@ function bindMainEvents(){
   });
   const datePick = document.getElementById('analistaDatePick');
   if(datePick) datePick.addEventListener('change', ()=>{ uiState.analistaDate = datePick.value; renderMain(); });
+  main.querySelectorAll('[data-opfiltro]').forEach(sel=>{
+    sel.addEventListener('change', ()=>{ uiState.analistaOpFiltro = sel.value; renderMain(); });
+  });
 
   main.querySelectorAll('[data-daypick]').forEach(cell=>{
     cell.addEventListener('click', ()=>{
