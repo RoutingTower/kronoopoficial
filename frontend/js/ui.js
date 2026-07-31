@@ -34,11 +34,20 @@ async function doRealLogin(){
   }
 }
 
-function enterApp(){
+function hideBootScreen(){
+  const boot = document.getElementById('view-boot');
+  if(boot) boot.style.display='none';
+}
+
+// instant=true pula a animação de "saída" da tela de login (420ms) — usado
+// quando o Firebase já resolveu uma sessão salva antes de mostrar qualquer
+// coisa (view-boot cobrindo a tela, ver main.js), então não faz sentido
+// animar a saída de um login que o usuário nunca chegou a ver.
+function enterApp(instant){
   const loginEl = document.getElementById('view-login');
   const appEl = document.getElementById('view-app');
-  loginEl.classList.add('leaving');
-  setTimeout(()=>{
+  hideBootScreen();
+  function finish(){
     loginEl.style.display='none';
     appEl.style.display='block';
     document.getElementById('chipName').textContent = session.name;
@@ -52,7 +61,9 @@ function enterApp(){
     buildNav();
     renderMain();
     requestAnimationFrame(()=> appEl.classList.add('entered'));
-  }, 420);
+  }
+  if(instant){ finish(); }
+  else { loginEl.classList.add('leaving'); setTimeout(finish, 420); }
 }
 
 async function exitApp(){

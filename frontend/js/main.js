@@ -32,10 +32,19 @@ initLogin();
 // (ex.: sessão persistida resolvendo bem na hora em que um novo login manual
 // é enviado), a resposta mais lenta de um evento MAIS ANTIGO não pode
 // sobrescrever a sessão já atualizada por um evento mais novo.
+//
+// isFirstAuthCheck marca a PRIMEIRA chamada (o boot da página, coberto por
+// #view-boot — ver index.html/style.css) — só nesse caso pulamos a animação
+// de saída do login (entra direto, sem o usuário nunca ter visto o
+// formulário) e escondemos o boot. Em qualquer outra chamada (login manual,
+// logout) o boot já foi escondido há muito tempo.
 let authRequestSeq = 0;
+let isFirstAuthCheck = true;
 firebase.auth().onAuthStateChanged(async (user)=>{
   const myReq = ++authRequestSeq;
-  if(!user){ return; } // tela de login (real) já é a exibida por padrão
+  const isBoot = isFirstAuthCheck;
+  isFirstAuthCheck = false;
+  if(!user){ if(isBoot) hideBootScreen(); return; } // tela de login (real) já é a exibida por padrão
   const btn = document.getElementById('loginBtnReal');
   const btnLabel = btn.textContent;
   btn.disabled = true;
@@ -47,10 +56,11 @@ firebase.auth().onAuthStateChanged(async (user)=>{
     const me = await apiRequest('GET', '/users/me');
     if(myReq !== authRequestSeq) return; // ficou obsoleto enquanto isso — um evento mais novo já assumiu
     session = { role: me.role, userId: me.id, name: me.name };
-    enterApp();
+    enterApp(isBoot);
   }catch(e){
     if(myReq !== authRequestSeq) return;
     console.error('KronoOP: falha ao carregar perfil autenticado.', e);
+    if(isBoot) hideBootScreen();
     showLoginErrorReal('Não foi possível carregar seu perfil. Tente novamente.');
     await KronoAuth.signOutUser();
   }finally{
