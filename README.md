@@ -7,7 +7,7 @@ Frontend em HTML/CSS/JS puro (sem build step) + backend em Node.js/Express
 
 ## Site no ar
 
-- **Frontend**: https://thiagoribeiro-sys.github.io/kronoopoficial/ (GitHub Pages)
+- **Frontend**: https://routingtower.github.io/kronoopoficial/ (GitHub Pages)
 - **Backend**: https://kronoopoficial.onrender.com (Render) — `/api/health`
   responde `{"status":"ok"}`. O bug de `401` na verificação do token
   (credencial do Firebase mal configurada nas variáveis de ambiente do
