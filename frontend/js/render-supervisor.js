@@ -6,7 +6,7 @@ function renderSupervisor(){
   let content='';
   if(activeNavKey==='cadastros') content = supCadastros(myAnalistas);
   else if(activeNavKey==='basemestra') content = supBaseMestra(myAnalistas);
-  else if(activeNavKey==='suplencias') content = supSugerirSuplente(myAnalistas) + supSuplencias(myAnalistas);
+  else if(activeNavKey==='suplencias') content = renderImportPendentesBanner('suplencias', myAnalistas) + supSugerirSuplente(myAnalistas) + supSuplencias(myAnalistas);
   else if(activeNavKey==='programacao') content = supProgramacao(myAnalistas);
   else if(activeNavKey==='grade') content = supGrade(myAnalistas);
   else if(activeNavKey==='reunioes') content = supReunioes(myAnalistas) + supPlantao();
@@ -14,6 +14,35 @@ function renderSupervisor(){
   else if(activeNavKey==='transmissao') content = supTransmissao(myAnalistas);
   else if(activeNavKey==='ocorrencias') content = supOcorrencias(myAnalistas);
   return `<div class="page-head"><div><h1 class="page-title">${tabLabel}</h1><div class="page-desc">Gestão da equipe de ${session.name}</div></div></div>${content}`;
+}
+
+
+// Banner no topo de Operações Fixas/Cobertura quando uma importação em
+// massa (Excel) tem nomes que não bateram com ninguém da equipe (ver
+// findAnalistaByName em utils.js e os handlers de fileImportMestra/
+// fileImportSuplencia em events.js). Deixa o supervisor escolher o
+// analista certo por linha (ou descartar) sem precisar refazer a
+// planilha inteira.
+function renderImportPendentesBanner(tipo, myAnalistas){
+  const p = uiState.importPendentes;
+  if(!p || p.tipo!==tipo || p.items.length===0) return '';
+  return `
+  <div class="card" style="margin-bottom:18px;border-color:var(--alert);">
+    <div class="section-title" style="color:var(--alert);">⚠ ${p.items.length} nome(s) não encontrado(s) no cadastro</div>
+    <div class="help-text">Essas linhas da planilha não bateram com nenhum analista da sua equipe (mesmo ignorando acentos, maiúsculas/minúsculas e pontuação). Selecione o analista certo pra cada uma, ou deixe em "Descartar" pra não importar a linha.</div>
+    ${p.items.map((it,idx)=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+        <span style="flex:1;min-width:220px;font-size:13px;"><b>"${escapeHtml(it.nomeOriginal||'(vazio)')}"</b> — ${escapeHtml(it.operacao)} · ${it.horaInicio}–${it.horaFim}</span>
+        <select data-pendente-idx="${idx}" style="min-width:220px;">
+          <option value="">— Descartar linha —</option>
+          ${myAnalistas.map(a=>`<option value="${a.id}" ${it.analistaId===a.id?'selected':''}>${a.name}</option>`).join('')}
+        </select>
+      </div>`).join('')}
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
+      <button class="btn" id="btnDescartarPendentes">Descartar todos</button>
+      <button class="btn btn-brand" id="btnAplicarPendentes">Aplicar e importar</button>
+    </div>
+  </div>`;
 }
 
 
@@ -48,6 +77,7 @@ function supBaseMestra(myAnalistas){
   const ids = myAnalistas.map(a=>a.id);
   const rows = DB.baseMestra.filter(b=>ids.includes(b.analistaId));
   return `
+  ${renderImportPendentesBanner('basemestra', myAnalistas)}
   <div class="csv-row">
     <span class="csv-label">Carga em massa das operações do titular (Excel)</span>
     <button class="btn" id="btnBaixarModeloMestra">⭳ Baixar modelo Excel</button>

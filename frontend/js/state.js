@@ -20,7 +20,12 @@ let uiState = {
   ocorrenciasFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), analista: 'all', operacao: 'all', avaliacaoMax: '' },
   suplenciasFiltro:{ operacao:'', horario:'', suplente:'all', cobrindo:'all', inicio:'', fim:'' },
   progAnalista:'all', progDate: todayISO(), progView:'diaria',
-  sugerir: null, inboxSelected: null, lembretesDate: todayISO(), lembretesView: 'semanal'
+  sugerir: null, inboxSelected: null, lembretesDate: todayISO(), lembretesView: 'semanal',
+  // Linhas de importação em massa (Excel) cujo nome de analista não bateu
+  // com ninguém da equipe — { tipo:'basemestra'|'suplencias', items:[...] }.
+  // Mostrado como banner no topo da tela até o supervisor resolver ou
+  // descartar (ver renderImportPendentesBanner em render-supervisor.js).
+  importPendentes: null,
 };
 
 const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];

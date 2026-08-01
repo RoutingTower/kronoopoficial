@@ -187,9 +187,22 @@ function candidatosParaSlot(myAnalistas, titularId, bm, dataStr){
 }
 
 
+// Ignora acento, maiúscula/minúscula, pontuação e espaço duplicado — pra
+// "José da Silva", "jose  da-silva." e "JOSÉ DA SILVA" baterem com o mesmo
+// cadastro na hora de importar planilha (ver findAnalistaByName abaixo).
+function normalizarNome(s){
+  return (s||'')
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[.,;:!?'"´`_-]/g,' ')
+    .replace(/\s+/g,' ')
+    .trim()
+    .toLowerCase();
+}
+
 function findAnalistaByName(myAnalistas, name){
-  const n = (name||'').trim().toLowerCase();
-  return myAnalistas.find(a=>a.name.trim().toLowerCase()===n);
+  const n = normalizarNome(name);
+  if(!n) return null;
+  return myAnalistas.find(a=>normalizarNome(a.name)===n);
 }
 
 function readFileAsArrayBuffer(file){

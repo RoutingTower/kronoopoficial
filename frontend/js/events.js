@@ -517,12 +517,20 @@ function bindMainEvents(){
     try { rows = await parseXLSX(file); }
     catch(e){ fileImportMestra.value=''; alert('Não foi possível ler o arquivo Excel: '+e.message); return; }
     let ok=0, fail=0;
+    const pendentes = [];
     openProgressModal('Importando operações fixas...');
     for(const [idx, r] of rows.entries()){
-      const a = findAnalistaByName(myAnalistas, r.analista);
-      if(!a || !r.operacao || !r.hora_inicio || !r.hora_fim){ fail++; updateProgressModal(idx+1, rows.length); continue; }
+      if(!r.operacao || !r.hora_inicio || !r.hora_fim){ fail++; updateProgressModal(idx+1, rows.length); continue; }
       // Coluna "dias" vazia/ausente = roda todo dia (ver bmRodaNoDia em utils.js).
       const dias = (r.dias||'').split(',').map(d=>d.trim().toLowerCase()).filter(Boolean);
+      const a = findAnalistaByName(myAnalistas, r.analista);
+      if(!a){
+        pendentes.push({nomeOriginal:r.analista||'', operacao:r.operacao, ciclo:r.ciclo||'T3',
+          horaInicio:r.hora_inicio, horaFim:r.hora_fim, dias,
+          dataInicio:r.data_inicio||todayISO(), dataFim:r.data_fim||'2026-12-31', analistaId:''});
+        updateProgressModal(idx+1, rows.length);
+        continue;
+      }
       const entrada = {analistaId:a.id, operacao:r.operacao, ciclo:r.ciclo||'T3',
         horaInicio:r.hora_inicio, horaFim:r.hora_fim, titular:a.name, dias,
         dataInicio:r.data_inicio||todayISO(), dataFim:r.data_fim||'2026-12-31'};
@@ -531,8 +539,54 @@ function bindMainEvents(){
       updateProgressModal(idx+1, rows.length);
     }
     closeModal();
-    fileImportMestra.value=''; renderMain();
-    alert(`Importação concluída: ${ok} entrada(s) adicionada(s)${fail?`, ${fail} linha(s) ignorada(s) (analista ou campos não reconhecidos)`:''}.`);
+    fileImportMestra.value='';
+    if(pendentes.length) uiState.importPendentes = {tipo:'basemestra', items:pendentes};
+    renderMain();
+    alert(`Importação concluída: ${ok} entrada(s) adicionada(s)${fail?`, ${fail} linha(s) ignorada(s) (campos obrigatórios ausentes)`:''}${pendentes.length?`, ${pendentes.length} nome(s) não encontrado(s) — corrija no aviso no topo da tela.`:''}.`);
+  });
+
+  main.querySelectorAll('[data-pendente-idx]').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      const idx = parseInt(sel.dataset.pendenteIdx, 10);
+      if(uiState.importPendentes) uiState.importPendentes.items[idx].analistaId = sel.value;
+    });
+  });
+
+  const btnDescartarPendentes = document.getElementById('btnDescartarPendentes');
+  if(btnDescartarPendentes) btnDescartarPendentes.addEventListener('click', ()=>{
+    uiState.importPendentes = null;
+    renderMain();
+  });
+
+  const btnAplicarPendentes = document.getElementById('btnAplicarPendentes');
+  if(btnAplicarPendentes) btnAplicarPendentes.addEventListener('click', async ()=>{
+    const p = uiState.importPendentes;
+    if(!p) return;
+    const selecionados = p.items.filter(it=>it.analistaId);
+    if(selecionados.length===0){ uiState.importPendentes = null; renderMain(); return; }
+    let ok=0, fail=0;
+    openProgressModal('Aplicando correções...');
+    for(const [idx, it] of selecionados.entries()){
+      try{
+        if(p.tipo==='basemestra'){
+          const a = userById(it.analistaId);
+          const entrada = {analistaId:it.analistaId, operacao:it.operacao, ciclo:it.ciclo,
+            horaInicio:it.horaInicio, horaFim:it.horaFim, titular:a.name, dias:it.dias,
+            dataInicio:it.dataInicio, dataFim:it.dataFim};
+          DB.baseMestra.push(await apiCreateBaseMestra(entrada));
+        } else if(p.tipo==='suplencias'){
+          const entrada = {operacao:it.operacao, ciclo:it.ciclo, horaInicio:it.horaInicio, horaFim:it.horaFim,
+            suplente:it.suplente, dataCobertura:it.dataCobertura, analistaOriginalId:it.analistaId};
+          DB.suplencias.push(await apiCreateSuplencia(entrada));
+        }
+        ok++;
+      }catch(e){ console.error('Falha ao aplicar correção de importação', it, e); fail++; }
+      updateProgressModal(idx+1, selecionados.length);
+    }
+    closeModal();
+    uiState.importPendentes = null;
+    renderMain();
+    alert(`Correções aplicadas: ${ok} adicionada(s)${fail?`, ${fail} falharam`:''}.`);
   });
 
   main.querySelectorAll('[data-editar-mestra]').forEach(btn=>{
@@ -603,10 +657,17 @@ function bindMainEvents(){
     try { rows = await parseXLSX(file); }
     catch(e){ fileImportSuplencia.value=''; alert('Não foi possível ler o arquivo Excel: '+e.message); return; }
     let ok=0, fail=0;
+    const pendentes = [];
     openProgressModal('Importando coberturas avulsas...');
     for(const [idx, r] of rows.entries()){
+      if(!r.suplente || !r.operacao || !r.hora_inicio || !r.hora_fim || !r.data_cobertura){ fail++; updateProgressModal(idx+1, rows.length); continue; }
       const orig = findAnalistaByName(myAnalistas, r.analista_original);
-      if(!orig || !r.suplente || !r.operacao || !r.hora_inicio || !r.hora_fim || !r.data_cobertura){ fail++; updateProgressModal(idx+1, rows.length); continue; }
+      if(!orig){
+        pendentes.push({nomeOriginal:r.analista_original||'', operacao:r.operacao, ciclo:r.ciclo||'T3',
+          horaInicio:r.hora_inicio, horaFim:r.hora_fim, suplente:r.suplente, dataCobertura:r.data_cobertura, analistaId:''});
+        updateProgressModal(idx+1, rows.length);
+        continue;
+      }
       const entrada = {operacao:r.operacao, ciclo:r.ciclo||'T3',
         horaInicio:r.hora_inicio, horaFim:r.hora_fim, suplente:r.suplente,
         dataCobertura:r.data_cobertura, analistaOriginalId:orig.id};
@@ -615,8 +676,10 @@ function bindMainEvents(){
       updateProgressModal(idx+1, rows.length);
     }
     closeModal();
-    fileImportSuplencia.value=''; renderMain();
-    alert(`Importação concluída: ${ok} cobertura(s) adicionada(s)${fail?`, ${fail} linha(s) ignorada(s)`:''}.`);
+    fileImportSuplencia.value='';
+    if(pendentes.length) uiState.importPendentes = {tipo:'suplencias', items:pendentes};
+    renderMain();
+    alert(`Importação concluída: ${ok} cobertura(s) adicionada(s)${fail?`, ${fail} linha(s) ignorada(s) (campos obrigatórios ausentes)`:''}${pendentes.length?`, ${pendentes.length} nome(s) não encontrado(s) — corrija no aviso no topo da tela.`:''}.`);
   });
 
   main.querySelectorAll('[data-excluir-suplencia]').forEach(btn=>{
