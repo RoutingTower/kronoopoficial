@@ -247,6 +247,11 @@ function bindMainEvents(){
       <div class="field"><label>Ciclo</label><input id="fCiclo" value="T3"></div>
       <div class="grid-2"><div class="field"><label>Início</label><select id="fHi">${HOURS.map(h=>`<option>${h}</option>`).join('')}</select></div>
       <div class="field"><label>Fim</label><select id="fHf">${HOURS.map(h=>`<option>${h}</option>`).join('')}</select></div></div>
+      <div class="field"><label>Dias da semana</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          ${WEEKDAYS.map(d=>`<label style="display:flex;align-items:center;gap:4px;font-size:12px;background:var(--bg-2);padding:5px 8px;border-radius:6px;"><input type="checkbox" class="fMestraDia" value="${d}" checked> ${d}</label>`).join('')}
+        </div>
+      </div>
       <div class="grid-2"><div class="field"><label>Vigência início</label><input type="date" id="fDi" value="${todayISO()}"></div>
       <div class="field"><label>Vigência fim</label><input type="date" id="fDf" value="2026-12-31"></div></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
@@ -258,8 +263,11 @@ function bindMainEvents(){
     document.getElementById('confirmNovaMestra').onclick = async ()=>{
       const analistaId = document.getElementById('fAnalista').value;
       const titular = userById(analistaId).name;
+      const diasTodos = Array.from(document.querySelectorAll('.fMestraDia')).map(c=>c.value);
+      const diasMarcados = Array.from(document.querySelectorAll('.fMestraDia:checked')).map(c=>c.value);
+      const dias = diasMarcados.length===diasTodos.length ? [] : diasMarcados;
       const entrada = {analistaId, operacao:document.getElementById('fOp').value||'OP', ciclo:document.getElementById('fCiclo').value,
-        horaInicio:document.getElementById('fHi').value, horaFim:document.getElementById('fHf').value, titular,
+        horaInicio:document.getElementById('fHi').value, horaFim:document.getElementById('fHf').value, titular, dias,
         dataInicio:document.getElementById('fDi').value, dataFim:document.getElementById('fDf').value};
       try{
         const novo = await apiCreateBaseMestra(entrada);
@@ -325,7 +333,7 @@ function bindMainEvents(){
     const analistaId = document.getElementById('sugAnalista').value;
     const data = document.getElementById('sugData').value;
     const tipo = document.getElementById('sugTipo').value;
-    const bms = DB.baseMestra.filter(b=>b.analistaId===analistaId && data>=b.dataInicio && data<=b.dataFim);
+    const bms = DB.baseMestra.filter(b=>b.analistaId===analistaId && bmRodaNoDia(b, data));
     const items = bms.map(bm=>{
       const candidatos = candidatosParaSlot(myAnalistas, analistaId, bm, data);
       return { bmId: bm.id, candidatos, chosenId: candidatos[0]?.id || '' };
@@ -498,8 +506,8 @@ function bindMainEvents(){
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
     const exemplo = myAnalistas[0]?.name || 'Nome do Analista';
     downloadXLSX('modelo_base_mestra.xlsx',
-      ['analista','operacao','ciclo','hora_inicio','hora_fim','data_inicio','data_fim'],
-      [exemplo,'COL-A','T3','19:00','23:00', todayISO(), '2026-12-31']);
+      ['analista','operacao','ciclo','hora_inicio','hora_fim','dias','data_inicio','data_fim'],
+      [exemplo,'COL-A','T3','19:00','23:00','seg,ter,qua,qui,sex', todayISO(), '2026-12-31']);
   });
   const fileImportMestra = document.getElementById('fileImportMestra');
   if(fileImportMestra) fileImportMestra.addEventListener('change', async ()=>{
@@ -513,8 +521,10 @@ function bindMainEvents(){
     for(const [idx, r] of rows.entries()){
       const a = findAnalistaByName(myAnalistas, r.analista);
       if(!a || !r.operacao || !r.hora_inicio || !r.hora_fim){ fail++; updateProgressModal(idx+1, rows.length); continue; }
+      // Coluna "dias" vazia/ausente = roda todo dia (ver bmRodaNoDia em utils.js).
+      const dias = (r.dias||'').split(',').map(d=>d.trim().toLowerCase()).filter(Boolean);
       const entrada = {analistaId:a.id, operacao:r.operacao, ciclo:r.ciclo||'T3',
-        horaInicio:r.hora_inicio, horaFim:r.hora_fim, titular:a.name,
+        horaInicio:r.hora_inicio, horaFim:r.hora_fim, titular:a.name, dias,
         dataInicio:r.data_inicio||todayISO(), dataFim:r.data_fim||'2026-12-31'};
       try{ DB.baseMestra.push(await apiCreateBaseMestra(entrada)); ok++; }
       catch(e){ console.error('Falha ao importar', r.analista, e); fail++; }
@@ -534,6 +544,11 @@ function bindMainEvents(){
         <div class="field"><label>Ciclo</label><input id="fEditCiclo" value="${b.ciclo}"></div>
         <div class="grid-2"><div class="field"><label>Início</label><select id="fEditHi">${HOURS.map(h=>`<option ${h===b.horaInicio?'selected':''}>${h}</option>`).join('')}</select></div>
         <div class="field"><label>Fim</label><select id="fEditHf">${HOURS.map(h=>`<option ${h===b.horaFim?'selected':''}>${h}</option>`).join('')}</select></div></div>
+        <div class="field"><label>Dias da semana</label>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            ${WEEKDAYS.map(d=>`<label style="display:flex;align-items:center;gap:4px;font-size:12px;background:var(--bg-2);padding:5px 8px;border-radius:6px;"><input type="checkbox" class="fEditMestraDia" value="${d}" ${(!b.dias||b.dias.length===0||b.dias.includes(d))?'checked':''}> ${d}</label>`).join('')}
+          </div>
+        </div>
         <div class="grid-2"><div class="field"><label>Vigência início</label><input type="date" id="fEditDi" value="${b.dataInicio}"></div>
         <div class="field"><label>Vigência fim</label><input type="date" id="fEditDf" value="${b.dataFim}"></div></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
@@ -543,11 +558,14 @@ function bindMainEvents(){
       const cancelBtn = document.querySelector('[data-modal-cancel]');
       if(cancelBtn) cancelBtn.onclick = closeModal;
       document.getElementById('confirmEditarMestra').onclick = async ()=>{
+        const diasTodos = Array.from(document.querySelectorAll('.fEditMestraDia')).map(c=>c.value);
+        const diasMarcados = Array.from(document.querySelectorAll('.fEditMestraDia:checked')).map(c=>c.value);
         const patch = {
           operacao: document.getElementById('fEditOp').value || b.operacao,
           ciclo: document.getElementById('fEditCiclo').value || b.ciclo,
           horaInicio: document.getElementById('fEditHi').value,
           horaFim: document.getElementById('fEditHf').value,
+          dias: diasMarcados.length===diasTodos.length ? [] : diasMarcados,
           dataInicio: document.getElementById('fEditDi').value,
           dataFim: document.getElementById('fEditDf').value,
         };

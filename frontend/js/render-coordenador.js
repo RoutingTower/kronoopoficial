@@ -79,7 +79,7 @@ function coordDashboard(){
   const totalAnalistas = usersByRole('analista').length;
   const totalSup = usersByRole('supervisor').length;
   const today = todayISO();
-  const opsAtivas = DB.baseMestra.filter(b=>today>=b.dataInicio && today<=b.dataFim).length;
+  const opsAtivas = DB.baseMestra.filter(b=>bmRodaNoDia(b, today)).length;
   const folgasHoje = new Set(DB.ausencias.filter(a=>a.data===today).map(a=>a.analistaId)).size;
   const avaliacaoBaixa = DB.raioX.filter(r=>(r.estrelas||0)<=2).length;
   return `
@@ -98,7 +98,7 @@ function coordDashboard(){
 function coordStatus(){
   const today = todayISO();
   let done=0,live=0,wait=0,atraso=0;
-  DB.baseMestra.filter(b=>today>=b.dataInicio && today<=b.dataFim).forEach(b=>{
+  DB.baseMestra.filter(b=>bmRodaNoDia(b, today)).forEach(b=>{
     const isOff = DB.ausencias.some(a=>a.baseMestraId===b.id && a.data===today);
     const s = computeStatus(b.horaInicio, today, b.analistaId, b.operacao, isOff);
     if(s==='done') done++; else if(s==='live') live++; else if(s==='atraso') atraso++; else wait++;

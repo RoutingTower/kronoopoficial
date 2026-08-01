@@ -13,7 +13,7 @@ async function listBaseMestra(req, res) {
 // Só o supervisor do analista pode criar/editar/excluir a base mestra dele
 // — mesma regra em todo o arquivo (espelha frontend/js/events.js, "Operações Fixas").
 async function createBaseMestra(req, res) {
-  const { analistaId, operacao, ciclo, horaInicio, horaFim, titular, dataInicio, dataFim } = req.body;
+  const { analistaId, operacao, ciclo, horaInicio, horaFim, titular, dataInicio, dataFim, dias } = req.body;
   if (!analistaId || !operacao || !horaInicio || !horaFim || !dataInicio || !dataFim) {
     return res.status(400).json({
       error: "bad_request",
@@ -35,6 +35,9 @@ async function createBaseMestra(req, res) {
     titular: titular || "",
     dataInicio,
     dataFim,
+    // Array vazio/ausente = roda todo dia (compatível com registros
+    // criados antes desse campo existir) — ver bmRodaNoDia() no frontend.
+    dias: Array.isArray(dias) ? dias : [],
   });
   res.status(201).json(entry);
 }
@@ -53,7 +56,7 @@ async function updateBaseMestra(req, res) {
   }
 
   const patch = {};
-  for (const key of ["operacao", "ciclo", "horaInicio", "horaFim", "titular", "dataInicio", "dataFim"]) {
+  for (const key of ["operacao", "ciclo", "horaInicio", "horaFim", "titular", "dataInicio", "dataFim", "dias"]) {
     if (req.body[key] !== undefined) patch[key] = req.body[key];
   }
   const updated = await firestoreService.update(COLLECTION, req.params.id, patch);

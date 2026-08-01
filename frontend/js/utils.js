@@ -21,6 +21,22 @@ function jornadaLabel(u){
   return `${dias||'—'} · ${u.jornada.horaInicio}–${u.jornada.horaFim}`;
 }
 
+function diasBaseMestraLabel(bm){
+  if(!bm.dias || bm.dias.length===0) return 'Todos os dias';
+  return bm.dias.map(d=>d.charAt(0).toUpperCase()+d.slice(1)).join('/');
+}
+
+// Uma entrada de base mestra "roda" num dia se a data está dentro da
+// vigência E (não tem restrição de dia da semana OU o dia da semana da
+// data está entre os selecionados). dias vazio/ausente = todo dia —
+// mantém compatível com registros criados antes desse campo existir.
+function bmRodaNoDia(bm, dateStr){
+  if(dateStr < bm.dataInicio || dateStr > bm.dataFim) return false;
+  if(!bm.dias || bm.dias.length===0) return true;
+  const weekday = WEEKDAYS[new Date(dateStr+'T00:00:00').getDay()];
+  return bm.dias.includes(weekday);
+}
+
 
 const RAIOX_MIN_OBS_LEN = 150;
 
@@ -67,7 +83,7 @@ function starDisplay(n){
 
 
 function getDaySlots(analistaId, dateStr){
-  const bmEntries = DB.baseMestra.filter(b=>b.analistaId===analistaId && dateStr>=b.dataInicio && dateStr<=b.dataFim);
+  const bmEntries = DB.baseMestra.filter(b=>b.analistaId===analistaId && bmRodaNoDia(b, dateStr));
   const slots = bmEntries.map(bm=>{
     const aus = DB.ausencias.find(a=>a.baseMestraId===bm.id && a.data===dateStr);
     if(aus){
@@ -156,7 +172,7 @@ function candidatosParaSlot(myAnalistas, titularId, bm, dataStr){
   const candidatos = myAnalistas.filter(a=>a.id!==titularId).map(a=>{
     const estaDeFolga = DB.ausencias.some(x=>x.analistaId===a.id && x.data===dataStr);
     if(estaDeFolga) return null;
-    const opsProprias = DB.baseMestra.filter(b=>b.analistaId===a.id && dataStr>=b.dataInicio && dataStr<=b.dataFim)
+    const opsProprias = DB.baseMestra.filter(b=>b.analistaId===a.id && bmRodaNoDia(b, dataStr))
       .filter(b=>!DB.ausencias.some(x=>x.baseMestraId===b.id && x.data===dataStr));
     const conflitaComProprias = opsProprias.some(b=> rangesOverlap(s1,e1, hourSortValue(b.horaInicio), hourSortValue(b.horaFim)));
     if(conflitaComProprias) return null;
