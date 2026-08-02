@@ -8,6 +8,52 @@ function showLoginErrorReal(msg){
   el.style.display = 'block';
 }
 
+// Bloqueio por tentativas erradas — guardado no localStorage (por e-mail
+// digitado, não por conta real) pra sobreviver a um F5. É uma trava de UX,
+// não a defesa de verdade contra força bruta: quem já protege isso é o
+// próprio Firebase Auth (auth/too-many-requests, aplicado no servidor,
+// imune a limpar o localStorage). Reseta sozinho depois do cooldown, ou na
+// hora que o login der certo.
+const LOGIN_LOCK_THRESHOLD = 3;
+const LOGIN_LOCK_COOLDOWN_MS = 15 * 60 * 1000; // 15 minutos
+const LOGIN_MSG_BLOQUEADO = 'Muitas tentativas com senha incorreta. Por segurança, o acesso foi bloqueado temporariamente. Analistas: entre em contato com seu Supervisor. Supervisores: entre em contato com seu Coordenador. Coordenadores: entre em contato com o administrador do sistema.';
+// Só conta como "tentativa errada" erro de credencial de verdade — não
+// conta erro de rede, e-mail mal formatado ou conta desativada.
+const LOGIN_CODIGOS_CREDENCIAL_INVALIDA = new Set(['auth/wrong-password','auth/user-not-found','auth/invalid-credential']);
+
+function getLoginFails(){
+  try{ return JSON.parse(localStorage.getItem('kronoop-login-fails') || '{}'); }catch(e){ return {}; }
+}
+function setLoginFails(fails){
+  try{ localStorage.setItem('kronoop-login-fails', JSON.stringify(fails)); }catch(e){}
+}
+function limparFalhaLogin(email){
+  const fails = getLoginFails();
+  delete fails[email.trim().toLowerCase()];
+  setLoginFails(fails);
+}
+function registrarFalhaLogin(email){
+  const fails = getLoginFails();
+  const key = email.trim().toLowerCase();
+  const atual = fails[key];
+  const now = Date.now();
+  fails[key] = (atual && (now - atual.lastFail) < LOGIN_LOCK_COOLDOWN_MS)
+    ? { count: atual.count + 1, lastFail: now }
+    : { count: 1, lastFail: now };
+  setLoginFails(fails);
+  return fails[key];
+}
+// true se esse e-mail já bateu o limite e o cooldown ainda não passou —
+// já aproveita pra limpar o registro sozinho quando o cooldown expirou.
+function loginBloqueado(email){
+  const fails = getLoginFails();
+  const key = email.trim().toLowerCase();
+  const atual = fails[key];
+  if(!atual || atual.count < LOGIN_LOCK_THRESHOLD) return false;
+  if(Date.now() - atual.lastFail >= LOGIN_LOCK_COOLDOWN_MS){ limparFalhaLogin(email); return false; }
+  return true;
+}
+
 // Chamada uma única vez no bootstrap (main.js). O listener do Firebase Auth
 // dispara tanto no login manual quanto na retomada de uma sessão já
 // persistida (F5) — os dois casos convergem aqui.
@@ -22,13 +68,20 @@ async function doRealLogin(){
   const errEl = document.getElementById('loginErrorReal');
   errEl.style.display='none';
   if(!email || !pass){ showLoginErrorReal('Preencha e-mail e senha.'); return; }
+  if(loginBloqueado(email)){ showLoginErrorReal(LOGIN_MSG_BLOQUEADO); return; }
   const btn = document.getElementById('loginBtnReal');
   btn.disabled = true;
   try{
     await KronoAuth.signIn(email, pass);
+    limparFalhaLogin(email);
     // onAuthStateChanged (main.js) assume a partir daqui: carrega DB, perfil e entra no app.
   }catch(e){
-    showLoginErrorReal(KronoAuth.friendlyError(e));
+    if(LOGIN_CODIGOS_CREDENCIAL_INVALIDA.has(e?.code)){
+      const info = registrarFalhaLogin(email);
+      showLoginErrorReal(info.count >= LOGIN_LOCK_THRESHOLD ? LOGIN_MSG_BLOQUEADO : KronoAuth.friendlyError(e));
+    } else {
+      showLoginErrorReal(KronoAuth.friendlyError(e));
+    }
   }finally{
     btn.disabled = false;
   }
