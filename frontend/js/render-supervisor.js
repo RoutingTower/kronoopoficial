@@ -120,13 +120,13 @@ function supSuplencias(myAnalistas){
   <div class="filter-row">
     <input placeholder="Filtrar por operação..." data-suplenciafiltro="operacao" value="${f.operacao}">
     <input placeholder="Filtrar por horário (ex: 19:00)" data-suplenciafiltro="horario" value="${f.horario}">
+    <select data-suplenciafiltro="cobrindo">
+      <option value="all">Folgando: todos</option>
+      ${myAnalistas.map(a=>`<option value="${a.id}" ${f.cobrindo===a.id?'selected':''}>${a.name}</option>`).join('')}
+    </select>
     <select data-suplenciafiltro="suplente">
       <option value="all">Suplente: todos</option>
       ${suplentesUnicos.map(n=>`<option value="${n}" ${f.suplente===n?'selected':''}>${n}</option>`).join('')}
-    </select>
-    <select data-suplenciafiltro="cobrindo">
-      <option value="all">Cobrindo: todos</option>
-      ${myAnalistas.map(a=>`<option value="${a.id}" ${f.cobrindo===a.id?'selected':''}>${a.name}</option>`).join('')}
     </select>
     <label style="font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">Início
       <input type="date" data-suplenciafiltro="inicio" value="${f.inicio}">
@@ -139,8 +139,8 @@ function supSuplencias(myAnalistas){
     <button class="btn btn-danger" id="btnExcluirTodasSuplencias" ${rows.length===0?'disabled':''}>Excluir todos (${rows.length})</button>
   </div>
   <div class="card" style="margin-bottom:22px;">
-  <table><thead><tr><th>Operação</th><th>Ciclo</th><th>Horário</th><th>Suplente</th><th>Cobrindo</th><th>Data</th><th></th></tr></thead><tbody>
-  ${rows.map(s=>`<tr><td>${s.operacao}</td><td>${s.ciclo||'—'}</td><td class="mono">${s.horaInicio}–${s.horaFim}</td><td>${s.suplente}</td><td>${userById(s.analistaOriginalId)?.name||'—'}</td><td class="mono">${s.dataCobertura}</td>
+  <table><thead><tr><th>Operação</th><th>Ciclo</th><th>Horário</th><th>Folgando</th><th>Suplente</th><th>Data</th><th></th></tr></thead><tbody>
+  ${rows.map(s=>`<tr><td>${s.operacao}</td><td>${s.ciclo||'—'}</td><td class="mono">${s.horaInicio}–${s.horaFim}</td><td>${userById(s.analistaOriginalId)?.name||'—'}</td><td>${s.suplente}</td><td class="mono">${s.dataCobertura}</td>
   <td style="text-align:right;white-space:nowrap;"><button class="btn" data-editar-suplencia="${s.id}">Editar</button> <button class="btn btn-danger" data-excluir-suplencia="${s.id}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="7" class="empty">Nenhuma cobertura avulsa registrada</td></tr>'}
   </tbody></table></div>`;
 }
@@ -306,23 +306,31 @@ function supMetricas(myAnalistas){
   // Status por analista (donut/tabela): "folga" só se o período INTEIRO for
   // folga, nenhuma operação fixa própria nem cobertura de outra pessoa (ver
   // classificarAnalistaNoPeriodo em utils.js) — útil pra achar quem está
-  // 100% fora agora. Mas isso é quase sempre 0 num período longo (mês),
-  // mesmo que o time inteiro tenha tirado folgas normais no meio — pra
-  // isso serve a contagem abaixo, que conta dias de folga de verdade,
-  // sem exigir "só folga o período inteiro".
+  // 100% fora agora. É essa mesma classificação que alimenta o destaque
+  // "Em folga/ausentes" quando o período é curto (até 2 dias).
   const classificacao = selecionados.map(a=>({id:a.id, name:a.name, status: classificarAnalistaNoPeriodo(a.id, inicio, fim)}));
   const emFolga = classificacao.filter(c=>c.status==='folga');
   const ativos = classificacao.filter(c=>c.status==='ativo');
   const semDados = classificacao.filter(c=>c.status==='sem-dados');
 
-  // Quantidade de folgas/férias no período (não é classificação de
-  // pessoa — é contagem de dias): filtrando 1 analista, mostra quantas
-  // folgas ELE teve; filtrando todos, mostra o total do time.
-  const diasFolgaPeriodo = DB.ausencias.filter(a=>ids.includes(a.analistaId) && noPeriodo(a.data)).length;
-  const analistasComFolga = [...new Set(DB.ausencias.filter(a=>ids.includes(a.analistaId) && noPeriodo(a.data)).map(a=>a.analistaId))]
-    .map(id=>userById(id)?.name).filter(Boolean);
   const spanDias = Math.round((new Date(fim+'T00:00:00') - new Date(inicio+'T00:00:00'))/86400000) + 1;
   const periodoCurto = spanDias <= 2;
+
+  // Em período longo, "folga o período inteiro" quase sempre dá 0 mesmo
+  // com folgas normais no meio — por isso, além da classificação acima,
+  // contamos dia a dia (mesma lógica, aplicada a cada dia isolado) quantos
+  // dias de folga cada analista teve no período. Filtrando 1 analista, dá
+  // quantas folgas ELE teve; filtrando todos, dá o total do time.
+  let diasFolgaQtd = 0;
+  const idsComFolgaAlgumDia = new Set();
+  selecionados.forEach(a=>{
+    for(let d=inicio; d<=fim; d=addDaysISO(d,1)){
+      if(classificarAnalistaNoPeriodo(a.id, d, d)==='folga'){
+        diasFolgaQtd++;
+        idsComFolgaAlgumDia.add(a.id);
+      }
+    }
+  });
 
   const opsPeriodo = DB.baseMestra.filter(b=>ids.includes(b.analistaId) && rangesOverlap(b.dataInicio, addDaysISO(b.dataFim,1), inicio, addDaysISO(fim,1))).length;
   const ranking = selecionados.map(a=>({name:a.name,
@@ -370,17 +378,17 @@ function supMetricas(myAnalistas){
   </div>
   <div class="grid-4" style="margin-bottom:20px;">
     <div class="stat-card"><div class="stat-num">${ativos.length}</div><div class="stat-label">Analistas ativos no período</div></div>
-    <div class="stat-card"><div class="stat-num" style="color:var(--folga);">${diasFolgaPeriodo}</div><div class="stat-label">Folgas/férias no período${flt.analistas.length===1?' (analista selecionado)':''}</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--folga);">${periodoCurto ? emFolga.length : diasFolgaQtd}</div><div class="stat-label">${periodoCurto ? 'Analistas em folga/ausentes' : 'Folgas/férias no período'}${flt.analistas.length===1?' (analista selecionado)':''}</div></div>
     <div class="stat-card"><div class="stat-num">${totalCoberturas}</div><div class="stat-label">Coberturas no período</div></div>
     <div class="stat-card"><div class="stat-num">${opsPeriodo}</div><div class="stat-label">Operações ativas no período</div></div>
   </div>
-  ${diasFolgaPeriodo>0 ? `
+  ${(periodoCurto ? emFolga.length>0 : diasFolgaQtd>0) ? `
   <div class="highlight-card">
     ${periodoCurto ? `
-    <div class="section-title">🟡 Em folga / ausentes no período (${analistasComFolga.length})</div>
-    <div class="chip-row">${analistasComFolga.map(name=>`<span class="chip-pessoa">${escapeHtml(name)}</span>`).join('')}</div>
+    <div class="section-title">🟡 Em folga / ausentes no período (${emFolga.length})</div>
+    <div class="chip-row">${emFolga.map(c=>`<span class="chip-pessoa">${escapeHtml(c.name)}</span>`).join('')}</div>
     ` : `
-    <div class="section-title">🟡 ${diasFolgaPeriodo} folga(s)/férias registrada(s) no período, entre ${analistasComFolga.length} analista(s)</div>
+    <div class="section-title">🟡 ${diasFolgaQtd} folga(s)/férias registrada(s) no período, entre ${idsComFolgaAlgumDia.size} analista(s)</div>
     <div class="help-text" style="margin:0;">Período maior que 2 dias — mostrando só a quantidade. Reduza pra até 2 dias pra ver os nomes.</div>
     `}
   </div>` : ''}
