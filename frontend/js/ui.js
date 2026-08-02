@@ -133,9 +133,9 @@ async function exitApp(){
 
 
 const NAV = {
-  analista:[ {k:'flashcards', label:'Programação'}, {k:'recados', label:'Caixa de Entrada'}, {k:'lembretes', label:'Lembretes'}, {k:'feedback', label:'Feedback'}, {k:'configuracoes', label:'Configurações'} ],
-  supervisor:[ {k:'cadastros', label:'Cadastros'}, {k:'basemestra', label:'Operações Fixas'}, {k:'suplencias', label:'Cobertura'}, {k:'programacao', label:'Programação Analista'}, {k:'grade', label:'Grade do Dia'}, {k:'reunioes', label:'Eventos'}, {k:'metricas', label:'Métricas'}, {k:'transmissao', label:'Caixa de Envio'}, {k:'ocorrencias', label:'Ocorrências'}, {k:'configuracoes', label:'Configurações'} ],
-  coordenador:[ {k:'acessos', label:'Gestão de Acessos'}, {k:'dashboard', label:'Dashboard Global'}, {k:'comunicados', label:'Comunicados'}, {k:'painel', label:'Painel Hora a Hora'}, {k:'status', label:'Status Operacional'}, {k:'anomalias', label:'Ocorrências'}, {k:'feedbacks', label:'Feedbacks'}, {k:'configuracoes', label:'Configurações'} ],
+  analista:[ {k:'flashcards', label:'Programação', icon:'🗓️'}, {k:'recados', label:'Caixa de Entrada', icon:'📥'}, {k:'lembretes', label:'Lembretes', icon:'📝'}, {k:'feedback', label:'Feedback', icon:'⭐'}, {k:'configuracoes', label:'Configurações', icon:'⚙️'} ],
+  supervisor:[ {k:'cadastros', label:'Cadastros', icon:'👥'}, {k:'basemestra', label:'Operações Fixas', icon:'📌'}, {k:'suplencias', label:'Cobertura', icon:'🔁'}, {k:'programacao', label:'Programação Analista', icon:'🗓️'}, {k:'grade', label:'Grade do Dia', icon:'📋'}, {k:'reunioes', label:'Eventos', icon:'📅'}, {k:'metricas', label:'Métricas', icon:'📊'}, {k:'transmissao', label:'Caixa de Envio', icon:'📣'}, {k:'ocorrencias', label:'Ocorrências', icon:'🚩'}, {k:'configuracoes', label:'Configurações', icon:'⚙️'} ],
+  coordenador:[ {k:'acessos', label:'Gestão de Acessos', icon:'🔑'}, {k:'dashboard', label:'Dashboard Global', icon:'🌐'}, {k:'comunicados', label:'Comunicados', icon:'📣'}, {k:'painel', label:'Painel Hora a Hora', icon:'⏱️'}, {k:'status', label:'Status Operacional', icon:'📶'}, {k:'anomalias', label:'Ocorrências', icon:'🚩'}, {k:'feedbacks', label:'Feedbacks', icon:'⭐'}, {k:'configuracoes', label:'Configurações', icon:'⚙️'} ],
 };
 
 let activeNavKey = null;
@@ -160,7 +160,7 @@ function buildNav(){
   activeNavKey = items[0].k;
   document.getElementById('navEyebrow').textContent = session.role==='analista'?'Analista':session.role==='supervisor'?'Supervisor':'Coordenador';
   const el = document.getElementById('navItems');
-  el.innerHTML = items.map(it=>`<div class="nav-item ${it.k===activeNavKey?'active':''}" data-k="${it.k}"><span>${it.label}</span><span class="nav-badge" data-badge="${it.k}"></span></div>`).join('');
+  el.innerHTML = items.map(it=>`<div class="nav-item ${it.k===activeNavKey?'active':''}" data-k="${it.k}" title="${it.label}"><span class="nav-icon">${it.icon||'•'}</span><span class="nav-label">${it.label}</span><span class="nav-badge" data-badge="${it.k}"></span></div>`).join('');
   el.onclick = e=>{
     const item = e.target.closest('.nav-item'); if(!item) return;
     activeNavKey = item.dataset.k;

@@ -25,7 +25,7 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
       const raiox = DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===it.horaInicio && r.data===dateStr);
       return `<div class="flash-card flash-card-${categoriaOperacao(it)}${status==='atraso'?' flash-card-atraso':''}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
-          <span class="flash-sigla">${it.operacao}</span>${statusPill(status)}
+          <span class="flash-sigla">${it.operacao}</span>${statusPill(status, true)}
         </div>
         <div class="flash-meta">${it.ciclo} · ${it.horaInicio}–${it.horaFim}</div>
         <div class="flash-meta">${it.isSuplente ? 'Suplente' : 'Titular'}: ${it.responsavelNome}</div>

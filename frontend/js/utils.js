@@ -60,10 +60,15 @@ function computeStatus(hora, dataStr, analistaId, operacao, isOff){
   return atrasada();
 }
 
-function statusPill(status){
-  const map = { wait:['pill-wait','⏳ A Iniciar'], live:['pill-live','🏃 Em Andamento'], done:['pill-done','✅ Finalizada'], off:['pill-off','🌙 Ausente'], atraso:['pill-atraso','🚨 Atraso de Roteirização'] };
-  const [cls,label] = map[status] || map.wait;
-  return `<span class="pill ${cls}">${label}</span>`;
+// emojiOnly: usado na escala em cards (flashcards) do analista pra deixar o
+// visual mais limpo — o emoji já carrega o significado, e o texto completo
+// ainda fica disponível no title (tooltip). Tabelas administrativas (Grade
+// do Dia, dashboards) continuam chamando sem esse parâmetro, com o texto.
+function statusPill(status, emojiOnly){
+  const map = { wait:['pill-wait','⏳','A Iniciar'], live:['pill-live','🏃','Em Andamento'], done:['pill-done','✅','Finalizada'], off:['pill-off','🌙','Ausente'], atraso:['pill-atraso','🚨','Atraso de Roteirização'] };
+  const [cls,emoji,text] = map[status] || map.wait;
+  if(emojiOnly) return `<span class="pill pill-emoji ${cls}" title="${text}">${emoji}</span>`;
+  return `<span class="pill ${cls}">${emoji} ${text}</span>`;
 }
 
 // Categoria visual de um slot de getDaySlots(): fixa (operação normal do

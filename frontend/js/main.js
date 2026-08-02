@@ -14,6 +14,25 @@ document.addEventListener('click', ()=>{
   }
 });
 
+// Menu lateral recolhível: guarda só os ícones e devolve espaço pra área
+// principal. Fica no .shell (não no .sidebar) porque quem define a largura
+// da coluna é o grid do .shell — ver .shell.nav-collapsed no style.css.
+// Estado persiste em localStorage pra sobreviver a reload/novo login.
+const shellEl = document.querySelector('.shell');
+const sidebarToggleBtn = document.getElementById('btnSidebarToggle');
+function applySidebarCollapsed(collapsed){
+  shellEl.classList.toggle('nav-collapsed', collapsed);
+  sidebarToggleBtn.title = collapsed ? 'Expandir menu' : 'Recolher menu';
+}
+let sidebarCollapsed = false;
+try{ sidebarCollapsed = localStorage.getItem('kronoop-sidebar-collapsed')==='1'; }catch(e){}
+applySidebarCollapsed(sidebarCollapsed);
+sidebarToggleBtn.addEventListener('click', ()=>{
+  sidebarCollapsed = !sidebarCollapsed;
+  applySidebarCollapsed(sidebarCollapsed);
+  try{ localStorage.setItem('kronoop-sidebar-collapsed', sidebarCollapsed?'1':'0'); }catch(e){}
+});
+
 const themeSwitches = document.querySelectorAll('.theme-switch-input');
 function syncThemeSwitches(){
   const isDark = document.documentElement.getAttribute('data-theme')==='dark';
