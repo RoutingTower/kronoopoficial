@@ -322,6 +322,30 @@ function bindMainEvents(){
     });
   });
 
+  const btnMetricasAnalistaToggle = document.getElementById('btnMetricasAnalistaToggle');
+  if(btnMetricasAnalistaToggle) btnMetricasAnalistaToggle.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    uiState.metricasAnalistaDropdownOpen = !uiState.metricasAnalistaDropdownOpen;
+    renderMain();
+  });
+  const metricasAnalistaTodos = document.getElementById('metricasAnalistaTodos');
+  if(metricasAnalistaTodos) metricasAnalistaTodos.addEventListener('click', (e)=>{ e.stopPropagation(); });
+  if(metricasAnalistaTodos) metricasAnalistaTodos.addEventListener('change', ()=>{
+    uiState.metricasFiltro.analistas = [];
+    renderMain();
+  });
+  main.querySelectorAll('.metricasAnalistaChk').forEach(chk=>{
+    chk.addEventListener('click', (e)=>{ e.stopPropagation(); });
+    chk.addEventListener('change', ()=>{
+      const arr = uiState.metricasFiltro.analistas;
+      if(chk.checked){ if(!arr.includes(chk.value)) arr.push(chk.value); }
+      else { uiState.metricasFiltro.analistas = arr.filter(x=>x!==chk.value); }
+      renderMain();
+    });
+  });
+  const metricasPanel = main.querySelector('.multiselect-panel');
+  if(metricasPanel) metricasPanel.addEventListener('click', e=>e.stopPropagation());
+
   const progSel = document.getElementById('progAnalistaSel');
   if(progSel) progSel.addEventListener('change', ()=>{ uiState.progAnalista = progSel.value; renderMain(); });
   const progDate = document.getElementById('progDateSel');

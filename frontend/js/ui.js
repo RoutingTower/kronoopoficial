@@ -261,6 +261,7 @@ function renderMain(){
   else if(session.role==='coordenador') main.innerHTML = renderCoordenador();
   bindMainEvents();
   updateNavBadges();
+  if(activeNavKey==='metricas') renderMetricasCharts();
 }
 
 

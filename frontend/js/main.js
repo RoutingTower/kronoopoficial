@@ -4,6 +4,16 @@ document.getElementById('logoutBtn').addEventListener('click', exitApp);
 document.getElementById('modalBg').addEventListener('click', e=>{ if(e.target.id==='modalBg') closeModal(); });
 document.getElementById('btnPersonalizarMenu').addEventListener('click', openMenuConfigModal);
 
+// Fecha o dropdown de multi-seleção (Métricas) ao clicar fora dele — o
+// botão e os itens de dentro do painel já dão stopPropagation (events.js),
+// então só chega aqui clique de fato fora.
+document.addEventListener('click', ()=>{
+  if(session && uiState.metricasAnalistaDropdownOpen){
+    uiState.metricasAnalistaDropdownOpen = false;
+    renderMain();
+  }
+});
+
 const themeSwitches = document.querySelectorAll('.theme-switch-input');
 function syncThemeSwitches(){
   const isDark = document.documentElement.getAttribute('data-theme')==='dark';

@@ -76,6 +76,24 @@ function categoriaOperacao(s){
   return 'fixa';
 }
 
+// Classifica um analista no período (Métricas do supervisor): 'folga' só
+// se TODOS os dias com operação no período forem folga (nenhuma operação
+// fixa própria nem cobertura de outra pessoa) — 'ativo' se teve pelo menos
+// um dia de operação fixa ou cobertura, mesmo com folgas misturadas no
+// meio — 'sem-dados' se não teve nenhum registro no período.
+function classificarAnalistaNoPeriodo(analistaId, inicio, fim){
+  let temFixaOuCobertura = false, temFolga = false;
+  for(let d=inicio; d<=fim; d=addDaysISO(d,1)){
+    getDaySlots(analistaId, d).forEach(s=>{
+      const cat = categoriaOperacao(s);
+      if(cat==='fixa' || cat==='cobertura') temFixaOuCobertura = true;
+      else if(cat==='folga') temFolga = true;
+    });
+  }
+  if(!temFixaOuCobertura && !temFolga) return 'sem-dados';
+  return temFolga && !temFixaOuCobertura ? 'folga' : 'ativo';
+}
+
 function starDisplay(n){
   const v = Math.max(0, Math.min(5, n||0));
   return `<span style="color:var(--brand);letter-spacing:1px;">${'★'.repeat(v)}${'☆'.repeat(5-v)}</span>`;

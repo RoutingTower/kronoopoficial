@@ -15,7 +15,10 @@ let session = null;
 let uiState = {
   analistaView:'diaria', analistaDate: todayISO(), analistaOpFiltro: 'all',
   gradeFilters:{ data: todayISO(), hora:'all', analista:'all', op:'all', nome:'all', status:'all' },
-  metricasFiltro:{ inicio: addDaysISO(todayISO(), -7), fim: todayISO() },
+  // analistas:[] = "Todos". Preenchido = só os ids selecionados no
+  // dropdown de multi-seleção (ver supMetricas em render-supervisor.js).
+  metricasFiltro:{ inicio: addDaysISO(todayISO(), -7), fim: todayISO(), analistas: [] },
+  metricasAnalistaDropdownOpen: false,
   envioFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO() },
   ocorrenciasFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), analista: 'all', operacao: 'all', avaliacaoMax: '' },
   suplenciasFiltro:{ operacao:'', horario:'', suplente:'all', cobrindo:'all', inicio:'', fim:'' },

@@ -287,19 +287,54 @@ function supPlantao(){
 }
 
 
+// Guarda os dados já calculados da última renderização pra
+// renderMetricasCharts() (events.js) desenhar os gráficos sem recalcular
+// tudo de novo — chamado logo depois do innerHTML ser trocado (mesmo
+// padrão de updateNavBadges()).
+let metricasChartData = null;
+
 function supMetricas(myAnalistas){
-  const ids = myAnalistas.map(a=>a.id);
   const flt = uiState.metricasFiltro;
   const inicio = flt.inicio || addDaysISO(todayISO(), -7);
   const fim = flt.fim || todayISO();
   const noPeriodo = data => data>=inicio && data<=fim;
 
-  const folgaPeriodo = new Set(DB.ausencias.filter(a=>ids.includes(a.analistaId) && noPeriodo(a.data)).map(a=>a.analistaId)).size;
-  const diasFolgaPeriodo = DB.ausencias.filter(a=>ids.includes(a.analistaId) && noPeriodo(a.data)).length;
+  const selecionados = flt.analistas.length ? myAnalistas.filter(a=>flt.analistas.includes(a.id)) : myAnalistas;
+  const ids = selecionados.map(a=>a.id);
+  const nomesSelecionados = new Set(selecionados.map(a=>a.name));
+
+  // "Em folga" = só teve folga no período, nenhuma operação fixa própria
+  // nem cobertura de outra pessoa (ver classificarAnalistaNoPeriodo em
+  // utils.js) — não é só "teve alguma folga", que sozinho não diz se o
+  // analista também trabalhou no período.
+  const classificacao = selecionados.map(a=>({id:a.id, name:a.name, status: classificarAnalistaNoPeriodo(a.id, inicio, fim)}));
+  const emFolga = classificacao.filter(c=>c.status==='folga');
+  const ativos = classificacao.filter(c=>c.status==='ativo');
+  const semDados = classificacao.filter(c=>c.status==='sem-dados');
+
   const opsPeriodo = DB.baseMestra.filter(b=>ids.includes(b.analistaId) && rangesOverlap(b.dataInicio, addDaysISO(b.dataFim,1), inicio, addDaysISO(fim,1))).length;
-  const ranking = ids.map(id=>({name:userById(id).name,
-    count: DB.ausencias.filter(a=>a.suplenteId===id && noPeriodo(a.data)).length + DB.suplencias.filter(s=>s.suplente===userById(id).name && noPeriodo(s.dataCobertura)).length}))
+  const ranking = selecionados.map(a=>({name:a.name,
+    count: DB.ausencias.filter(x=>x.suplenteId===a.id && noPeriodo(x.data)).length + DB.suplencias.filter(s=>s.suplente===a.name && noPeriodo(s.dataCobertura)).length}))
     .sort((a,b)=>b.count-a.count);
+  const totalCoberturas = ranking.reduce((sum,r)=>sum+r.count,0);
+
+  const porDia = [];
+  for(let d=inicio; d<=fim; d=addDaysISO(d,1)){
+    const count = DB.ausencias.filter(x=>ids.includes(x.suplenteId) && x.data===d).length
+      + DB.suplencias.filter(s=>nomesSelecionados.has(s.suplente) && s.dataCobertura===d).length;
+    porDia.push({data:d, count});
+  }
+
+  metricasChartData = {
+    status:{ ativos: ativos.length, folga: emFolga.length, semDados: semDados.length },
+    ranking: ranking.slice(0, 10),
+    porDia,
+  };
+
+  const statusPill = c => c.status==='ativo' ? '<span class="pill pill-done">Ativo</span>'
+    : c.status==='folga' ? `<span class="pill" style="background:rgba(184,134,11,0.14);color:var(--folga);">Em Folga</span>`
+    : '<span class="pill pill-off">Sem registro</span>';
+
   return `
   <div class="filter-row">
     <label style="font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">Início
@@ -308,16 +343,91 @@ function supMetricas(myAnalistas){
     <label style="font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">Fim
       <input type="date" data-metricasfiltro="fim" value="${fim}" min="${inicio}">
     </label>
+    <div class="multiselect">
+      <button type="button" class="multiselect-btn" id="btnMetricasAnalistaToggle">
+        <span>${flt.analistas.length===0 ? 'Todos os analistas' : `${flt.analistas.length} analista(s) selecionado(s)`}</span>
+        <span>▾</span>
+      </button>
+      ${uiState.metricasAnalistaDropdownOpen ? `
+      <div class="multiselect-panel">
+        <label><input type="checkbox" id="metricasAnalistaTodos" ${flt.analistas.length===0?'checked':''}> <b>Todos</b></label>
+        <div class="msep"></div>
+        ${myAnalistas.map(a=>`<label><input type="checkbox" class="metricasAnalistaChk" value="${a.id}" ${flt.analistas.includes(a.id)?'checked':''}> ${escapeHtml(a.name)}</label>`).join('') || '<div class="help-text" style="margin:6px 8px;">Nenhum analista cadastrado</div>'}
+      </div>` : ''}
+    </div>
   </div>
-  <div class="grid-3" style="margin-bottom:20px;">
-    <div class="stat-card"><div class="stat-num">${folgaPeriodo}</div><div class="stat-label">Analistas com folga no período</div></div>
-    <div class="stat-card"><div class="stat-num">${diasFolgaPeriodo}</div><div class="stat-label">Dias de folga no período</div></div>
+  <div class="grid-4" style="margin-bottom:20px;">
+    <div class="stat-card"><div class="stat-num">${ativos.length}</div><div class="stat-label">Analistas ativos no período</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--folga);">${emFolga.length}</div><div class="stat-label">Analistas em folga/ausentes</div></div>
+    <div class="stat-card"><div class="stat-num">${totalCoberturas}</div><div class="stat-label">Coberturas no período</div></div>
     <div class="stat-card"><div class="stat-num">${opsPeriodo}</div><div class="stat-label">Operações ativas no período</div></div>
   </div>
-  <div class="card"><div class="section-title">Ranking de coberturas</div>
-  <table><thead><tr><th>Analista</th><th>Coberturas</th></tr></thead><tbody>
-  ${ranking.map(r=>`<tr><td>${r.name}</td><td class="mono">${r.count}</td></tr>`).join('') || '<tr><td colspan="2" class="empty">Sem dados</td></tr>'}
+  ${emFolga.length>0 ? `
+  <div class="highlight-card">
+    <div class="section-title">🟡 Em folga / ausentes no período (${emFolga.length})</div>
+    <div class="chip-row">${emFolga.map(c=>`<span class="chip-pessoa">${escapeHtml(c.name)}</span>`).join('')}</div>
+  </div>` : ''}
+  <div class="grid-3" style="margin-bottom:20px;align-items:start;">
+    <div class="chart-card"><div class="section-title">Status do time</div><canvas id="chartStatus"></canvas></div>
+    <div class="chart-card"><div class="section-title">Coberturas por analista</div><canvas id="chartCoberturasAnalista"></canvas></div>
+    <div class="chart-card"><div class="section-title">Coberturas ao longo do tempo</div><canvas id="chartCoberturasTempo"></canvas></div>
+  </div>
+  <div class="card">
+  <div class="section-title">Detalhamento por analista</div>
+  <table><thead><tr><th>Analista</th><th>Status</th><th>Coberturas</th></tr></thead><tbody>
+  ${classificacao.map(c=>{
+    const cob = ranking.find(r=>r.name===c.name)?.count || 0;
+    return `<tr><td>${escapeHtml(c.name)}</td><td>${statusPill(c)}</td><td class="mono">${cob}</td></tr>`;
+  }).join('') || '<tr><td colspan="3" class="empty">Sem dados</td></tr>'}
   </tbody></table></div>`;
+}
+
+// Chamado de novo a cada renderMain() (ver ui.js) — os canvases são
+// recriados do zero em todo render (main.innerHTML=...), então as
+// instâncias antigas do Chart.js precisam ser destruídas antes de criar
+// as novas, senão ele reclama de "Canvas is already in use". Não faz
+// nada fora da tela de Métricas (os elementos simplesmente não existem).
+let metricasChartInstances = {};
+function renderMetricasCharts(){
+  Object.values(metricasChartInstances).forEach(c=>c.destroy());
+  metricasChartInstances = {};
+  const elStatus = document.getElementById('chartStatus');
+  if(!elStatus || !metricasChartData || typeof Chart === 'undefined') return;
+
+  const isDark = document.documentElement.getAttribute('data-theme')==='dark';
+  const textColor = isDark ? '#9A9DA6' : '#767676';
+  const gridColor = isDark ? '#2E3138' : '#E8E8E8';
+
+  metricasChartInstances.status = new Chart(elStatus, {
+    type:'doughnut',
+    data:{ labels:['Ativos','Em Folga','Sem registro'],
+      datasets:[{ data:[metricasChartData.status.ativos, metricasChartData.status.folga, metricasChartData.status.semDados],
+        backgroundColor:['#2FAE60','#B8860B','#A8A8A8'] }] },
+    options:{ plugins:{ legend:{ position:'bottom', labels:{ color:textColor } } } }
+  });
+
+  const elRank = document.getElementById('chartCoberturasAnalista');
+  if(elRank){
+    metricasChartInstances.coberturasAnalista = new Chart(elRank, {
+      type:'bar',
+      data:{ labels: metricasChartData.ranking.map(r=>r.name), datasets:[{ label:'Coberturas', data: metricasChartData.ranking.map(r=>r.count), backgroundColor:'#EE4D2D', borderRadius:4 }] },
+      options:{ plugins:{ legend:{ display:false } }, scales:{
+        x:{ ticks:{ color:textColor, autoSkip:false, maxRotation:60, minRotation:0 }, grid:{ display:false } },
+        y:{ ticks:{ color:textColor, precision:0 }, grid:{ color:gridColor } } } }
+    });
+  }
+
+  const elTempo = document.getElementById('chartCoberturasTempo');
+  if(elTempo){
+    metricasChartInstances.coberturasTempo = new Chart(elTempo, {
+      type:'line',
+      data:{ labels: metricasChartData.porDia.map(p=>p.data.slice(5)),
+        datasets:[{ label:'Coberturas', data: metricasChartData.porDia.map(p=>p.count), borderColor:'#2F80ED', backgroundColor:'rgba(47,128,237,0.15)', fill:true, tension:0.3 }] },
+      options:{ plugins:{ legend:{ display:false } }, scales:{
+        x:{ ticks:{ color:textColor }, grid:{ display:false } },
+        y:{ ticks:{ color:textColor, precision:0 }, grid:{ color:gridColor } } } }
+    });
+  }
 }
 
 
