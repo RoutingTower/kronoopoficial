@@ -46,16 +46,47 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
 }
 
 
+// Data curta (dd/mm) pros cards de "próxima cobertura/folga" — mesmo
+// padrão de toLocaleDateString já usado no calendário (renderAnalistaSemanal).
+function formatarDataCurta(d){
+  return new Date(d+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+}
+
+// Primeiro dia (a partir de hoje, hoje incluso) que satisfaz predicate(d) —
+// usado pra achar a próxima cobertura/folga do analista. maxDias limita a
+// busca (não faz sentido varrer indefinidamente se não há nada agendado).
+function proximaOcorrencia(predicate, maxDias){
+  const hoje = todayISO();
+  for(let i=0;i<=maxDias;i++){
+    const d = addDaysISO(hoje, i);
+    if(predicate(d)) return {data:d, diasFaltando:i};
+  }
+  return null;
+}
+
+// Card de contagem regressiva (próxima cobertura/folga): número grande é
+// os dias faltando ("Hoje" se for hoje mesmo), com a data e o emoji no
+// rótulo. Sem nada encontrado na janela de busca, mostra "—" com o aviso.
+function statCardContagem(proxima, emoji, label, semLabel){
+  if(!proxima) return `<div class="stat-card"><div class="stat-num">—</div><div class="stat-label">${emoji} ${semLabel}</div></div>`;
+  const sufixoDias = proxima.diasFaltando>0 ? ` (${proxima.diasFaltando} dia${proxima.diasFaltando>1?'s':''})` : '';
+  return `<div class="stat-card"><div class="stat-num">${proxima.diasFaltando===0?'Hoje':proxima.diasFaltando}</div><div class="stat-label">${emoji} ${label} · ${formatarDataCurta(proxima.data)}${sufixoDias}</div></div>`;
+}
+
 function renderAnalista(){
   const dateStr = uiState.analistaDate;
-  let coberturas=0, folgas=0;
-  for(let i=-3;i<=3;i++){
-    const ds = addDaysISO(dateStr, i);
-    const slots = getDaySlots(session.userId, ds);
-    if(slots.some(s=>s.isOff)) folgas++;
-  }
-  coberturas = DB.ausencias.filter(a=>a.suplenteId===session.userId).length + DB.suplencias.filter(s=>s.suplente===session.name).length;
   const todaySlots = getDaySlots(session.userId, dateStr);
+
+  // "Próxima cobertura/folga" sempre a partir de HOJE de verdade, não da
+  // data selecionada no calendário (dateStr) — o card não deve mudar só
+  // porque o analista está navegando pra outro mês.
+  const proxCobertura = proximaOcorrencia(d=> getDaySlots(session.userId, d).some(s=>categoriaOperacao(s)==='cobertura'), 90);
+  // isFolgaDSR() já expressa exatamente "dia totalmente livre" (nenhuma
+  // operação própria sem cobertura, nenhuma cobertura de terceiro, sem
+  // plantão) — o nome vem do uso específico de domingo (ver
+  // filtrarSlotsAgenda), mas a definição vale pra qualquer dia da semana.
+  const proxFolga = proximaOcorrencia(d=> isFolgaDSR(session.userId, d), 90);
+
   return `
   ${plantaoBannerFor(session.userId, dateStr)}
   <div class="page-head">
@@ -70,9 +101,9 @@ function renderAnalista(){
     </div>
   </div>
   <div class="grid-3" style="margin-bottom:22px;">
-    <div class="stat-card"><div class="stat-num">${todaySlots.length}</div><div class="stat-label">Operações hoje</div></div>
-    <div class="stat-card"><div class="stat-num">${coberturas}</div><div class="stat-label">Coberturas feitas (total)</div></div>
-    <div class="stat-card"><div class="stat-num">${folgas}</div><div class="stat-label">Dias com folga/férias (7 dias)</div></div>
+    <div class="stat-card"><div class="stat-num">${todaySlots.length}</div><div class="stat-label">📋 Operações do dia</div></div>
+    ${statCardContagem(proxCobertura, '🔁', 'Próxima cobertura', 'Sem cobertura agendada')}
+    ${statCardContagem(proxFolga, '🌙', 'Próxima folga', 'Sem folga agendada')}
   </div>
   <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
     <input type="date" id="analistaDatePick" value="${dateStr}" class="mono" style="background:var(--bg-2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;">
