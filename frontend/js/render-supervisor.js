@@ -303,14 +303,26 @@ function supMetricas(myAnalistas){
   const ids = selecionados.map(a=>a.id);
   const nomesSelecionados = new Set(selecionados.map(a=>a.name));
 
-  // "Em folga" = só teve folga no período, nenhuma operação fixa própria
-  // nem cobertura de outra pessoa (ver classificarAnalistaNoPeriodo em
-  // utils.js) — não é só "teve alguma folga", que sozinho não diz se o
-  // analista também trabalhou no período.
+  // Status por analista (donut/tabela): "folga" só se o período INTEIRO for
+  // folga, nenhuma operação fixa própria nem cobertura de outra pessoa (ver
+  // classificarAnalistaNoPeriodo em utils.js) — útil pra achar quem está
+  // 100% fora agora. Mas isso é quase sempre 0 num período longo (mês),
+  // mesmo que o time inteiro tenha tirado folgas normais no meio — pra
+  // isso serve a contagem abaixo, que conta dias de folga de verdade,
+  // sem exigir "só folga o período inteiro".
   const classificacao = selecionados.map(a=>({id:a.id, name:a.name, status: classificarAnalistaNoPeriodo(a.id, inicio, fim)}));
   const emFolga = classificacao.filter(c=>c.status==='folga');
   const ativos = classificacao.filter(c=>c.status==='ativo');
   const semDados = classificacao.filter(c=>c.status==='sem-dados');
+
+  // Quantidade de folgas/férias no período (não é classificação de
+  // pessoa — é contagem de dias): filtrando 1 analista, mostra quantas
+  // folgas ELE teve; filtrando todos, mostra o total do time.
+  const diasFolgaPeriodo = DB.ausencias.filter(a=>ids.includes(a.analistaId) && noPeriodo(a.data)).length;
+  const analistasComFolga = [...new Set(DB.ausencias.filter(a=>ids.includes(a.analistaId) && noPeriodo(a.data)).map(a=>a.analistaId))]
+    .map(id=>userById(id)?.name).filter(Boolean);
+  const spanDias = Math.round((new Date(fim+'T00:00:00') - new Date(inicio+'T00:00:00'))/86400000) + 1;
+  const periodoCurto = spanDias <= 2;
 
   const opsPeriodo = DB.baseMestra.filter(b=>ids.includes(b.analistaId) && rangesOverlap(b.dataInicio, addDaysISO(b.dataFim,1), inicio, addDaysISO(fim,1))).length;
   const ranking = selecionados.map(a=>({name:a.name,
@@ -358,14 +370,19 @@ function supMetricas(myAnalistas){
   </div>
   <div class="grid-4" style="margin-bottom:20px;">
     <div class="stat-card"><div class="stat-num">${ativos.length}</div><div class="stat-label">Analistas ativos no período</div></div>
-    <div class="stat-card"><div class="stat-num" style="color:var(--folga);">${emFolga.length}</div><div class="stat-label">Analistas em folga/ausentes</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--folga);">${diasFolgaPeriodo}</div><div class="stat-label">Folgas/férias no período${flt.analistas.length===1?' (analista selecionado)':''}</div></div>
     <div class="stat-card"><div class="stat-num">${totalCoberturas}</div><div class="stat-label">Coberturas no período</div></div>
     <div class="stat-card"><div class="stat-num">${opsPeriodo}</div><div class="stat-label">Operações ativas no período</div></div>
   </div>
-  ${emFolga.length>0 ? `
+  ${diasFolgaPeriodo>0 ? `
   <div class="highlight-card">
-    <div class="section-title">🟡 Em folga / ausentes no período (${emFolga.length})</div>
-    <div class="chip-row">${emFolga.map(c=>`<span class="chip-pessoa">${escapeHtml(c.name)}</span>`).join('')}</div>
+    ${periodoCurto ? `
+    <div class="section-title">🟡 Em folga / ausentes no período (${analistasComFolga.length})</div>
+    <div class="chip-row">${analistasComFolga.map(name=>`<span class="chip-pessoa">${escapeHtml(name)}</span>`).join('')}</div>
+    ` : `
+    <div class="section-title">🟡 ${diasFolgaPeriodo} folga(s)/férias registrada(s) no período, entre ${analistasComFolga.length} analista(s)</div>
+    <div class="help-text" style="margin:0;">Período maior que 2 dias — mostrando só a quantidade. Reduza pra até 2 dias pra ver os nomes.</div>
+    `}
   </div>` : ''}
   <div class="grid-3" style="margin-bottom:20px;align-items:start;">
     <div class="chart-card"><div class="section-title">Status do time</div><canvas id="chartStatus"></canvas></div>
@@ -503,6 +520,9 @@ function supTransmissao(myAnalistas){
 }
 
 
+// Mesmo padrão de metricasChartData — ver renderMetricasCharts() acima.
+let ocorrenciasChartData = null;
+
 function supOcorrencias(myAnalistas){
   const ids = myAnalistas.map(a=>a.id);
   const f = uiState.ocorrenciasFiltro;
@@ -536,6 +556,9 @@ function supOcorrencias(myAnalistas){
     rows = rows.filter(r=> opsAbaixo.has(r.operacao));
   }
 
+  const distribuicaoEstrelas = [1,2,3,4,5].map(n=>rows.filter(r=>(r.estrelas||0)===n).length);
+  ocorrenciasChartData = { ranking: ranking.slice(0,10), distribuicaoEstrelas };
+
   return `
   <div class="filter-row">
     <label style="font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">Início
@@ -560,6 +583,10 @@ function supOcorrencias(myAnalistas){
       <option value="4" ${f.avaliacaoMax==='4'?'selected':''}>≤ 4 estrelas</option>
     </select>
   </div>
+  <div class="grid-2" style="margin-bottom:18px;align-items:start;">
+    <div class="chart-card"><div class="section-title">Distribuição de avaliações</div><canvas id="chartEstrelas"></canvas></div>
+    <div class="chart-card"><div class="section-title">Avaliação média por operação</div><canvas id="chartAvaliacaoOperacao"></canvas></div>
+  </div>
   <div class="card" style="margin-bottom:18px;"><div class="section-title">Avaliação média por operação (Raio-X)</div>
   <table><thead><tr><th>Operação</th><th>Avaliação média</th><th>Finalizações</th></tr></thead><tbody>
   ${ranking.map(r=>`<tr><td>${r.op}</td><td>${starDisplay(Math.round(r.media))} <span class="mono" style="color:var(--text-muted);">(${r.media.toFixed(1)})</span></td><td class="mono">${r.n}</td></tr>`).join('') || '<tr><td colspan="3" class="empty">Sem finalizações no período selecionado</td></tr>'}
@@ -571,5 +598,40 @@ function supOcorrencias(myAnalistas){
     <div style="margin-top:4px;">${escapeHtml(r.observacao||'')}</div>
   </div>`).join('') || '<div class="empty">Nenhuma finalização registrada no período selecionado</div>'}
   </div>`;
+}
+
+// Mesmo padrão de renderMetricasCharts() — destrói as instâncias antigas
+// (canvas recriado do zero a cada render) e não faz nada fora da tela de
+// Ocorrências.
+let ocorrenciasChartInstances = {};
+function renderOcorrenciasCharts(){
+  Object.values(ocorrenciasChartInstances).forEach(c=>c.destroy());
+  ocorrenciasChartInstances = {};
+  const elEstrelas = document.getElementById('chartEstrelas');
+  if(!elEstrelas || !ocorrenciasChartData || typeof Chart === 'undefined') return;
+
+  const isDark = document.documentElement.getAttribute('data-theme')==='dark';
+  const textColor = isDark ? '#9A9DA6' : '#767676';
+  const gridColor = isDark ? '#2E3138' : '#E8E8E8';
+
+  ocorrenciasChartInstances.estrelas = new Chart(elEstrelas, {
+    type:'doughnut',
+    data:{ labels:['1★','2★','3★','4★','5★'], datasets:[{ data: ocorrenciasChartData.distribuicaoEstrelas,
+      backgroundColor:['#D9362E','#EE4D2D','#B8860B','#7FB069','#2FAE60'] }] },
+    options:{ plugins:{ legend:{ position:'bottom', labels:{ color:textColor } } } }
+  });
+
+  const elOp = document.getElementById('chartAvaliacaoOperacao');
+  if(elOp){
+    ocorrenciasChartInstances.avaliacaoOperacao = new Chart(elOp, {
+      type:'bar',
+      data:{ labels: ocorrenciasChartData.ranking.map(r=>r.op),
+        datasets:[{ label:'Avaliação média', data: ocorrenciasChartData.ranking.map(r=>Number(r.media.toFixed(2))),
+          backgroundColor: ocorrenciasChartData.ranking.map(r=> r.media<=2 ? '#D9362E' : r.media<=3.5 ? '#B8860B' : '#2FAE60'), borderRadius:4 }] },
+      options:{ plugins:{ legend:{ display:false } }, scales:{
+        x:{ ticks:{ color:textColor, autoSkip:false, maxRotation:60 }, grid:{ display:false } },
+        y:{ min:0, max:5, ticks:{ color:textColor }, grid:{ color:gridColor } } } }
+    });
+  }
 }
 
