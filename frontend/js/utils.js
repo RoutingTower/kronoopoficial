@@ -81,6 +81,47 @@ function categoriaOperacao(s){
   return 'fixa';
 }
 
+function isDomingo(dateStr){
+  return WEEKDAYS[new Date(dateStr+'T00:00:00').getDay()]==='dom';
+}
+
+// Exceção de plantão do analista aos domingos (ver isFolgaDSR abaixo) —
+// ainda não existe escala de plantão do PRÓPRIO analista no sistema (o
+// único "plantão" hoje, DB.plantoes, é sobre quem cobre a ausência do
+// SUPERVISOR — outro conceito). Placeholder pra já deixar o encaixe
+// pronto: no dia em que essa escala existir, é só preencher esta função.
+function analistaEmPlantaoDomingo(analistaId, dateStr){
+  return false;
+}
+
+// Domingo não segue o filtro de folga comum (que olha cada slot isolado) —
+// segue a regra do DSR (Descanso Semanal Remunerado): só é Folga DSR se
+// TODAS as operações de origem do analista nesse domingo estiverem
+// cobertas por terceiros, ele não estiver cobrindo ninguém (nem outra
+// operação própria sem cobertura), e não estiver escalado em plantão.
+function isFolgaDSR(analistaId, dateStr){
+  const slots = getDaySlots(analistaId, dateStr);
+  const temFolgaPropria = slots.some(s=>categoriaOperacao(s)==='folga');
+  const temFixaPropria = slots.some(s=>categoriaOperacao(s)==='fixa');
+  const temCobertura = slots.some(s=>categoriaOperacao(s)==='cobertura');
+  if(!temFolgaPropria || temFixaPropria || temCobertura) return false;
+  if(analistaEmPlantaoDomingo(analistaId, dateStr)) return false;
+  return true;
+}
+
+// Filtro por categoria de operação usado pelas 3 visões da Programação do
+// analista (diária/semanal/mensal — ver render-analista.js). Domingo tem
+// regra própria pro filtro de folga (ver isFolgaDSR); os outros dias e os
+// outros filtros (fixa/cobertura) seguem exatamente como antes.
+function filtrarSlotsAgenda(analistaId, dateStr, opFiltro){
+  const slots = getDaySlots(analistaId, dateStr);
+  if(!opFiltro || opFiltro==='all') return slots;
+  if(opFiltro==='folga' && isDomingo(dateStr)){
+    return isFolgaDSR(analistaId, dateStr) ? slots.filter(s=>categoriaOperacao(s)==='folga') : [];
+  }
+  return slots.filter(s=>categoriaOperacao(s)===opFiltro);
+}
+
 // Classifica um analista no período (Métricas do supervisor): 'folga' só
 // se TODOS os dias com operação no período forem folga (nenhuma operação
 // fixa própria nem cobertura de outra pessoa) — 'ativo' se teve pelo menos

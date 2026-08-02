@@ -7,8 +7,7 @@
 // opFiltro (fixa/cobertura/folga) também só vem preenchido da própria
 // Programação do analista — ver categoriaOperacao() em utils.js.
 function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
-  let slots = getDaySlots(analistaId, dateStr);
-  if(opFiltro && opFiltro!=='all') slots = slots.filter(s=>categoriaOperacao(s)===opFiltro);
+  let slots = filtrarSlotsAgenda(analistaId, dateStr, opFiltro);
   const reunioes = getReunioesForDate(analistaId, dateStr);
   const lembretesDoDia = showLembretes ? getLembretesForAnalista(analistaId).filter(l=>(l.data||todayISO())===dateStr) : [];
   const semHora = lembretesDoDia.filter(l=>!l.hora);
@@ -100,8 +99,7 @@ function renderAnalistaSemanal(analistaId, dateStr, opFiltro){
   const header = WEEKDAY_LABELS.map(w=>`<div class="cal-weekday-header">${w}</div>`).join('');
   const cells = Array.from({length:7}, (_,i)=>{
     const ds = addDaysISO(dateStr, i);
-    let slots = getDaySlots(analistaId, ds);
-    if(opFiltro && opFiltro!=='all') slots = slots.filter(s=>categoriaOperacao(s)===opFiltro);
+    let slots = filtrarSlotsAgenda(analistaId, ds, opFiltro);
     const dd = new Date(ds+'T00:00:00');
     const label = dd.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
     const isToday = ds===todayStr;
@@ -131,8 +129,7 @@ function renderAnalistaMensal(analistaId, dateStr, opFiltro){
   }
   for(let day=1; day<=daysInMonth; day++){
     const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    let slots = getDaySlots(analistaId, ds);
-    if(opFiltro && opFiltro!=='all') slots = slots.filter(s=>categoriaOperacao(s)===opFiltro);
+    let slots = filtrarSlotsAgenda(analistaId, ds, opFiltro);
     const isToday = ds===todayStr;
     cells += `<div class="cal-day-cell${isToday?' today':''}">
       <div class="cal-day-num${isToday?' today':''}" data-daypick="${ds}">${day}</div>
