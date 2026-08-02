@@ -86,12 +86,22 @@ function isDomingo(dateStr){
 }
 
 // Exceção de plantão do analista aos domingos (ver isFolgaDSR abaixo) —
-// ainda não existe escala de plantão do PRÓPRIO analista no sistema (o
-// único "plantão" hoje, DB.plantoes, é sobre quem cobre a ausência do
-// SUPERVISOR — outro conceito). Placeholder pra já deixar o encaixe
-// pronto: no dia em que essa escala existir, é só preencher esta função.
+// reaproveita o cadastro de Plantão da aba Eventos (DB.plantoes: data +
+// cargo + nome do plantonista, ver supPlantao()/events.js). Esse cadastro
+// nasceu pra cobrir a AUSÊNCIA DO SUPERVISOR, mas quando o cargo marcado é
+// "Analista", ele também serve como a escala de plantão do analista —
+// então casamos pelo nome (normalizado, mesmo critério do import de
+// planilha em findAnalistaByName) dentro do time do supervisor dele, já
+// que coberturaNome é texto livre, sem vínculo direto de analistaId.
 function analistaEmPlantaoDomingo(analistaId, dateStr){
-  return false;
+  const me = userById(analistaId);
+  if(!me) return false;
+  return DB.plantoes.some(p=>
+    p.data===dateStr &&
+    p.coberturaRole==='Analista' &&
+    p.supervisorAusenteId===me.supervisorId &&
+    normalizarNome(p.coberturaNome)===normalizarNome(me.name)
+  );
 }
 
 // Domingo não segue o filtro de folga comum (que olha cada slot isolado) —
