@@ -219,9 +219,17 @@ function supGrade(myAnalistas){
     const slots = getDaySlots(id, dateStr);
     slots.forEach(s=>{
       const status = computeStatus(s.horaInicio, dateStr, id, s.operacao, s.isOff);
-      rows.push({analista:userById(id).name, op:s.operacao, hora:s.horaInicio, horaFim:s.horaFim, nome:s.responsavelNome, isSuplente:s.isSuplente, status});
+      rows.push({chave:s.id, analista:userById(id).name, op:s.operacao, hora:s.horaInicio, horaFim:s.horaFim, nome:s.responsavelNome, isCobertura:!!s.isCobertura, status});
     });
   });
+  // Uma cobertura gera 2 entradas com o mesmo id em getDaySlots: uma na
+  // agenda do titular (operação coberta, sempre "Finalizada" porque ele
+  // não precisa fazer nada) e outra na agenda de quem está cobrindo (com
+  // o status real, incluindo Pendente Raio-X). Mantém só a segunda — é a
+  // que importa pro supervisor acompanhar.
+  const porId = new Map();
+  rows.forEach(r=>{ if(!porId.has(r.chave) || r.isCobertura) porId.set(r.chave, r); });
+  rows = [...porId.values()];
   rows.sort((a,b)=> hourSortValue(a.hora)-hourSortValue(b.hora));
   const uniq = key => ['all', ...new Set(rows.map(r=>r[key]).filter(Boolean))];
   const filtered = rows.filter(r=>
@@ -248,7 +256,7 @@ function supGrade(myAnalistas){
   </div>
   <div class="card">
   <table><thead><tr><th>Horário</th><th>Analista</th><th>Operação</th><th>Responsável</th><th>Status</th></tr></thead><tbody>
-  ${filtered.map(r=>`<tr class="${r.isSuplente?'row-suplente':''}"><td class="mono">${r.hora}–${r.horaFim}</td><td>${r.analista}</td><td>${r.op}</td><td>${r.nome} ${r.isSuplente?'<span class="pill pill-suplente">🔁 Suplente</span>':''}</td><td>${statusPill(r.status)}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">Nenhum registro para os filtros selecionados</td></tr>'}
+  ${filtered.map(r=>`<tr class="${r.isCobertura?'row-suplente':''}"><td class="mono">${r.hora}–${r.horaFim}</td><td>${r.analista} ${r.isCobertura?'<span class="pill pill-suplente">🔁 Suplente</span>':''}</td><td>${r.op}</td><td>${r.nome}</td><td>${statusPill(r.status)}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">Nenhum registro para os filtros selecionados</td></tr>'}
   </tbody></table></div>`;
 }
 
