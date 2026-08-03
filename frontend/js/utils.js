@@ -57,16 +57,29 @@ function isOperacaoFinalizada(analistaId, operacao, hora, dataStr){
   return DB.raioX.some(r=>r.analistaId===analistaId && r.operacao===operacao && r.hora===hora && r.data===dataStr);
 }
 
+// Timestamp real de um slot (dataStr+hora): turnos rodam ~19h–07h, então
+// horas de madrugada (00h–06h, ver hourSortValue) marcadas num dataStr na
+// verdade acontecem no dia SEGUINTE em relógio de verdade (dataStr é o dia
+// em que o turno COMEÇA, às 19h — a madrugada é a continuação dele já no
+// dia seguinte). Comparar timestamps absolutos (em vez de só a fração de
+// hora do dia) evita confundir "início de madrugada de hoje" com "fim de
+// turno" — que era o que marcava operações de hoje que ainda nem
+// começaram (ex.: 19h de hoje, visto às 01h da madrugada do mesmo dia)
+// como já atrasadas.
+function slotTimestamp(dataStr, hora){
+  const [h, m] = hora.split(':').map(Number);
+  const d = new Date(dataStr+'T00:00:00');
+  if(hourSortValue(hora) >= 24) d.setDate(d.getDate()+1);
+  d.setHours(h, m, 0, 0);
+  return d.getTime();
+}
+
 function computeStatus(hora, dataStr, analistaId, operacao, isOff){
   const atrasada = () => (analistaId && operacao && !isOff && !isOperacaoFinalizada(analistaId, operacao, hora, dataStr)) ? 'atraso' : 'done';
-  const isToday = dataStr === todayISO();
-  if(!isToday) return dataStr < todayISO() ? atrasada() : 'wait';
-  const now = new Date();
-  const nowH = now.getHours() + now.getMinutes()/60;
-  const effSlot = hourSortValue(hora);
-  const effNow = nowH < 19 ? nowH + 24 : nowH;
-  if(effNow < effSlot) return 'wait';
-  if(effNow >= effSlot && effNow < effSlot+1) return 'live';
+  const slotStart = slotTimestamp(dataStr, hora);
+  const now = Date.now();
+  if(now < slotStart) return 'wait';
+  if(now < slotStart + 60*60*1000) return 'live';
   return atrasada();
 }
 
