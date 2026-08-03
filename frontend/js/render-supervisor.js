@@ -26,18 +26,48 @@ function renderSupervisor(){
 function renderImportPendentesBanner(tipo, myAnalistas){
   const p = uiState.importPendentes;
   if(!p || p.tipo!==tipo || p.items.length===0) return '';
+
+  const linhaBaseMestra = (it,idx) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+      <span style="flex:1;min-width:220px;font-size:13px;"><b>"${escapeHtml(it.nomeOriginal||'(vazio)')}"</b> — ${escapeHtml(it.operacao)} · ${it.horaInicio}–${it.horaFim}</span>
+      <select data-pendente-idx="${idx}" style="min-width:220px;">
+        <option value="">— Descartar linha —</option>
+        ${myAnalistas.map(a=>`<option value="${a.id}" ${it.analistaId===a.id?'selected':''}>${a.name}</option>`).join('')}
+      </select>
+    </div>`;
+
+  // Cobertura tem 2 nomes por linha (folgando + suplente), e cada um pode
+  // ter falhado o match com findAnalistaByName() independente do outro.
+  // O campo que já bateu automaticamente (acento/caixa/pontuação
+  // diferentes não contam como nome diferente — ver normalizarNome em
+  // utils.js) some da linha de resolução, só aparece como confirmação;
+  // só mostra dropdown pro campo que realmente precisa de ajuda.
+  const linhaSuplencia = (it,idx) => `
+    <div style="display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+      <span style="flex:1;min-width:170px;font-size:13px;">${escapeHtml(it.operacao)} · ${it.horaInicio}–${it.horaFim} · <span class="mono">${it.dataCobertura}</span></span>
+      <div style="display:flex;flex-direction:column;gap:3px;min-width:210px;">
+        <span style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);">Folgando</span>
+        ${it.analistaId ? `<span style="font-size:13px;">✓ ${escapeHtml(userById(it.analistaId)?.name||'')}</span>` : `
+        <select data-pendente-idx="${idx}">
+          <option value="">"${escapeHtml(it.nomeOriginalTitular||'(vazio)')}" — Descartar linha</option>
+          ${myAnalistas.map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}
+        </select>`}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;min-width:210px;">
+        <span style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);">Suplente</span>
+        ${it.suplenteNome ? `<span style="font-size:13px;">✓ ${escapeHtml(it.suplenteNome)}</span>` : `
+        <select data-pendente-sup-idx="${idx}">
+          <option value="">"${escapeHtml(it.nomeOriginalSuplente||'(vazio)')}" — Descartar linha</option>
+          ${myAnalistas.map(a=>`<option value="${a.name}">${a.name}</option>`).join('')}
+        </select>`}
+      </div>
+    </div>`;
+
   return `
   <div class="card" style="margin-bottom:18px;border-color:var(--alert);">
-    <div class="section-title" style="color:var(--alert);">⚠ ${p.items.length} nome(s) não encontrado(s) no cadastro</div>
+    <div class="section-title" style="color:var(--alert);">⚠ ${p.items.length} linha(s) com nome não encontrado no cadastro</div>
     <div class="help-text">Essas linhas da planilha não bateram com nenhum analista da sua equipe (mesmo ignorando acentos, maiúsculas/minúsculas e pontuação). Selecione o analista certo pra cada uma, ou deixe em "Descartar" pra não importar a linha.</div>
-    ${p.items.map((it,idx)=>`
-      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
-        <span style="flex:1;min-width:220px;font-size:13px;"><b>"${escapeHtml(it.nomeOriginal||'(vazio)')}"</b> — ${escapeHtml(it.operacao)} · ${it.horaInicio}–${it.horaFim}</span>
-        <select data-pendente-idx="${idx}" style="min-width:220px;">
-          <option value="">— Descartar linha —</option>
-          ${myAnalistas.map(a=>`<option value="${a.id}" ${it.analistaId===a.id?'selected':''}>${a.name}</option>`).join('')}
-        </select>
-      </div>`).join('')}
+    ${p.items.map((it,idx)=> tipo==='suplencias' ? linhaSuplencia(it,idx) : linhaBaseMestra(it,idx)).join('')}
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
       <button class="btn" id="btnDescartarPendentes">Descartar todos</button>
       <button class="btn btn-brand" id="btnAplicarPendentes">Aplicar e importar</button>

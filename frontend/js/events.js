@@ -576,6 +576,13 @@ function bindMainEvents(){
     });
   });
 
+  main.querySelectorAll('[data-pendente-sup-idx]').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      const idx = parseInt(sel.dataset.pendenteSupIdx, 10);
+      if(uiState.importPendentes) uiState.importPendentes.items[idx].suplenteNome = sel.value;
+    });
+  });
+
   const btnDescartarPendentes = document.getElementById('btnDescartarPendentes');
   if(btnDescartarPendentes) btnDescartarPendentes.addEventListener('click', ()=>{
     uiState.importPendentes = null;
@@ -586,7 +593,10 @@ function bindMainEvents(){
   if(btnAplicarPendentes) btnAplicarPendentes.addEventListener('click', async ()=>{
     const p = uiState.importPendentes;
     if(!p) return;
-    const selecionados = p.items.filter(it=>it.analistaId);
+    // Cobertura exige os 2 nomes resolvidos (folgando E suplente) antes de
+    // aplicar a linha — deixar passar com só um deles resolvido criaria a
+    // cobertura com um nome ainda não validado.
+    const selecionados = p.items.filter(it => p.tipo==='suplencias' ? (it.analistaId && it.suplenteNome) : it.analistaId);
     if(selecionados.length===0){ uiState.importPendentes = null; renderMain(); return; }
     let ok=0, fail=0;
     openProgressModal('Aplicando correções...');
@@ -600,7 +610,7 @@ function bindMainEvents(){
           DB.baseMestra.push(await apiCreateBaseMestra(entrada));
         } else if(p.tipo==='suplencias'){
           const entrada = {operacao:it.operacao, ciclo:it.ciclo, horaInicio:it.horaInicio, horaFim:it.horaFim,
-            suplente:it.suplente, dataCobertura:it.dataCobertura, analistaOriginalId:it.analistaId};
+            suplente:it.suplenteNome, dataCobertura:it.dataCobertura, analistaOriginalId:it.analistaId};
           DB.suplencias.push(await apiCreateSuplencia(entrada));
         }
         ok++;
@@ -685,15 +695,24 @@ function bindMainEvents(){
     openProgressModal('Importando coberturas avulsas...');
     for(const [idx, r] of rows.entries()){
       if(!r.suplente || !r.operacao || !r.hora_inicio || !r.hora_fim || !r.data_cobertura){ fail++; updateProgressModal(idx+1, rows.length); continue; }
+      // Os dois nomes da linha (folgando e suplente) passam pelo mesmo
+      // matching tolerante a acento/caixa/pontuação — sem isso, uma
+      // diferença de digitação no suplente virava um nome "diferente" do
+      // cadastro, e a cobertura sumia da própria agenda dele (Programação,
+      // Métricas etc. comparam por nome exato).
       const orig = findAnalistaByName(myAnalistas, r.analista_original);
-      if(!orig){
-        pendentes.push({nomeOriginal:r.analista_original||'', operacao:r.operacao, ciclo:r.ciclo||'T3',
-          horaInicio:r.hora_inicio, horaFim:r.hora_fim, suplente:r.suplente, dataCobertura:r.data_cobertura, analistaId:''});
+      const sup = findAnalistaByName(myAnalistas, r.suplente);
+      if(!orig || !sup){
+        pendentes.push({
+          nomeOriginalTitular:r.analista_original||'', nomeOriginalSuplente:r.suplente||'',
+          operacao:r.operacao, ciclo:r.ciclo||'T3', horaInicio:r.hora_inicio, horaFim:r.hora_fim, dataCobertura:r.data_cobertura,
+          analistaId: orig ? orig.id : '', suplenteNome: sup ? sup.name : '',
+        });
         updateProgressModal(idx+1, rows.length);
         continue;
       }
       const entrada = {operacao:r.operacao, ciclo:r.ciclo||'T3',
-        horaInicio:r.hora_inicio, horaFim:r.hora_fim, suplente:r.suplente,
+        horaInicio:r.hora_inicio, horaFim:r.hora_fim, suplente:sup.name,
         dataCobertura:r.data_cobertura, analistaOriginalId:orig.id};
       try{ DB.suplencias.push(await apiCreateSuplencia(entrada)); ok++; }
       catch(e){ console.error('Falha ao importar cobertura', e); fail++; }
