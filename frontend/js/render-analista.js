@@ -152,8 +152,8 @@ function renderAnalistaMensal(analistaId, dateStr, opFiltro){
   const year = ref.getFullYear(), month = ref.getMonth();
   const startWeekday = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month+1, 0).getDate();
-  const prevDate = new Date(year, month-1, 1).toISOString().slice(0,10);
-  const nextDate = new Date(year, month+1, 1).toISOString().slice(0,10);
+  const prevDate = dateToISO(new Date(year, month-1, 1));
+  const nextDate = dateToISO(new Date(year, month+1, 1));
   let cells = '';
   for(let i=0;i<startWeekday;i++){
     cells += `<div class="cal-day-cell empty-cell"></div>`;
@@ -267,7 +267,7 @@ function renderLembretesSemana(my, dateStr){
   const d0 = new Date(dateStr+'T00:00:00');
   let cols='';
   for(let i=0;i<7;i++){
-    const dd = new Date(d0); dd.setDate(dd.getDate()+i); const ds = dd.toISOString().slice(0,10);
+    const dd = new Date(d0); dd.setDate(dd.getDate()+i); const ds = dateToISO(dd);
     const items = my.filter(l=>(l.data||todayISO())===ds).sort((a,b)=>(a.hora||'99').localeCompare(b.hora||'99'));
     const label = dd.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
     cols += `<div class="flash-col" style="min-width:180px;">
@@ -328,16 +328,16 @@ function renderLembretes(){
   let navPrev, navNext, label;
   if(view==='diaria'){
     const p=new Date(d); p.setDate(p.getDate()-1); const n=new Date(d); n.setDate(n.getDate()+1);
-    navPrev=p.toISOString().slice(0,10); navNext=n.toISOString().slice(0,10);
+    navPrev=dateToISO(p); navNext=dateToISO(n);
     label = d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
   } else if(view==='semanal'){
     const p=new Date(d); p.setDate(p.getDate()-7); const n=new Date(d); n.setDate(n.getDate()+7);
-    navPrev=p.toISOString().slice(0,10); navNext=n.toISOString().slice(0,10);
+    navPrev=dateToISO(p); navNext=dateToISO(n);
     const endW=new Date(d); endW.setDate(endW.getDate()+6);
     label = `${d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} – ${endW.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}`;
   } else {
     const p=new Date(d.getFullYear(), d.getMonth()-1, 1); const n=new Date(d.getFullYear(), d.getMonth()+1, 1);
-    navPrev=p.toISOString().slice(0,10); navNext=n.toISOString().slice(0,10);
+    navPrev=dateToISO(p); navNext=dateToISO(n);
     label = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
   }
 

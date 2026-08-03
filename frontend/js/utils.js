@@ -1,8 +1,18 @@
 /* Funções utilitárias puras: datas, formatação, CSV/Excel, escala do dia. */
 
-function todayISO(){ return new Date().toISOString().slice(0,10); }
+// Serializa um Date pra 'YYYY-MM-DD' usando os componentes LOCAIS — nunca
+// .toISOString() aqui, porque ele converte pra UTC: num fuso atrás de UTC
+// (Brasil, UTC-3), isso adianta a data em 1 dia bem nas últimas horas da
+// noite (ex.: 22h em diante), fazendo tudo que compara com "hoje" (status
+// de atraso na Grade do Dia, filtros de agenda, Folga DSR etc.) pular pro
+// dia seguinte antes da hora. Usar sempre esta função pra Date->string.
+function dateToISO(d){
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
 
-function addDaysISO(dateStr, n){ const d = new Date(dateStr+'T00:00:00'); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+function todayISO(){ return dateToISO(new Date()); }
+
+function addDaysISO(dateStr, n){ const d = new Date(dateStr+'T00:00:00'); d.setDate(d.getDate()+n); return dateToISO(d); }
 
 function uid(prefix){ return prefix+'_'+Math.random().toString(36).slice(2,9); }
 
@@ -65,7 +75,7 @@ function computeStatus(hora, dataStr, analistaId, operacao, isOff){
 // ainda fica disponível no title (tooltip). Tabelas administrativas (Grade
 // do Dia, dashboards) continuam chamando sem esse parâmetro, com o texto.
 function statusPill(status, emojiOnly){
-  const map = { wait:['pill-wait','⏳','A Iniciar'], live:['pill-live','🏃','Em Andamento'], done:['pill-done','✅','Finalizada'], off:['pill-off','🌙','Ausente'], atraso:['pill-atraso','🚨','Atraso de Roteirização'] };
+  const map = { wait:['pill-wait','⏳','A Iniciar'], live:['pill-live','🏃','Em Andamento'], done:['pill-done','✅','Finalizada'], off:['pill-off','🌙','Ausente'], atraso:['pill-atraso','🚨','Pendente Raio-X'] };
   const [cls,emoji,text] = map[status] || map.wait;
   if(emojiOnly) return `<span class="pill pill-emoji ${cls}" title="${text}">${emoji}</span>`;
   return `<span class="pill ${cls}">${emoji} ${text}</span>`;

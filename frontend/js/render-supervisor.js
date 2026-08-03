@@ -231,7 +231,7 @@ function supGrade(myAnalistas){
     (f.nome==='all' || r.nome===f.nome) &&
     (f.status==='all' || r.status===f.status)
   );
-  const statusLabels = {wait:'A Iniciar', live:'Em Andamento', done:'Finalizada', atraso:'Atraso de Roteirização'};
+  const statusLabels = {wait:'A Iniciar', live:'Em Andamento', done:'Finalizada', atraso:'Pendente Raio-X'};
   const select = (key, label, values) => `
     <select data-gradefilter="${key}">
       <option value="all">${label}: todos</option>
@@ -460,7 +460,7 @@ function supTransmissao(myAnalistas){
   const flt = uiState.envioFiltro;
   const inicio = flt.inicio || addDaysISO(todayISO(), -30);
   const fim = flt.fim || todayISO();
-  const dataOf = ts => new Date(ts).toISOString().slice(0,10);
+  const dataOf = ts => dateToISO(new Date(ts));
   const noPeriodo = ts => { const d = dataOf(ts); return d>=inicio && d<=fim; };
 
   const recadosEnviados = DB.recados.filter(r=>r.from.includes(session.name) && noPeriodo(r.ts))
