@@ -290,7 +290,6 @@ function renderConfiguracoes(){
   </div>
   <div class="card" style="max-width:420px;margin-top:16px;">
     <div class="section-title">Atualizar dados</div>
-    <div class="help-text">Os dados ficam guardados no seu navegador por até 1 hora antes de buscar de novo, pra economizar a cota do banco. Se alguém acabou de mudar algo (escala, cobertura etc.) e você precisa ver na hora, clique aqui.</div>
     <button class="btn" id="cfgRefreshData">🔄 Atualizar dados agora</button>
   </div>`;
 }
