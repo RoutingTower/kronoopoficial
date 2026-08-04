@@ -1,3 +1,10 @@
+// Prefere IPv4 na resolução de DNS — em alguns ambientes de hospedagem
+// (ex.: Render) a rota IPv6 pra *.supabase.co não funciona, e o fetch
+// nativo do Node tenta IPv6 primeiro por padrão, falhando com "fetch
+// failed" antes mesmo de tentar IPv4. Precisa vir antes de qualquer
+// require que possa disparar uma chamada de rede (supabaseService).
+require("dns").setDefaultResultOrder("ipv4first");
+
 const express = require("express");
 const cors = require("cors");
 const { port, allowedOrigins } = require("./config/env");
