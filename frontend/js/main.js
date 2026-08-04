@@ -4,13 +4,19 @@ document.getElementById('logoutBtn').addEventListener('click', exitApp);
 document.getElementById('modalBg').addEventListener('click', e=>{ if(e.target.id==='modalBg') closeModal(); });
 document.getElementById('btnPersonalizarMenu').addEventListener('click', openMenuConfigModal);
 
-// Fecha o dropdown de multi-seleção (Métricas) ao clicar fora dele — o
-// botão e os itens de dentro do painel já dão stopPropagation (events.js),
-// então só chega aqui clique de fato fora.
+// Fecha o dropdown de multi-seleção (Métricas, Dashboard Global, Painel
+// Hora a Hora, Status Operacional) ao clicar fora dele — o botão e os
+// itens de dentro do painel já dão stopPropagation (events.js), então só
+// chega aqui clique de fato fora.
 document.addEventListener('click', ()=>{
-  if(session && (uiState.metricasAnalistaDropdownOpen || uiState.metricasSupervisorDropdownOpen)){
+  const algumAberto = session && (uiState.metricasAnalistaDropdownOpen || uiState.metricasSupervisorDropdownOpen
+    || uiState.dashboardSupervisorDropdownOpen || uiState.painelSupervisorDropdownOpen || uiState.statusSupervisorDropdownOpen);
+  if(algumAberto){
     uiState.metricasAnalistaDropdownOpen = false;
     uiState.metricasSupervisorDropdownOpen = false;
+    uiState.dashboardSupervisorDropdownOpen = false;
+    uiState.painelSupervisorDropdownOpen = false;
+    uiState.statusSupervisorDropdownOpen = false;
     renderMain();
   }
 });
@@ -75,6 +81,15 @@ KronoAuth.onAuthStateChanged(async (user)=>{
   const isBoot = isFirstAuthCheck;
   isFirstAuthCheck = false;
   if(!user){ if(isBoot) hideBootScreen(); return; } // tela de login (real) já é a exibida por padrão
+  // O SDK do Supabase dispara este evento de novo (mesmo usuário) em vários
+  // momentos que não são login — refresh automático de token, troca de
+  // aba/foco da janela etc. Sem essa guarda, cada disparo recarregava TODO
+  // o DB e re-renderizava a tela inteira (nav + tela atual), perdendo
+  // filtro/scroll/dropdown aberto — sentia como "a tela atualiza sozinha",
+  // principalmente ao navegar (foco muda de elemento). Só a checagem
+  // inicial (isBoot) e um login manual de verdade (session ainda null, ver
+  // exitApp em ui.js) devem passar daqui pra baixo.
+  if(session && !isBoot) return;
   const btn = document.getElementById('loginBtnReal');
   const btnLabel = btn.textContent;
   btn.disabled = true;

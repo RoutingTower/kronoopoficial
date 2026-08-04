@@ -1,5 +1,29 @@
 /* bindMainEvents(): liga todos os listeners de clique/change do #mainArea a cada render. */
 
+// Wiring genérico dos dropdowns de multi-seleção usados em várias telas
+// (Métricas do supervisor/coordenador, Dashboard Global, Painel Hora a
+// Hora, Status Operacional) — todos seguem o mesmo HTML (botão toggle +
+// checkbox "Todos" + lista de checkboxes de item, ver ex. analistaPicker
+// em render-supervisor.js). `filtro` é o objeto do uiState (ex.:
+// uiState.metricasFiltro), `key` o campo array dele (ex.: "supervisores"),
+// `openKey` o campo booleano do uiState que controla o painel aberto.
+function bindMultiselect(main, toggleId, todosId, chkClass, filtro, key, openKey){
+  const toggle = document.getElementById(toggleId);
+  if(toggle) toggle.addEventListener('click', (e)=>{ e.stopPropagation(); uiState[openKey] = !uiState[openKey]; renderMain(); });
+  const todos = document.getElementById(todosId);
+  if(todos) todos.addEventListener('click', (e)=>{ e.stopPropagation(); });
+  if(todos) todos.addEventListener('change', ()=>{ filtro[key] = []; renderMain(); });
+  main.querySelectorAll('.'+chkClass).forEach(chk=>{
+    chk.addEventListener('click', (e)=>{ e.stopPropagation(); });
+    chk.addEventListener('change', ()=>{
+      const arr = filtro[key];
+      if(chk.checked){ if(!arr.includes(chk.value)) arr.push(chk.value); }
+      else { filtro[key] = arr.filter(x=>x!==chk.value); }
+      renderMain();
+    });
+  });
+}
+
 function bindMainEvents(){
   const main = document.getElementById('mainArea');
 
@@ -322,51 +346,13 @@ function bindMainEvents(){
     });
   });
 
-  const btnMetricasAnalistaToggle = document.getElementById('btnMetricasAnalistaToggle');
-  if(btnMetricasAnalistaToggle) btnMetricasAnalistaToggle.addEventListener('click', (e)=>{
-    e.stopPropagation();
-    uiState.metricasAnalistaDropdownOpen = !uiState.metricasAnalistaDropdownOpen;
-    renderMain();
-  });
-  const metricasAnalistaTodos = document.getElementById('metricasAnalistaTodos');
-  if(metricasAnalistaTodos) metricasAnalistaTodos.addEventListener('click', (e)=>{ e.stopPropagation(); });
-  if(metricasAnalistaTodos) metricasAnalistaTodos.addEventListener('change', ()=>{
-    uiState.metricasFiltro.analistas = [];
-    renderMain();
-  });
-  main.querySelectorAll('.metricasAnalistaChk').forEach(chk=>{
-    chk.addEventListener('click', (e)=>{ e.stopPropagation(); });
-    chk.addEventListener('change', ()=>{
-      const arr = uiState.metricasFiltro.analistas;
-      if(chk.checked){ if(!arr.includes(chk.value)) arr.push(chk.value); }
-      else { uiState.metricasFiltro.analistas = arr.filter(x=>x!==chk.value); }
-      renderMain();
-    });
-  });
-
-  // Mesmo padrão acima, só que pro filtro por Supervisor da tela de
-  // Métricas do coordenador (ver coordMetricas em render-coordenador.js).
-  const btnMetricasSupervisorToggle = document.getElementById('btnMetricasSupervisorToggle');
-  if(btnMetricasSupervisorToggle) btnMetricasSupervisorToggle.addEventListener('click', (e)=>{
-    e.stopPropagation();
-    uiState.metricasSupervisorDropdownOpen = !uiState.metricasSupervisorDropdownOpen;
-    renderMain();
-  });
-  const metricasSupervisorTodos = document.getElementById('metricasSupervisorTodos');
-  if(metricasSupervisorTodos) metricasSupervisorTodos.addEventListener('click', (e)=>{ e.stopPropagation(); });
-  if(metricasSupervisorTodos) metricasSupervisorTodos.addEventListener('change', ()=>{
-    uiState.metricasFiltro.supervisores = [];
-    renderMain();
-  });
-  main.querySelectorAll('.metricasSupervisorChk').forEach(chk=>{
-    chk.addEventListener('click', (e)=>{ e.stopPropagation(); });
-    chk.addEventListener('change', ()=>{
-      const arr = uiState.metricasFiltro.supervisores;
-      if(chk.checked){ if(!arr.includes(chk.value)) arr.push(chk.value); }
-      else { uiState.metricasFiltro.supervisores = arr.filter(x=>x!==chk.value); }
-      renderMain();
-    });
-  });
+  bindMultiselect(main, 'btnMetricasAnalistaToggle', 'metricasAnalistaTodos', 'metricasAnalistaChk', uiState.metricasFiltro, 'analistas', 'metricasAnalistaDropdownOpen');
+  // Filtro por Supervisor da tela de Métricas do coordenador (ver
+  // coordMetricas em render-coordenador.js) e das outras telas executivas.
+  bindMultiselect(main, 'btnMetricasSupervisorToggle', 'metricasSupervisorTodos', 'metricasSupervisorChk', uiState.metricasFiltro, 'supervisores', 'metricasSupervisorDropdownOpen');
+  bindMultiselect(main, 'btnDashboardSupervisorToggle', 'dashboardSupervisorTodos', 'dashboardSupervisorChk', uiState.dashboardFiltro, 'supervisores', 'dashboardSupervisorDropdownOpen');
+  bindMultiselect(main, 'btnPainelSupervisorToggle', 'painelSupervisorTodos', 'painelSupervisorChk', uiState.painelFiltro, 'supervisores', 'painelSupervisorDropdownOpen');
+  bindMultiselect(main, 'btnStatusSupervisorToggle', 'statusSupervisorTodos', 'statusSupervisorChk', uiState.statusFiltro, 'supervisores', 'statusSupervisorDropdownOpen');
 
   const metricasPanel = main.querySelector('.multiselect-panel');
   if(metricasPanel) metricasPanel.addEventListener('click', e=>e.stopPropagation());
@@ -1030,6 +1016,28 @@ function bindMainEvents(){
       if((key==='inicio'||key==='fim') && uiState.ocorrenciasFiltro.inicio > uiState.ocorrenciasFiltro.fim){
         uiState.ocorrenciasFiltro[key==='inicio'?'fim':'inicio'] = inp.value;
       }
+      renderMain();
+    });
+  });
+
+  // Mesmo padrão acima, só que pra tela de Ocorrências do coordenador (ver
+  // coordAnomalias em render-coordenador.js).
+  main.querySelectorAll('[data-anomaliasfiltro]').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const key = inp.dataset.anomaliasfiltro;
+      uiState.anomaliasFiltro[key] = inp.value;
+      if((key==='inicio'||key==='fim') && uiState.anomaliasFiltro.inicio > uiState.anomaliasFiltro.fim){
+        uiState.anomaliasFiltro[key==='inicio'?'fim':'inicio'] = inp.value;
+      }
+      renderMain();
+    });
+  });
+
+  // Filtro de data do Painel Hora a Hora do coordenador (ver
+  // coordPainelHoraAHora em render-coordenador.js).
+  main.querySelectorAll('[data-painelfiltro]').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      uiState.painelFiltro[inp.dataset.painelfiltro] = inp.value;
       renderMain();
     });
   });

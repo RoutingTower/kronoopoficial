@@ -23,6 +23,15 @@ let uiState = {
   metricasFiltro:{ inicio: addDaysISO(todayISO(), -7), fim: todayISO(), analistas: [], supervisores: [] },
   metricasAnalistaDropdownOpen: false,
   metricasSupervisorDropdownOpen: false,
+  // Telas do Coordenador (render-coordenador.js): supervisores:[] = "Todos"
+  // em cada filtro abaixo, mesmo padrão de metricasFiltro.supervisores.
+  dashboardFiltro:{ supervisores: [] },
+  dashboardSupervisorDropdownOpen: false,
+  painelFiltro:{ data: hojeAgendaISO(), supervisores: [] },
+  painelSupervisorDropdownOpen: false,
+  anomaliasFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), supervisor: 'all', operacao: 'all' },
+  statusFiltro:{ supervisores: [] },
+  statusSupervisorDropdownOpen: false,
   envioFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO() },
   ocorrenciasFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), analista: 'all', operacao: 'all', avaliacaoMax: '' },
   suplenciasFiltro:{ operacao:'', horario:'', suplente:'all', cobrindo:'all', inicio:'', fim:'' },

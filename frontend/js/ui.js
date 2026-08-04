@@ -262,7 +262,9 @@ function renderMain(){
   bindMainEvents();
   updateNavBadges();
   if(activeNavKey==='metricas') renderMetricasCharts();
-  if(activeNavKey==='ocorrencias') renderOcorrenciasCharts();
+  if(activeNavKey==='ocorrencias' || activeNavKey==='anomalias') renderOcorrenciasCharts();
+  if(activeNavKey==='dashboard') renderDashboardCharts();
+  if(activeNavKey==='status') renderStatusCharts();
 }
 
 
