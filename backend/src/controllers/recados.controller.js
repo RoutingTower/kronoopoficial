@@ -1,11 +1,11 @@
-const firestoreService = require("../services/firestoreService");
+const supabaseService = require("../services/supabaseService");
 const { getCaller } = require("../services/authz");
 
 const COLLECTION = "recados";
 
 async function listRecados(req, res) {
   const { to } = req.query;
-  let rows = await firestoreService.listAll(COLLECTION);
+  let rows = await supabaseService.listAll(COLLECTION);
   if (to) rows = rows.filter((r) => r.to === to || r.to === "all");
   res.json(rows);
 }
@@ -24,7 +24,7 @@ async function createRecado(req, res) {
   if (!caller || (!caller.isAdmin && (caller.role !== "supervisor" || to !== `all_ana_${caller.id}`))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode enviar comunicados para a sua própria equipe." });
   }
-  const recado = await firestoreService.create(COLLECTION, {
+  const recado = await supabaseService.create(COLLECTION, {
     from,
     to,
     titulo: titulo || "",
@@ -40,7 +40,7 @@ async function createRecado(req, res) {
 // leitura). Reescrever o conteúdo (titulo/texto/observacoes) só quem enviou
 // — na prática, o supervisor dono da equipe pra quem o recado foi mandado.
 async function updateRecado(req, res) {
-  const existing = await firestoreService.getById(COLLECTION, req.params.id);
+  const existing = await supabaseService.getById(COLLECTION, req.params.id);
   if (!existing) return res.status(404).json({ error: "not_found" });
 
   const { titulo, texto, observacoes, lidoPor, marcarLido } = req.body;
@@ -62,18 +62,18 @@ async function updateRecado(req, res) {
   if (marcarLido && !((existing.lidoPor || []).includes(marcarLido))) {
     patch.lidoPor = [...(existing.lidoPor || []), marcarLido];
   }
-  const updated = await firestoreService.update(COLLECTION, req.params.id, patch);
+  const updated = await supabaseService.update(COLLECTION, req.params.id, patch);
   res.json(updated);
 }
 
 async function deleteRecado(req, res) {
-  const existing = await firestoreService.getById(COLLECTION, req.params.id);
+  const existing = await supabaseService.getById(COLLECTION, req.params.id);
   if (!existing) return res.status(404).json({ error: "not_found" });
   const caller = await getCaller(req);
   if (!caller || (!caller.isAdmin && (caller.role !== "supervisor" || existing.to !== `all_ana_${caller.id}`))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode excluir comunicados enviados pela sua própria equipe." });
   }
-  await firestoreService.remove(COLLECTION, req.params.id);
+  await supabaseService.remove(COLLECTION, req.params.id);
   res.status(204).send();
 }
 

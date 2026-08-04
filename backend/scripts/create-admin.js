@@ -10,7 +10,7 @@
 // Pra rodar contra produção em vez de dev, aponte ENV_FILE antes:
 //   $env:ENV_FILE=".env.production"; node scripts/create-admin.js ...
 
-const firestoreService = require("../src/services/firestoreService");
+const supabaseService = require("../src/services/supabaseService");
 
 async function main() {
   const [, , email, password, name] = process.argv;
@@ -23,21 +23,21 @@ async function main() {
     process.exit(1);
   }
 
-  const auth = firestoreService.getAuth();
+  const auth = supabaseService.getAuth();
   let uid;
   try {
     const existing = await auth.getUserByEmail(email);
     uid = existing.uid;
     await auth.updateUser(uid, { password, displayName: name });
-    console.log(`Conta já existia no Firebase Auth (uid ${uid}) — senha/nome atualizados.`);
+    console.log(`Conta já existia no Supabase Auth (uid ${uid}) — senha/nome atualizados.`);
   } catch (err) {
-    if (err.code !== "auth/user-not-found") throw err;
+    if (err.code !== "user_not_found") throw err;
     const created = await auth.createUser({ email, password, displayName: name });
     uid = created.uid;
-    console.log(`Conta criada no Firebase Auth (uid ${uid}).`);
+    console.log(`Conta criada no Supabase Auth (uid ${uid}).`);
   }
 
-  await firestoreService.replace("users", uid, {
+  await supabaseService.replace("users", uid, {
     role: "coordenador",
     name,
     email,

@@ -1,11 +1,11 @@
-const firestoreService = require("../services/firestoreService");
+const supabaseService = require("../services/supabaseService");
 const { getCaller } = require("../services/authz");
 
 const COLLECTION = "plantoes";
 
 async function listPlantoes(req, res) {
   const { supervisorAusenteId } = req.query;
-  let rows = await firestoreService.listAll(COLLECTION);
+  let rows = await supabaseService.listAll(COLLECTION);
   if (supervisorAusenteId) rows = rows.filter((p) => p.supervisorAusenteId === supervisorAusenteId);
   res.json(rows);
 }
@@ -24,7 +24,7 @@ async function createPlantao(req, res) {
   if (!caller || (!caller.isAdmin && (caller.role !== "supervisor" || supervisorAusenteId !== caller.id))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode declarar plantão em seu próprio nome." });
   }
-  const plantao = await firestoreService.create(COLLECTION, {
+  const plantao = await supabaseService.create(COLLECTION, {
     supervisorAusenteId,
     data,
     coberturaRole,
@@ -39,7 +39,7 @@ async function assertDonoDoPlantao(req, existing) {
 }
 
 async function updatePlantao(req, res) {
-  const existing = await firestoreService.getById(COLLECTION, req.params.id);
+  const existing = await supabaseService.getById(COLLECTION, req.params.id);
   if (!existing) return res.status(404).json({ error: "not_found" });
   if (!(await assertDonoDoPlantao(req, existing))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode gerenciar plantão em seu próprio nome." });
@@ -48,17 +48,17 @@ async function updatePlantao(req, res) {
   for (const key of ["data", "coberturaRole", "coberturaNome"]) {
     if (req.body[key] !== undefined) patch[key] = req.body[key];
   }
-  const updated = await firestoreService.update(COLLECTION, req.params.id, patch);
+  const updated = await supabaseService.update(COLLECTION, req.params.id, patch);
   res.json(updated);
 }
 
 async function deletePlantao(req, res) {
-  const existing = await firestoreService.getById(COLLECTION, req.params.id);
+  const existing = await supabaseService.getById(COLLECTION, req.params.id);
   if (!existing) return res.status(404).json({ error: "not_found" });
   if (!(await assertDonoDoPlantao(req, existing))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode excluir plantão em seu próprio nome." });
   }
-  await firestoreService.remove(COLLECTION, req.params.id);
+  await supabaseService.remove(COLLECTION, req.params.id);
   res.status(204).send();
 }
 

@@ -39,6 +39,13 @@ const KronoAuth = {
     if(!user) throw new Error('Sessão expirada. Faça login de novo.');
     await user.updatePassword(newPassword);
   },
+  // Dispara callback(user|null) no login, no logout, E imediatamente ao
+  // registrar (com a sessão persistida, se houver) — é a fonte da verdade
+  // de sessão usada em main.js pra convergir boot com sessão salva e login
+  // manual no mesmo fluxo.
+  onAuthStateChanged(callback){
+    return _fbAuth.onAuthStateChanged((user)=> callback(user));
+  },
   // Mensagens de erro do Firebase Auth traduzidas para o usuário final.
   friendlyError(err){
     const map = {

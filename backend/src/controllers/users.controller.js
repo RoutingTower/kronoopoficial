@@ -1,11 +1,11 @@
-const firestoreService = require("../services/firestoreService");
+const supabaseService = require("../services/supabaseService");
 const { getCaller } = require("../services/authz");
 
 const COLLECTION = "users";
 
 async function listUsers(req, res) {
   const { role, supervisorId, coordenadorId } = req.query;
-  let users = await firestoreService.listAll(COLLECTION);
+  let users = await supabaseService.listAll(COLLECTION);
   if (role) users = users.filter((u) => u.role === role);
   if (supervisorId) users = users.filter((u) => u.supervisorId === supervisorId);
   if (coordenadorId) users = users.filter((u) => u.coordenadorId === coordenadorId);
@@ -13,13 +13,13 @@ async function listUsers(req, res) {
 }
 
 async function getMe(req, res) {
-  const user = await firestoreService.getById(COLLECTION, req.user.uid);
+  const user = await supabaseService.getById(COLLECTION, req.user.uid);
   if (!user) return res.status(404).json({ error: "not_found" });
   res.json(user);
 }
 
 async function getUser(req, res) {
-  const user = await firestoreService.getById(COLLECTION, req.params.id);
+  const user = await supabaseService.getById(COLLECTION, req.params.id);
   if (!user) return res.status(404).json({ error: "not_found" });
   res.json(user);
 }
@@ -54,7 +54,7 @@ async function createUser(req, res) {
     return res.status(403).json({ error: "forbidden", message: "Você não tem permissão para criar este usuário." });
   }
 
-  const authUser = await firestoreService.getAuth().createUser({ email, password, displayName: name });
+  const authUser = await supabaseService.getAuth().createUser({ email, password, displayName: name });
   const data = {
     role,
     name,
@@ -65,7 +65,7 @@ async function createUser(req, res) {
     jornada: jornada || null,
     navConfig: null,
   };
-  await firestoreService.replace(COLLECTION, authUser.uid, data);
+  await supabaseService.replace(COLLECTION, authUser.uid, data);
   res.status(201).json({ id: authUser.uid, ...data });
 }
 
@@ -74,7 +74,7 @@ async function createUser(req, res) {
 // hoje); supervisor edita analistas da própria equipe; coordenador edita
 // supervisores da própria equipe.
 async function updateUser(req, res) {
-  const existing = await firestoreService.getById(COLLECTION, req.params.id);
+  const existing = await supabaseService.getById(COLLECTION, req.params.id);
   if (!existing) return res.status(404).json({ error: "not_found" });
 
   const caller = await getCaller(req);
@@ -105,19 +105,19 @@ async function updateUser(req, res) {
     if (req.body[key] !== undefined) patch[key] = req.body[key];
   }
   if (req.body.email !== undefined) {
-    await firestoreService.getAuth().updateUser(req.params.id, { email: req.body.email });
+    await supabaseService.getAuth().updateUser(req.params.id, { email: req.body.email });
   }
   if (req.body.password !== undefined) {
-    await firestoreService.getAuth().updateUser(req.params.id, { password: req.body.password });
+    await supabaseService.getAuth().updateUser(req.params.id, { password: req.body.password });
   }
-  const updated = await firestoreService.update(COLLECTION, req.params.id, patch);
+  const updated = await supabaseService.update(COLLECTION, req.params.id, patch);
   res.json(updated);
 }
 
 // Só existe fluxo na UI para supervisor excluir analista da própria equipe
 // (não há botão de excluir supervisor/coordenador) — mesma restrição aqui.
 async function deleteUser(req, res) {
-  const existing = await firestoreService.getById(COLLECTION, req.params.id);
+  const existing = await supabaseService.getById(COLLECTION, req.params.id);
   if (!existing) return res.status(404).json({ error: "not_found" });
 
   const caller = await getCaller(req);
@@ -127,8 +127,8 @@ async function deleteUser(req, res) {
     return res.status(403).json({ error: "forbidden", message: "Você não tem permissão para excluir este usuário." });
   }
 
-  await firestoreService.remove(COLLECTION, req.params.id);
-  await firestoreService.getAuth().deleteUser(req.params.id).catch(() => {});
+  await supabaseService.remove(COLLECTION, req.params.id);
+  await supabaseService.getAuth().deleteUser(req.params.id).catch(() => {});
   res.status(204).send();
 }
 

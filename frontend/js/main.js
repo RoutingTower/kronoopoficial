@@ -55,7 +55,7 @@ initLogin();
 
 // Fonte da verdade da sessão: dispara tanto após um login manual
 // (KronoAuth.signIn em ui.js) quanto ao recarregar a página com uma sessão
-// Firebase já persistida — os dois casos convergem aqui.
+// já persistida — os dois casos convergem aqui.
 //
 // authRequestSeq evita corrida: se dois eventos disparam em sequência rápida
 // (ex.: sessão persistida resolvendo bem na hora em que um novo login manual
@@ -69,7 +69,7 @@ initLogin();
 // logout) o boot já foi escondido há muito tempo.
 let authRequestSeq = 0;
 let isFirstAuthCheck = true;
-firebase.auth().onAuthStateChanged(async (user)=>{
+KronoAuth.onAuthStateChanged(async (user)=>{
   const myReq = ++authRequestSeq;
   const isBoot = isFirstAuthCheck;
   isFirstAuthCheck = false;

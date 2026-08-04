@@ -16,7 +16,7 @@ const router = Router();
 
 router.get("/health", (_req, res) => res.json({ status: "ok" }));
 
-// Tudo abaixo exige um Firebase ID token válido — ver middleware/auth.js.
+// Tudo abaixo exige um Supabase ID token válido — ver middleware/auth.js.
 router.use(requireAuth);
 
 router.use("/users", usersRoutes);

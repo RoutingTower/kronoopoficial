@@ -1,4 +1,4 @@
-const firestoreService = require("../services/firestoreService");
+const supabaseService = require("../services/supabaseService");
 const { getCaller } = require("../services/authz");
 
 const COLLECTION = "feedbacks";
@@ -7,7 +7,7 @@ const COLLECTION = "feedbacks";
 // backend não filtra por role, quem decide o que mostrar é a tela — só o
 // Coordenador tem uma tela que lista isso, ver frontend/js/render-coordenador.js).
 async function listFeedbacks(req, res) {
-  const feedbacks = await firestoreService.listAll(COLLECTION);
+  const feedbacks = await supabaseService.listAll(COLLECTION);
   res.json(feedbacks);
 }
 
@@ -23,7 +23,7 @@ async function createFeedback(req, res) {
   if (!caller.isAdmin && caller.role !== "analista") {
     return res.status(403).json({ error: "forbidden", message: "Só analistas podem enviar feedback." });
   }
-  const feedback = await firestoreService.create(COLLECTION, {
+  const feedback = await supabaseService.create(COLLECTION, {
     analistaId: caller.id,
     analistaNome: caller.name,
     texto: texto.trim(),
@@ -35,13 +35,13 @@ async function createFeedback(req, res) {
 // Só coordenador (ou admin) exclui — é quem tem a tela de gestão desses
 // feedbacks.
 async function deleteFeedback(req, res) {
-  const existing = await firestoreService.getById(COLLECTION, req.params.id);
+  const existing = await supabaseService.getById(COLLECTION, req.params.id);
   if (!existing) return res.status(404).json({ error: "not_found" });
   const caller = await getCaller(req);
   if (!caller || (!caller.isAdmin && caller.role !== "coordenador")) {
     return res.status(403).json({ error: "forbidden", message: "Só coordenadores podem excluir feedbacks." });
   }
-  await firestoreService.remove(COLLECTION, req.params.id);
+  await supabaseService.remove(COLLECTION, req.params.id);
   res.status(204).send();
 }
 

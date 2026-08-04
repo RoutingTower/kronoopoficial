@@ -1,11 +1,11 @@
-const firestoreService = require("../services/firestoreService");
+const supabaseService = require("../services/supabaseService");
 const { getCaller } = require("../services/authz");
 
 const COLLECTION = "reunioes";
 
 async function listReunioes(req, res) {
   const { supervisorId } = req.query;
-  let rows = await firestoreService.listAll(COLLECTION);
+  let rows = await supabaseService.listAll(COLLECTION);
   if (supervisorId) rows = rows.filter((r) => r.supervisorId === supervisorId);
   res.json(rows);
 }
@@ -27,7 +27,7 @@ async function createReuniao(req, res) {
   if (!caller || (!caller.isAdmin && (caller.role !== "supervisor" || supervisorId !== caller.id))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode agendar reuniões da sua própria equipe." });
   }
-  const reuniao = await firestoreService.create(COLLECTION, {
+  const reuniao = await supabaseService.create(COLLECTION, {
     tipo,
     titulo: titulo || "Reunião",
     data,
@@ -46,7 +46,7 @@ async function assertDonoDaEquipe(req, existing) {
 }
 
 async function updateReuniao(req, res) {
-  const existing = await firestoreService.getById(COLLECTION, req.params.id);
+  const existing = await supabaseService.getById(COLLECTION, req.params.id);
   if (!existing) return res.status(404).json({ error: "not_found" });
   if (!(await assertDonoDaEquipe(req, existing))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode gerenciar reuniões da sua própria equipe." });
@@ -56,17 +56,17 @@ async function updateReuniao(req, res) {
   for (const key of ["tipo", "titulo", "data", "hora", "analistaIds"]) {
     if (req.body[key] !== undefined) patch[key] = req.body[key];
   }
-  const updated = await firestoreService.update(COLLECTION, req.params.id, patch);
+  const updated = await supabaseService.update(COLLECTION, req.params.id, patch);
   res.json(updated);
 }
 
 async function deleteReuniao(req, res) {
-  const existing = await firestoreService.getById(COLLECTION, req.params.id);
+  const existing = await supabaseService.getById(COLLECTION, req.params.id);
   if (!existing) return res.status(404).json({ error: "not_found" });
   if (!(await assertDonoDaEquipe(req, existing))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode gerenciar reuniões da sua própria equipe." });
   }
-  await firestoreService.remove(COLLECTION, req.params.id);
+  await supabaseService.remove(COLLECTION, req.params.id);
   res.status(204).send();
 }
 

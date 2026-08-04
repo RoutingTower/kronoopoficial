@@ -1,4 +1,4 @@
-const firestoreService = require("../services/firestoreService");
+const supabaseService = require("../services/supabaseService");
 const { getCaller, supervisorIdDoAnalista } = require("../services/authz");
 
 const COLLECTION = "lembretes";
@@ -27,7 +27,7 @@ function belongsToAnalista(lembrete, analistaId, supervisorId) {
 
 async function listLembretes(req, res) {
   const { analistaId, supervisorId } = req.query;
-  const lembretes = await firestoreService.listAll(COLLECTION);
+  const lembretes = await supabaseService.listAll(COLLECTION);
   if (!analistaId) return res.json(lembretes);
   res.json(lembretes.filter((l) => belongsToAnalista(l, analistaId, supervisorId)));
 }
@@ -59,7 +59,7 @@ async function createLembrete(req, res) {
     }
   }
 
-  const lembrete = await firestoreService.create(COLLECTION, {
+  const lembrete = await supabaseService.create(COLLECTION, {
     origem,
     texto: texto.trim(),
     observacoes: observacoes ? String(observacoes).trim() : "",
@@ -79,7 +79,7 @@ async function createLembrete(req, res) {
 // "done" — não reescrever o conteúdo de um lembrete que não é dele.
 async function updateLembrete(req, res) {
   const { id } = req.params;
-  const existing = await firestoreService.getById(COLLECTION, id);
+  const existing = await supabaseService.getById(COLLECTION, id);
   if (!existing) return res.status(404).json({ error: "not_found" });
 
   const caller = await getCaller(req);
@@ -107,7 +107,7 @@ async function updateLembrete(req, res) {
   if (typeof data === "string") patch.data = data;
   if (typeof hora === "string") patch.hora = hora;
 
-  const updated = await firestoreService.update(COLLECTION, id, patch);
+  const updated = await supabaseService.update(COLLECTION, id, patch);
   res.json(updated);
 }
 
@@ -115,7 +115,7 @@ async function updateLembrete(req, res) {
 // pra própria equipe.
 async function deleteLembrete(req, res) {
   const { id } = req.params;
-  const existing = await firestoreService.getById(COLLECTION, id);
+  const existing = await supabaseService.getById(COLLECTION, id);
   if (!existing) return res.status(404).json({ error: "not_found" });
 
   const caller = await getCaller(req);
@@ -125,7 +125,7 @@ async function deleteLembrete(req, res) {
     return res.status(403).json({ error: "forbidden", message: "Você não tem permissão para excluir este lembrete." });
   }
 
-  await firestoreService.remove(COLLECTION, id);
+  await supabaseService.remove(COLLECTION, id);
   res.status(204).send();
 }
 

@@ -1,4 +1,4 @@
-const firestoreService = require("../services/firestoreService");
+const supabaseService = require("../services/supabaseService");
 const { getCaller } = require("../services/authz");
 
 const COLLECTION = "raioX";
@@ -21,7 +21,7 @@ function inicioPadrao() {
 async function listRaioX(req, res) {
   const { analistaId, inicio, fim } = req.query;
   const inicioEfetivo = inicio || inicioPadrao();
-  let rows = await firestoreService.listWhere(COLLECTION, [["data", ">=", inicioEfetivo]]);
+  let rows = await supabaseService.listWhere(COLLECTION, [["data", ">=", inicioEfetivo]]);
   if (analistaId) rows = rows.filter((r) => r.analistaId === analistaId);
   if (fim) rows = rows.filter((r) => (r.data || "") <= fim);
   res.json(rows);
@@ -55,7 +55,7 @@ async function createRaioX(req, res) {
       message: `observacao é obrigatória, com no mínimo ${MIN_OBSERVACAO_LEN} caracteres`,
     });
   }
-  const entry = await firestoreService.create(COLLECTION, {
+  const entry = await supabaseService.create(COLLECTION, {
     analistaId,
     operacao,
     hora,
@@ -68,13 +68,13 @@ async function createRaioX(req, res) {
 }
 
 async function deleteRaioX(req, res) {
-  const existing = await firestoreService.getById(COLLECTION, req.params.id);
+  const existing = await supabaseService.getById(COLLECTION, req.params.id);
   if (!existing) return res.status(404).json({ error: "not_found" });
   const caller = await getCaller(req);
   if (!caller?.isAdmin && existing.analistaId !== req.user.uid) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode excluir finalizações em seu próprio nome." });
   }
-  await firestoreService.remove(COLLECTION, req.params.id);
+  await supabaseService.remove(COLLECTION, req.params.id);
   res.status(204).send();
 }
 

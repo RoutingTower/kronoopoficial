@@ -37,3 +37,20 @@ const firebaseConfigProd = {
 };
 
 const firebaseConfig = isLocalDev ? firebaseConfigDev : firebaseConfigProd;
+
+// Configuração pública do Supabase (Project Settings > API > Project URL /
+// anon public key — igual ao firebaseConfig acima, é seguro expor no
+// navegador: quem protege os dados é a service_role key do backend, não
+// esta chave). Coexiste com o firebaseConfig* acima até o cutover (ver
+// docs/MIGRACAO-SUPABASE.md) — preencher só no dia da migração.
+const supabaseConfigDev = {
+  url: "https://vymaifdrrisoqljxikdc.supabase.co",
+  anonKey: "sb_publishable_H-nJn9wNH2VrIcW0VMghtg_9YDXDjeZ",
+};
+
+const supabaseConfigProd = {
+  url: "https://simkcmjwfpcljyvcmhjs.supabase.co",
+  anonKey: "sb_publishable_HYDlL58AM2eJBZIc8ad26g_3pNvRIIr",
+};
+
+const supabaseConfig = isLocalDev ? supabaseConfigDev : supabaseConfigProd;

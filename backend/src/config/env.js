@@ -24,4 +24,13 @@ module.exports = {
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL || "",
     privateKey: (process.env.FIREBASE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
   },
+  // Usado por supabaseService.js — coexiste com o bloco "firebase" acima
+  // enquanto o cutover não acontece (ver docs/MIGRACAO-SUPABASE.md).
+  // SUPABASE_SERVICE_ROLE_KEY, não a anon key: o backend precisa ignorar
+  // RLS do mesmo jeito que a service account do Firebase ignorava as regras
+  // do Firestore (autorização já vive em backend/src/services/authz.js).
+  supabase: {
+    url: process.env.SUPABASE_URL || "",
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+  },
 };
