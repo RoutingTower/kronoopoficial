@@ -16,7 +16,7 @@ async function requireAuth(req, res, next) {
     req.user = { uid: decoded.uid, email: decoded.email || null };
     next();
   } catch (err) {
-    console.error("KronoOP: falha ao verificar token —", err.message);
+    console.error("KronoOP: falha ao verificar token —", err.message, err.cause || "");
     res.status(401).json({ error: "unauthorized", message: "Token inválido ou expirado" });
   }
 }
