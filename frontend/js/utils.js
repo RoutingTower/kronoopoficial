@@ -12,6 +12,22 @@ function dateToISO(d){
 
 function todayISO(){ return dateToISO(new Date()); }
 
+// "Hoje" pra fins de agenda/status do turno da madrugada (19h–06h): a
+// virada de dia acontece às 06:00, não à meia-noite. Enquanto o turno que
+// começou ontem às 19h ainda está rolando (madrugada, 00h–05h59), a
+// agenda/status ainda deve considerar "hoje" = o dia em que esse turno
+// começou — senão a Grade do Dia/status vira pra um dia cujas operações
+// nem começaram ainda, enquanto o turno de verdade em andamento (com
+// Raio-X pendente de finalizar) some de vista. Usada em todo lugar que
+// decide o dia "atual" pra escala/status (defaults da agenda, "hoje" nos
+// calendários, painéis hora a hora) — mesmo raciocínio de slotTimestamp()
+// abaixo, aplicado aqui ao dia corrente em vez de um slot específico.
+function hojeAgendaISO(){
+  const d = new Date();
+  if(d.getHours() < 6) d.setDate(d.getDate()-1);
+  return dateToISO(d);
+}
+
 function addDaysISO(dateStr, n){ const d = new Date(dateStr+'T00:00:00'); d.setDate(d.getDate()+n); return dateToISO(d); }
 
 function uid(prefix){ return prefix+'_'+Math.random().toString(36).slice(2,9); }

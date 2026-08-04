@@ -44,7 +44,7 @@ function coordComunicados(){
 
 
 function coordPainelHoraAHora(){
-  const today = todayISO();
+  const today = hojeAgendaISO();
   const supIds = usersByRole('supervisor').map(s=>s.id);
   const analistaIds = DB.users.filter(u=>u.role==='analista' && supIds.includes(u.supervisorId)).map(u=>u.id);
   let rows = [];
@@ -78,7 +78,7 @@ function coordAcessos(){
 function coordDashboard(){
   const totalAnalistas = usersByRole('analista').length;
   const totalSup = usersByRole('supervisor').length;
-  const today = todayISO();
+  const today = hojeAgendaISO();
   const opsAtivas = DB.baseMestra.filter(b=>bmRodaNoDia(b, today)).length;
   const folgasHoje = new Set(DB.ausencias.filter(a=>a.data===today).map(a=>a.analistaId)).size;
   const avaliacaoBaixa = DB.raioX.filter(r=>(r.estrelas||0)<=2).length;
@@ -96,7 +96,7 @@ function coordDashboard(){
 
 
 function coordStatus(){
-  const today = todayISO();
+  const today = hojeAgendaISO();
   let done=0,live=0,wait=0,atraso=0;
   DB.baseMestra.filter(b=>bmRodaNoDia(b, today)).forEach(b=>{
     const isOff = DB.ausencias.some(a=>a.baseMestraId===b.id && a.data===today);

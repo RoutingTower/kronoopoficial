@@ -21,6 +21,10 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
       return `<div class="flash-col"><div class="flash-time">${hour}</div><div class="flash-card off"><div style="color:var(--text-faint);font-size:12px;">Sem operação</div></div></div>`;
     }
     let cardsHtml = items.map(it=>{
+      // status!=='wait' controla a exibição de "Finalizar operação" logo
+      // abaixo — sem essa checagem dava pra finalizar uma operação que
+      // ainda nem começou (horário futuro do próprio dia, ou navegando a
+      // agenda pra um dia futuro), gravando um Raio-X pra data/hora errada.
       const status = computeStatus(hour, dateStr, analistaId, it.operacao, it.isOff);
       const raiox = DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===it.horaInicio && r.data===dateStr);
       const spr = getSPR(supervisorId, it.operacao, it.ciclo);
@@ -32,7 +36,7 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
         <div class="flash-meta">${it.isSuplente ? 'Suplente' : 'Titular'}: ${it.responsavelNome}</div>
         ${it.isOff ? `<div class="flash-cover">${it.tipo==='ferias'?'🏖️ Férias':'🌙 Folga'} do titular</div>`
           : it.isCobertura ? `<div class="flash-cover">🔁 Cobrindo ${it.tipo==='ferias'?'férias':'folga'} de ${it.responsavelNome}</div>` : ''}
-        ${!it.isOff && analistaId===session?.userId ? (raiox ? `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}</div>` : `<div class="flash-actions">
+        ${!it.isOff && analistaId===session?.userId && status!=='wait' ? (raiox ? `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}</div>` : `<div class="flash-actions">
             <button class="btn btn-brand" data-finalizar-op="${it.operacao}" data-hora="${it.horaInicio}" data-data="${dateStr}">Finalizar operação</button>
           </div>`) : ''}
       </div>`;
@@ -58,7 +62,7 @@ function formatarDataCurta(d){
 // usado pra achar a próxima cobertura/folga do analista. maxDias limita a
 // busca (não faz sentido varrer indefinidamente se não há nada agendado).
 function proximaOcorrencia(predicate, maxDias){
-  const hoje = todayISO();
+  const hoje = hojeAgendaISO();
   for(let i=0;i<=maxDias;i++){
     const d = addDaysISO(hoje, i);
     if(predicate(d)) return {data:d, diasFaltando:i};
@@ -128,7 +132,7 @@ function renderAnalista(){
 // opFiltro reusado tanto aqui quanto em renderAnalistaMensal e
 // renderFlashcardRow (ver categoriaOperacao() em utils.js).
 function renderAnalistaSemanal(analistaId, dateStr, opFiltro){
-  const todayStr = todayISO();
+  const todayStr = hojeAgendaISO();
   const header = WEEKDAY_LABELS.map(w=>`<div class="cal-weekday-header">${w}</div>`).join('');
   const cells = Array.from({length:7}, (_,i)=>{
     const ds = addDaysISO(dateStr, i);
@@ -149,7 +153,7 @@ function renderAnalistaSemanal(analistaId, dateStr, opFiltro){
 // células vazias de preenchimento no início/fim, mesmo padrão de
 // renderLembretesMensal.
 function renderAnalistaMensal(analistaId, dateStr, opFiltro){
-  const todayStr = todayISO();
+  const todayStr = hojeAgendaISO();
   const ref = new Date(dateStr+'T00:00:00');
   const year = ref.getFullYear(), month = ref.getMonth();
   const startWeekday = new Date(year, month, 1).getDay();

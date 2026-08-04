@@ -13,8 +13,8 @@ let DB = null;
 let session = null;
 
 let uiState = {
-  analistaView:'diaria', analistaDate: todayISO(), analistaOpFiltro: 'all',
-  gradeFilters:{ data: todayISO(), hora:'all', analista:'all', op:'all', nome:'all', status:'all' },
+  analistaView:'diaria', analistaDate: hojeAgendaISO(), analistaOpFiltro: 'all',
+  gradeFilters:{ data: hojeAgendaISO(), hora:'all', analista:'all', op:'all', nome:'all', status:'all' },
   // analistas:[] = "Todos". Preenchido = só os ids selecionados no
   // dropdown de multi-seleção (ver supMetricas em render-supervisor.js).
   metricasFiltro:{ inicio: addDaysISO(todayISO(), -7), fim: todayISO(), analistas: [] },
@@ -22,7 +22,7 @@ let uiState = {
   envioFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO() },
   ocorrenciasFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), analista: 'all', operacao: 'all', avaliacaoMax: '' },
   suplenciasFiltro:{ operacao:'', horario:'', suplente:'all', cobrindo:'all', inicio:'', fim:'' },
-  progAnalista:'all', progDate: todayISO(), progView:'diaria',
+  progAnalista:'all', progDate: hojeAgendaISO(), progView:'diaria',
   sugerir: null, inboxSelected: null, lembretesDate: todayISO(), lembretesView: 'semanal',
   // Linhas de importação em massa (Excel) cujo nome de analista não bateu
   // com ninguém da equipe — { tipo:'basemestra'|'suplencias', items:[...] }.

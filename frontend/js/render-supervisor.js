@@ -271,7 +271,7 @@ function supProgramacao(myAnalistas){
 
 function supGrade(myAnalistas){
   const f = uiState.gradeFilters;
-  const dateStr = f.data || todayISO();
+  const dateStr = f.data || hojeAgendaISO();
   const ids = myAnalistas.map(a=>a.id);
   let rows = [];
   ids.forEach(id=>{
