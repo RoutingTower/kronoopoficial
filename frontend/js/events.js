@@ -27,25 +27,41 @@ function bindMultiselect(main, toggleId, todosId, chkClass, filtro, key, openKey
 function bindMainEvents(){
   const main = document.getElementById('mainArea');
 
-  const btnAddLembrete = document.getElementById('btnAddLembrete');
-  if(btnAddLembrete) btnAddLembrete.addEventListener('click', async ()=>{
-    const input = document.getElementById('novoLembreteTxt');
-    const dataInput = document.getElementById('novoLembreteData');
-    const horaInput = document.getElementById('novoLembreteHora');
-    const obsInput = document.getElementById('novoLembreteObs');
-    const txt = input.value.trim();
-    if(!txt) return;
-    const lembreteData = dataInput.value || todayISO();
-    const entrada = {origem:'self', analistaId:session.userId, criadoPor:session.name, texto:txt, observacoes: obsInput.value.trim(), data: lembreteData, hora: horaInput.value||''};
-    uiState.lembretesDate = lembreteData;
-    try{
-      const novo = await apiCreateLembrete(entrada);
-      DB.lembretes.push(novo);
-      renderMain();
-    }catch(e){ alert('Não foi possível criar o lembrete: '+e.message); }
-  });
-  main.querySelectorAll('.toggle-group[data-scope="lembretes"] [data-view]').forEach(el=>{
-    el.addEventListener('click', ()=>{ uiState.lembretesView = el.dataset.view; renderMain(); });
+  // Aba dedicada de Lembretes foi removida — cadastro de um novo agora é
+  // um botão na própria Programação que abre modal (ver btnAddLembreteModal
+  // em renderAnalista, render-analista.js). Lembretes já existentes
+  // continuam aparecendo inline no flashcard do dia (lembreteCardHTML).
+  const btnAddLembreteModal = document.getElementById('btnAddLembreteModal');
+  if(btnAddLembreteModal) btnAddLembreteModal.addEventListener('click', ()=>{
+    openModal(`<h3>Adicionar lembrete</h3>
+      <div class="field"><label>Lembrete</label><input id="novoLembreteTxt" placeholder="Escreva um lembrete..."></div>
+      <div class="field"><label>Data</label><input type="date" id="novoLembreteData" value="${uiState.analistaDate}"></div>
+      <div class="field"><label>Hora (opcional)</label>
+        <select id="novoLembreteHora">
+          <option value="">Sem hora</option>
+          ${HOURS.map(h=>`<option value="${h}">${h}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label>Observações (opcional)</label><input id="novoLembreteObs" placeholder="Observações..."></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn" data-modal-cancel>Cancelar</button>
+        <button class="btn btn-brand" id="confirmAddLembrete">Adicionar</button>
+      </div>`);
+    const cancelBtn = document.querySelector('[data-modal-cancel]');
+    if(cancelBtn) cancelBtn.onclick = closeModal;
+    document.getElementById('confirmAddLembrete').onclick = async ()=>{
+      const txt = document.getElementById('novoLembreteTxt').value.trim();
+      if(!txt) return;
+      const lembreteData = document.getElementById('novoLembreteData').value || todayISO();
+      const hora = document.getElementById('novoLembreteHora').value;
+      const obs = document.getElementById('novoLembreteObs').value.trim();
+      const entrada = {origem:'self', analistaId:session.userId, criadoPor:session.name, texto:txt, observacoes:obs, data:lembreteData, hora};
+      try{
+        const novo = await apiCreateLembrete(entrada);
+        DB.lembretes.push(novo);
+        closeModal(); renderMain();
+      }catch(e){ alert('Não foi possível criar o lembrete: '+e.message); }
+    };
   });
   main.querySelectorAll('[data-lembrete-toggle]').forEach(el=>{
     el.addEventListener('click', async (e)=>{
@@ -65,10 +81,6 @@ function bindMainEvents(){
       catch(e){ alert('Não foi possível excluir o lembrete: '+e.message); }
     });
   });
-  main.querySelectorAll('[data-lembretenav]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{ uiState.lembretesDate = btn.dataset.lembretenav; renderMain(); });
-  });
-
   const btnEnviarFeedback = document.getElementById('btnEnviarFeedback');
   if(btnEnviarFeedback) btnEnviarFeedback.addEventListener('click', async ()=>{
     const msgEl = document.getElementById('feedbackMsg');
@@ -134,15 +146,21 @@ function bindMainEvents(){
   main.querySelectorAll('[data-finalizar-op]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const op = btn.dataset.finalizarOp, hora = btn.dataset.hora, data = btn.dataset.data || uiState.analistaDate;
+      const ciclo = btn.dataset.ciclo || '';
+      const sprMeta = btn.dataset.sprMeta!=='' ? Number(btn.dataset.sprMeta) : null;
       let estrelas = 0;
       openModal(`
         <h3>Finalizar operação — ${op} (${hora})</h3>
-        <div class="help-text">Este é o Raio-X da operação: avalie com estrelas e descreva o que aconteceu. A observação precisa de no mínimo ${RAIOX_MIN_OBS_LEN} caracteres para fechar — esse passo é obrigatório para finalizar.</div>
+        <div class="help-text">Este é o Raio-X da operação: avalie com estrelas, informe o SPR roteirizado e descreva o que aconteceu. A observação precisa de no mínimo ${RAIOX_MIN_OBS_LEN} caracteres para fechar — tudo isso é obrigatório para finalizar.</div>
         <div class="field">
           <label>Avaliação</label>
           <div id="raioxStars" class="star-picker" style="display:flex;gap:6px;font-size:28px;line-height:1;">
             ${[1,2,3,4,5].map(n=>`<span data-star="${n}" style="cursor:pointer;opacity:0.3;">★</span>`).join('')}
           </div>
+        </div>
+        <div class="field">
+          <label>SPR roteirizado${sprMeta!=null ? ` (meta: ${sprMeta})` : ' (sem meta cadastrada pra essa operação/ciclo)'}</label>
+          <input type="number" id="raioxSprReal" step="any" placeholder="Ex.: 108">
         </div>
         <div class="field">
           <label>Observação (Raio-X da operação)</label>
@@ -157,13 +175,15 @@ function bindMainEvents(){
       if(cancelBtn) cancelBtn.onclick = closeModal;
       const starsEl = document.getElementById('raioxStars');
       const obsEl = document.getElementById('raioxObs');
+      const sprRealEl = document.getElementById('raioxSprReal');
       const counterEl = document.getElementById('raioxCounter');
       const confirmBtn = document.getElementById('confirmFinalizar');
       function updateState(){
         const len = obsEl.value.trim().length;
         counterEl.textContent = `${len} / ${RAIOX_MIN_OBS_LEN} caracteres mínimos`;
         counterEl.style.color = len>=RAIOX_MIN_OBS_LEN ? 'var(--done)' : 'var(--text-faint)';
-        confirmBtn.disabled = !(estrelas>=1 && len>=RAIOX_MIN_OBS_LEN);
+        const sprValido = sprRealEl.value.trim()!=='' && !Number.isNaN(Number(sprRealEl.value));
+        confirmBtn.disabled = !(estrelas>=1 && len>=RAIOX_MIN_OBS_LEN && sprValido);
       }
       starsEl.querySelectorAll('[data-star]').forEach(s=>{
         s.addEventListener('click', ()=>{
@@ -177,10 +197,12 @@ function bindMainEvents(){
         });
       });
       obsEl.addEventListener('input', updateState);
+      sprRealEl.addEventListener('input', updateState);
       confirmBtn.onclick = async ()=>{
         const observacao = obsEl.value.trim();
-        if(estrelas<1 || observacao.length<RAIOX_MIN_OBS_LEN) return;
-        const entrada = {analistaId:session.userId, operacao:op, hora, data, estrelas, observacao};
+        const sprReal = Number(sprRealEl.value);
+        if(estrelas<1 || observacao.length<RAIOX_MIN_OBS_LEN || sprRealEl.value.trim()==='' || Number.isNaN(sprReal)) return;
+        const entrada = {analistaId:session.userId, operacao:op, hora, data, estrelas, observacao, sprRoteirizado:sprReal, sprMeta, ciclo};
         confirmBtn.disabled = true;
         try{
           const novo = await apiCreateRaioX(entrada);
@@ -346,6 +368,18 @@ function bindMainEvents(){
     });
   });
 
+  // Resultado SPR (supResultadoSPR/coordResultadoSPR).
+  main.querySelectorAll('[data-sprfiltro]').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const key = inp.dataset.sprfiltro;
+      uiState.sprFiltro[key] = inp.value;
+      if((key==='inicio'||key==='fim') && uiState.sprFiltro.inicio > uiState.sprFiltro.fim){
+        uiState.sprFiltro[key==='inicio'?'fim':'inicio'] = inp.value;
+      }
+      renderMain();
+    });
+  });
+
   // Abre o histórico do analista (ver analistaTimelineModal em
   // render-coordenador.js) — qualquer nome marcado com esse atributo
   // (Dashboard Global: lista de risco; Painel Hora a Hora: coluna Analista).
@@ -364,6 +398,14 @@ function bindMainEvents(){
   if(btnExportAnomalias) btnExportAnomalias.addEventListener('click', exportarAnomalias);
   const btnExportMetricas = document.getElementById('btnExportMetricas');
   if(btnExportMetricas) btnExportMetricas.addEventListener('click', exportarMetricas);
+  // Mesmos botões, agora também nas telas equivalentes do supervisor
+  // (render-supervisor.js: supGrade, supOcorrencias).
+  const btnExportGrade = document.getElementById('btnExportGrade');
+  if(btnExportGrade) btnExportGrade.addEventListener('click', exportarGrade);
+  const btnExportOcorrencias = document.getElementById('btnExportOcorrencias');
+  if(btnExportOcorrencias) btnExportOcorrencias.addEventListener('click', exportarOcorrencias);
+  const btnExportSPR = document.getElementById('btnExportSPR');
+  if(btnExportSPR) btnExportSPR.addEventListener('click', exportarSPR);
 
   bindMultiselect(main, 'btnMetricasAnalistaToggle', 'metricasAnalistaTodos', 'metricasAnalistaChk', uiState.metricasFiltro, 'analistas', 'metricasAnalistaDropdownOpen');
   // Filtro por Supervisor da tela de Métricas do coordenador (ver
@@ -372,6 +414,8 @@ function bindMainEvents(){
   bindMultiselect(main, 'btnDashboardSupervisorToggle', 'dashboardSupervisorTodos', 'dashboardSupervisorChk', uiState.dashboardFiltro, 'supervisores', 'dashboardSupervisorDropdownOpen');
   bindMultiselect(main, 'btnPainelSupervisorToggle', 'painelSupervisorTodos', 'painelSupervisorChk', uiState.painelFiltro, 'supervisores', 'painelSupervisorDropdownOpen');
   bindMultiselect(main, 'btnStatusSupervisorToggle', 'statusSupervisorTodos', 'statusSupervisorChk', uiState.statusFiltro, 'supervisores', 'statusSupervisorDropdownOpen');
+  bindMultiselect(main, 'btnSprAnalistaToggle', 'sprAnalistaTodos', 'sprAnalistaChk', uiState.sprFiltro, 'analistas', 'sprAnalistaDropdownOpen');
+  bindMultiselect(main, 'btnSprSupervisorToggle', 'sprSupervisorTodos', 'sprSupervisorChk', uiState.sprFiltro, 'supervisores', 'sprSupervisorDropdownOpen');
 
   const metricasPanel = main.querySelector('.multiselect-panel');
   if(metricasPanel) metricasPanel.addEventListener('click', e=>e.stopPropagation());

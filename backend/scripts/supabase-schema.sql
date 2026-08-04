@@ -110,6 +110,12 @@ create table raio_x (
   -- documentada para base_mestra.dias (compatibilidade com registros
   -- antigos). Reforçar isso no banco quebraria a migração desses registros.
   observacao    text not null,
+  -- SPR roteirizado (real) no fechamento da operação, e o SPR meta vigente
+  -- na hora (cópia congelada de sprs.spr — ver getSPR() no frontend — pra
+  -- não perder o histórico se a meta mudar depois). spr_meta fica null
+  -- quando não havia meta cadastrada pra essa operação+ciclo no momento.
+  spr_roteirizado numeric not null,
+  spr_meta        numeric,
   ts            bigint not null
 );
 create index idx_raiox_analista on raio_x(analista_id);

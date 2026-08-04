@@ -10,13 +10,16 @@ document.getElementById('btnPersonalizarMenu').addEventListener('click', openMen
 // chega aqui clique de fato fora.
 document.addEventListener('click', ()=>{
   const algumAberto = session && (uiState.metricasAnalistaDropdownOpen || uiState.metricasSupervisorDropdownOpen
-    || uiState.dashboardSupervisorDropdownOpen || uiState.painelSupervisorDropdownOpen || uiState.statusSupervisorDropdownOpen);
+    || uiState.dashboardSupervisorDropdownOpen || uiState.painelSupervisorDropdownOpen || uiState.statusSupervisorDropdownOpen
+    || uiState.sprAnalistaDropdownOpen || uiState.sprSupervisorDropdownOpen);
   if(algumAberto){
     uiState.metricasAnalistaDropdownOpen = false;
     uiState.metricasSupervisorDropdownOpen = false;
     uiState.dashboardSupervisorDropdownOpen = false;
     uiState.painelSupervisorDropdownOpen = false;
     uiState.statusSupervisorDropdownOpen = false;
+    uiState.sprAnalistaDropdownOpen = false;
+    uiState.sprSupervisorDropdownOpen = false;
     renderMain();
   }
 });

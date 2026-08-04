@@ -36,8 +36,8 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
         <div class="flash-meta">${it.isSuplente ? 'Suplente' : 'Titular'}: ${it.responsavelNome}</div>
         ${it.isOff ? `<div class="flash-cover">${it.tipo==='ferias'?'🏖️ Férias':'🌙 Folga'} do titular</div>`
           : it.isCobertura ? `<div class="flash-cover">🔁 Cobrindo ${it.tipo==='ferias'?'férias':'folga'} de ${it.responsavelNome}</div>` : ''}
-        ${!it.isOff && analistaId===session?.userId && status!=='wait' ? (raiox ? `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}</div>` : `<div class="flash-actions">
-            <button class="btn btn-brand" data-finalizar-op="${it.operacao}" data-hora="${it.horaInicio}" data-data="${dateStr}">Finalizar operação</button>
+        ${!it.isOff && analistaId===session?.userId && status!=='wait' ? (raiox ? `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}${raiox.sprRoteirizado!=null ? ` · SPR real ${escapeHtml(String(raiox.sprRoteirizado))}` : ''}</div>` : `<div class="flash-actions">
+            <button class="btn btn-brand" data-finalizar-op="${it.operacao}" data-hora="${it.horaInicio}" data-data="${dateStr}" data-ciclo="${it.ciclo}" data-spr-meta="${spr!=null?spr:''}">Finalizar operação</button>
           </div>`) : ''}
       </div>`;
     }).join('');
@@ -101,17 +101,28 @@ function analistaDesempenho(analistaId){
   const doMes = meusRaioX.filter(r=>(r.data||'').startsWith(mesAtual));
   const noPrazoMes = doMes.filter(foiNoPrazo).length;
 
+  // "Realizadas" = já aconteceram (data no passado) — cobertura futura
+  // ainda agendada não conta como feita.
   const nome = userById(analistaId)?.name;
-  const coberturas = DB.ausencias.filter(a=>a.suplenteId===analistaId).length
-    + DB.suplencias.filter(s=>s.suplente===nome).length;
+  const hojeStr = todayISO();
+  const coberturas = DB.ausencias.filter(a=>a.suplenteId===analistaId && a.data<hojeStr).length
+    + DB.suplencias.filter(s=>s.suplente===nome && s.dataCobertura<hojeStr).length;
+
+  // % de finalizações que bateram a meta SPR (ver bateuMetaSPR em
+  // render-supervisor.js) — só entre as que tinham meta cadastrada, mesmo
+  // critério da tela Resultado SPR.
+  const comMetaSPR = meusRaioX.filter(r=>r.sprMeta!=null);
+  const bateramMetaSPR = comMetaSPR.filter(bateuMetaSPR).length;
+  const pctMetaSPR = comMetaSPR.length ? Math.round((bateramMetaSPR/comMetaSPR.length)*100) : null;
 
   const badges = [];
   if(streakPontual>=5) badges.push({emoji:'🎯', label:`${streakPontual} operações seguidas no prazo`});
   if(mediaGeral!=null && meusRaioX.length>=5 && mediaGeral>=4.5) badges.push({emoji:'⭐', label:'Excelência — média ≥ 4,5'});
   if(coberturas>=3) badges.push({emoji:'🤝', label:`${coberturas} coberturas realizadas`});
   if(doMes.length>0 && noPrazoMes===doMes.length) badges.push({emoji:'✅', label:'100% no prazo este mês'});
+  if(pctMetaSPR!=null && comMetaSPR.length>=5 && pctMetaSPR>=80) badges.push({emoji:'📈', label:`${pctMetaSPR}% das operações na meta SPR`});
 
-  return { mediaGeral, totalRaioX: meusRaioX.length, streakPontual, doMes: doMes.length, noPrazoMes, badges };
+  return { mediaGeral, totalRaioX: meusRaioX.length, streakPontual, doMes: doMes.length, noPrazoMes, pctMetaSPR, totalComMetaSPR: comMetaSPR.length, badges };
 }
 
 // Progresso pessoal, comparado com o próprio histórico — não é ranking
@@ -122,7 +133,7 @@ function renderGamificacao(analistaId){
   return `
   <div class="card" style="margin-bottom:22px;">
     <div class="section-title">Meu desempenho</div>
-    <div class="grid-3">
+    <div class="grid-4">
       <div class="stat-card">
         <div class="stat-num" style="font-size:20px;">${d.mediaGeral!=null ? starDisplay(Math.round(d.mediaGeral)) : '—'}</div>
         <div class="stat-label">Avaliação média Raio-X${d.mediaGeral!=null ? ` (${d.mediaGeral.toFixed(1)})` : ' · sem registros ainda'}</div>
@@ -134,6 +145,10 @@ function renderGamificacao(analistaId){
       <div class="stat-card">
         <div class="stat-num">${pct!=null ? pct+'%' : '—'}</div>
         <div class="stat-label">No prazo este mês${d.doMes>0 ? ` (${d.noPrazoMes}/${d.doMes})` : ''}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">${d.pctMetaSPR!=null ? d.pctMetaSPR+'%' : '—'}</div>
+        <div class="stat-label">📈 Na meta SPR${d.totalComMetaSPR>0 ? ` (${d.totalComMetaSPR} finaliz.)` : ' · sem meta cadastrada ainda'}</div>
       </div>
     </div>
     ${pct!=null ? `<div style="margin-top:14px;height:8px;background:var(--bg-2);border-radius:5px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:var(--brand);"></div></div>` : ''}
@@ -174,7 +189,7 @@ function renderAnalista(){
     ${statCardContagem(proxCobertura, '🔁', 'Próxima cobertura', 'Sem cobertura agendada')}
     ${statCardContagem(proxFolga, '🌙', 'Próxima folga', 'Sem folga agendada')}
   </div>
-  <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+  <div class="filter-row" style="align-items:center;margin-bottom:16px;">
     <input type="date" id="analistaDatePick" value="${dateStr}" class="mono" style="background:var(--bg-2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;">
     <select data-opfiltro="status">
       <option value="all" ${uiState.analistaOpFiltro==='all'?'selected':''}>Todas as operações</option>
@@ -182,6 +197,7 @@ function renderAnalista(){
       <option value="cobertura" ${uiState.analistaOpFiltro==='cobertura'?'selected':''}>🔵 Estou cobrindo</option>
       <option value="folga" ${uiState.analistaOpFiltro==='folga'?'selected':''}>🟡 Estou sendo coberto (folga)</option>
     </select>
+    <button class="btn btn-brand" id="btnAddLembreteModal">+ Adicionar lembrete</button>
   </div>
   ${uiState.analistaView==='diaria' ? renderFlashcardRow(session.userId, dateStr, true, uiState.analistaOpFiltro)
     : uiState.analistaView==='semanal' ? renderAnalistaSemanal(session.userId, dateStr, uiState.analistaOpFiltro)
@@ -194,6 +210,24 @@ function renderAnalista(){
 // mesmos 7 dias de sempre (a partir de dateStr), só a apresentação muda.
 // opFiltro reusado tanto aqui quanto em renderAnalistaMensal e
 // renderFlashcardRow (ver categoriaOperacao() em utils.js).
+
+// Chips extras (plantão, reuniões, lembretes) pros grids semanal/mensal —
+// mesma informação que já aparece na visão diária (renderFlashcardRow),
+// só resumida. Sem isso a visão semanal ficava com muito espaço vazio no
+// dia (normalmente só 1 operação), já que cada .cal-day-cell tem altura
+// mínima fixa (ver style.css).
+function extraChipsForDay(analistaId, ds){
+  const chips = [];
+  if(analistaEmPlantao(analistaId, ds)) chips.push(`<div class="cal-chip cal-chip-plantao" title="Escalado em plantão nesse dia">🔔 Plantão</div>`);
+  getReunioesForDate(analistaId, ds).forEach(r=>{
+    chips.push(`<div class="cal-chip cal-chip-reuniao" title="${escapeHtml(r.titulo)} · ${r.tipo==='grupo'?'Grupo':'Individual'} · ${r.hora}">📅 ${r.hora} ${escapeHtml(r.titulo)}</div>`);
+  });
+  getLembretesForAnalista(analistaId).filter(l=>(l.data||todayISO())===ds).forEach(l=>{
+    chips.push(`<div class="cal-chip cal-chip-lembrete${l.done?' cal-chip-done':''}" title="${escapeHtml(l.texto)}">📝 ${l.hora?l.hora+' ':''}${escapeHtml(l.texto)}</div>`);
+  });
+  return chips;
+}
+
 function renderAnalistaSemanal(analistaId, dateStr, opFiltro){
   const todayStr = hojeAgendaISO();
   const header = WEEKDAY_LABELS.map(w=>`<div class="cal-weekday-header">${w}</div>`).join('');
@@ -203,18 +237,19 @@ function renderAnalistaSemanal(analistaId, dateStr, opFiltro){
     const dd = new Date(ds+'T00:00:00');
     const label = dd.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
     const isToday = ds===todayStr;
+    const extras = extraChipsForDay(analistaId, ds);
     return `<div class="cal-day-cell${isToday?' today':''}">
       <div class="cal-day-num${isToday?' today':''}" data-daypick="${ds}">${label}</div>
-      ${slots.length===0 ? `<span style="color:var(--text-faint);font-size:11px;">Sem operação</span>` :
+      ${extras.join('')}
+      ${slots.length===0 && extras.length===0 ? `<span style="color:var(--text-faint);font-size:11px;">Sem operação</span>` :
         slots.map(s=>`<div class="cal-chip cal-chip-${categoriaOperacao(s)}" title="${s.operacao} · ${s.horaInicio}–${s.horaFim}${s.isOff?' · Folga · cobre: '+s.responsavelNome:s.isCobertura?' · Cobrindo '+s.responsavelNome:''}">${s.horaInicio} ${s.operacao}</div>`).join('')}
     </div>`;
   }).join('');
-  return `<div class="cal-grid" style="margin-bottom:6px;">${header}</div><div class="cal-grid">${cells}</div>`;
+  return `<div class="cal-grid" style="margin-bottom:6px;">${header}</div><div class="cal-grid cal-grid-semanal">${cells}</div>`;
 }
 
 // Grid de calendário de verdade (semanas em linhas, domingo a sábado) —
-// células vazias de preenchimento no início/fim, mesmo padrão de
-// renderLembretesMensal.
+// células vazias de preenchimento no início/fim.
 function renderAnalistaMensal(analistaId, dateStr, opFiltro){
   const todayStr = hojeAgendaISO();
   const ref = new Date(dateStr+'T00:00:00');
@@ -233,7 +268,7 @@ function renderAnalistaMensal(analistaId, dateStr, opFiltro){
     const isToday = ds===todayStr;
     cells += `<div class="cal-day-cell${isToday?' today':''}">
       <div class="cal-day-num${isToday?' today':''}" data-daypick="${ds}">${day}</div>
-      ${analistaEmPlantao(analistaId, ds) ? `<div class="cal-chip cal-chip-plantao" title="Escalado em plantão nesse dia">🔔 Plantão</div>` : ''}
+      ${extraChipsForDay(analistaId, ds).join('')}
       ${slots.map(s=>`<div class="cal-chip cal-chip-${categoriaOperacao(s)}" title="${s.operacao} · ${s.horaInicio}–${s.horaFim}${s.isOff?' · Folga · cobre: '+s.responsavelNome:s.isCobertura?' · Cobrindo '+s.responsavelNome:''}">${s.horaInicio} ${s.operacao}</div>`).join('')}
     </div>`;
   }
@@ -321,126 +356,8 @@ function lembreteCardHTML(l){
 }
 
 
-function renderLembretesDia(my, dateStr){
-  const doDia = my.filter(l=>(l.data||todayISO())===dateStr);
-  const semHora = doDia.filter(l=>!l.hora);
-  const semHoraCol = `<div class="flash-col"><div class="flash-time">Sem hora</div>${semHora.length===0?`<div class="flash-card off"><span style="color:var(--text-faint);font-size:12px;">—</span></div>`:semHora.map(lembreteCardHTML).join('')}</div>`;
-  const hourCols = HOURS.map(hour=>{
-    const items = doDia.filter(l=>l.hora===hour);
-    return `<div class="flash-col"><div class="flash-time">${hour}</div>${items.length===0?`<div class="flash-card off"><span style="color:var(--text-faint);font-size:12px;">Sem lembrete</span></div>`:items.map(lembreteCardHTML).join('')}</div>`;
-  }).join('');
-  return `<div class="flash-row">${semHoraCol}${hourCols}</div>`;
-}
-
-
-function renderLembretesSemana(my, dateStr){
-  const d0 = new Date(dateStr+'T00:00:00');
-  let cols='';
-  for(let i=0;i<7;i++){
-    const dd = new Date(d0); dd.setDate(dd.getDate()+i); const ds = dateToISO(dd);
-    const items = my.filter(l=>(l.data||todayISO())===ds).sort((a,b)=>(a.hora||'99').localeCompare(b.hora||'99'));
-    const label = dd.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
-    cols += `<div class="flash-col" style="min-width:180px;">
-      <div class="flash-time" data-lembretenav="${ds}" style="cursor:pointer;">${label}</div>
-      ${items.length===0 ? `<div class="flash-card off"><span style="color:var(--text-faint);font-size:12px;">Sem lembrete</span></div>` : items.map(lembreteCardHTML).join('')}
-    </div>`;
-  }
-  return `<div class="flash-row">${cols}</div>`;
-}
-
-
-function renderLembretesMensal(my, dateStr){
-  const todayStr = todayISO();
-  const ref = new Date(dateStr+'T00:00:00');
-  const year = ref.getFullYear(), month = ref.getMonth();
-  const startWeekday = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month+1, 0).getDate();
-  const chip = l=>{
-    const bg = l.done ? 'var(--bg-2)' : (l.origem==='supervisor' ? 'rgba(124,77,255,0.12)' : 'rgba(238,77,45,0.1)');
-    const color = l.done ? 'var(--text-faint)' : (l.origem==='supervisor' ? 'var(--suplente)' : 'var(--brand)');
-    const title = l.origem==='supervisor' ? `De ${l.criadoPor}` : 'Seu lembrete';
-    return `<div style="display:flex;align-items:center;gap:4px;font-size:10.5px;padding:3px 6px;border-radius:5px;background:${bg};color:${color};">
-      <span data-lembrete-toggle="${l.id}" style="cursor:pointer;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${l.done?'text-decoration:line-through;':''}" title="${title}: ${escapeHtml(l.texto)}${l.hora?' · '+l.hora:''}${l.observacoes?' — '+escapeHtml(l.observacoes):''}">${l.hora?`${l.hora} `:''}${escapeHtml(l.texto)}</span>
-      ${l.origem==='self' ? `<span data-lembrete-del="${l.id}" style="cursor:pointer;opacity:0.6;flex-shrink:0;">×</span>` : ''}
-    </div>`;
-  };
-  let cells = '';
-  for(let i=0;i<startWeekday;i++){
-    cells += `<div style="min-height:96px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);opacity:0.45;"></div>`;
-  }
-  for(let day=1; day<=daysInMonth; day++){
-    const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    const items = my.filter(l=>(l.data||todayStr)===ds).sort((a,b)=>(a.hora||'99').localeCompare(b.hora||'99'));
-    const isToday = ds===todayStr;
-    cells += `<div data-lembretenav="${ds}" style="cursor:pointer;min-height:96px;padding:7px;border:1px solid ${isToday?'var(--brand)':'var(--border)'};border-radius:8px;background:var(--panel);display:flex;flex-direction:column;gap:4px;overflow:hidden;">
-      <div class="mono" style="font-size:11px;color:${isToday?'var(--brand)':'var(--text-faint)'};font-weight:${isToday?'700':'400'};">${day}</div>
-      ${items.map(chip).join('')}
-    </div>`;
-  }
-  const trailing = (7 - ((startWeekday+daysInMonth) % 7)) % 7;
-  for(let i=0;i<trailing;i++){
-    cells += `<div style="min-height:96px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);opacity:0.45;"></div>`;
-  }
-  return `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;">
-    ${WEEKDAY_LABELS.map(w=>`<div style="text-align:center;font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.06em;">${w}</div>`).join('')}
-  </div>
-  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;">${cells}</div>`;
-}
-
-
-function renderLembretes(){
-  const dateStr = uiState.lembretesDate || todayISO();
-  const view = uiState.lembretesView || 'semanal';
-  const my = getLembretesForAnalista(session.userId);
-  const pendentes = my.filter(l=>!l.done).length;
-
-  const d = new Date(dateStr+'T00:00:00');
-  let navPrev, navNext, label;
-  if(view==='diaria'){
-    const p=new Date(d); p.setDate(p.getDate()-1); const n=new Date(d); n.setDate(n.getDate()+1);
-    navPrev=dateToISO(p); navNext=dateToISO(n);
-    label = d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
-  } else if(view==='semanal'){
-    const p=new Date(d); p.setDate(p.getDate()-7); const n=new Date(d); n.setDate(n.getDate()+7);
-    navPrev=dateToISO(p); navNext=dateToISO(n);
-    const endW=new Date(d); endW.setDate(endW.getDate()+6);
-    label = `${d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} – ${endW.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}`;
-  } else {
-    const p=new Date(d.getFullYear(), d.getMonth()-1, 1); const n=new Date(d.getFullYear(), d.getMonth()+1, 1);
-    navPrev=dateToISO(p); navNext=dateToISO(n);
-    label = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
-  }
-
-  const body = view==='diaria' ? renderLembretesDia(my, dateStr) : view==='semanal' ? renderLembretesSemana(my, dateStr) : renderLembretesMensal(my, dateStr);
-
-  return `
-  <div class="page-head">
-    <div><h1 class="page-title">Lembretes</h1><div class="page-desc">${pendentes>0?`${pendentes} pendente(s) · `:''}To-dos em formato kanban, com hora e data</div></div>
-    <div class="toggle-group" data-scope="lembretes">
-      <button data-view="diaria" class="${view==='diaria'?'active':''}">Diária</button>
-      <button data-view="semanal" class="${view==='semanal'?'active':''}">Semanal</button>
-      <button data-view="mensal" class="${view==='mensal'?'active':''}">Mensal</button>
-    </div>
-  </div>
-  <div class="card" style="margin-bottom:16px;">
-    <div class="section-title">Novo lembrete</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <input id="novoLembreteTxt" placeholder="Escreva um lembrete..." style="flex:1;min-width:200px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);">
-      <input type="date" id="novoLembreteData" value="${dateStr}" style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);">
-      <select id="novoLembreteHora" style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);">
-        <option value="">Sem hora</option>
-        ${HOURS.map(h=>`<option value="${h}">${h}</option>`).join('')}
-      </select>
-      <button class="btn btn-brand" id="btnAddLembrete">Adicionar</button>
-    </div>
-    <input id="novoLembreteObs" placeholder="Observações (opcional)..." style="width:100%;margin-top:8px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);">
-  </div>
-  <div class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-      <button class="btn" data-lembretenav="${navPrev}">‹</button>
-      <div class="section-title" style="margin:0;text-transform:capitalize;">${label}</div>
-      <button class="btn" data-lembretenav="${navNext}">›</button>
-    </div>
-    ${body}
-  </div>`;
-}
+// A tela dedicada de Lembretes (calendário próprio, navegação por
+// dia/semana/mês) foi removida — lembretes agora só aparecem inline no
+// flashcard do dia (acima, via lembreteCardHTML) e o cadastro de um novo
+// vira um botão + modal na própria Programação (ver btnAddLembreteModal em
+// events.js), sem precisar de uma aba própria pra isso.

@@ -28,13 +28,13 @@ async function listRaioX(req, res) {
 }
 
 // Espelha o processo de finalização obrigatório do card de operação no
-// kanban do analista (frontend/js/events.js): nota de 1 a 5 estrelas e uma
-// observação com no mínimo 150 caracteres — ver frontend/js/utils.js
-// (isOperacaoFinalizada, RAIOX_MIN_OBS_LEN).
+// kanban do analista (frontend/js/events.js): nota de 1 a 5 estrelas, uma
+// observação com no mínimo 150 caracteres, e o SPR roteirizado (real) da
+// operação — ver frontend/js/utils.js (isOperacaoFinalizada, RAIOX_MIN_OBS_LEN).
 // Finalização é sempre auto-declarada pelo próprio analista (ver
 // frontend/js/events.js) — ninguém finaliza operação de outra pessoa.
 async function createRaioX(req, res) {
-  const { analistaId, operacao, hora, data, estrelas, observacao } = req.body;
+  const { analistaId, operacao, hora, data, estrelas, observacao, sprRoteirizado, sprMeta } = req.body;
   if (!analistaId || !operacao || !hora || !data) {
     return res.status(400).json({
       error: "bad_request",
@@ -55,6 +55,10 @@ async function createRaioX(req, res) {
       message: `observacao é obrigatória, com no mínimo ${MIN_OBSERVACAO_LEN} caracteres`,
     });
   }
+  const sprReal = Number(sprRoteirizado);
+  if (sprRoteirizado === undefined || sprRoteirizado === null || sprRoteirizado === "" || Number.isNaN(sprReal)) {
+    return res.status(400).json({ error: "bad_request", message: "sprRoteirizado é obrigatório e precisa ser um número" });
+  }
   const entry = await supabaseService.create(COLLECTION, {
     analistaId,
     operacao,
@@ -62,6 +66,8 @@ async function createRaioX(req, res) {
     data,
     estrelas: nota,
     observacao: observacao.trim(),
+    sprRoteirizado: sprReal,
+    sprMeta: sprMeta === undefined || sprMeta === null || sprMeta === "" ? null : Number(sprMeta),
     ts: Date.now(),
   });
   res.status(201).json(entry);

@@ -133,9 +133,9 @@ async function exitApp(){
 
 
 const NAV = {
-  analista:[ {k:'flashcards', label:'Programação', icon:'🗓️'}, {k:'recados', label:'Caixa de Entrada', icon:'📥'}, {k:'lembretes', label:'Lembretes', icon:'📝'}, {k:'feedback', label:'Feedback', icon:'⭐'}, {k:'configuracoes', label:'Configurações', icon:'⚙️'} ],
-  supervisor:[ {k:'cadastros', label:'Cadastros', icon:'👥'}, {k:'basemestra', label:'Operações Fixas', icon:'📌'}, {k:'spr', label:'SPR', icon:'🔢'}, {k:'suplencias', label:'Cobertura', icon:'🔁'}, {k:'programacao', label:'Programação Analista', icon:'🗓️'}, {k:'grade', label:'Grade do Dia', icon:'📋'}, {k:'reunioes', label:'Eventos', icon:'📅'}, {k:'metricas', label:'Métricas', icon:'📊'}, {k:'transmissao', label:'Caixa de Envio', icon:'📣'}, {k:'ocorrencias', label:'Ocorrências', icon:'🚩'}, {k:'feedbacks', label:'Feedbacks', icon:'⭐'}, {k:'configuracoes', label:'Configurações', icon:'⚙️'} ],
-  coordenador:[ {k:'acessos', label:'Gestão de Acessos', icon:'🔑'}, {k:'dashboard', label:'Dashboard Global', icon:'🌐'}, {k:'comunicados', label:'Comunicados', icon:'📣'}, {k:'painel', label:'Painel Hora a Hora', icon:'⏱️'}, {k:'status', label:'Status Operacional', icon:'📶'}, {k:'anomalias', label:'Ocorrências', icon:'🚩'}, {k:'metricas', label:'Métricas', icon:'📊'}, {k:'configuracoes', label:'Configurações', icon:'⚙️'} ],
+  analista:[ {k:'flashcards', label:'Programação', icon:'🗓️'}, {k:'recados', label:'Caixa de Entrada', icon:'📥'}, {k:'feedback', label:'Feedback', icon:'⭐'}, {k:'configuracoes', label:'Configurações', icon:'⚙️'} ],
+  supervisor:[ {k:'cadastros', label:'Cadastros', icon:'👥'}, {k:'basemestra', label:'Operações Fixas', icon:'📌'}, {k:'spr', label:'SPR', icon:'🔢'}, {k:'resultadospr', label:'Resultado SPR', icon:'🎯'}, {k:'suplencias', label:'Cobertura', icon:'🔁'}, {k:'programacao', label:'Programação Analista', icon:'🗓️'}, {k:'grade', label:'Grade do Dia', icon:'📋'}, {k:'reunioes', label:'Eventos', icon:'📅'}, {k:'metricas', label:'Métricas', icon:'📊'}, {k:'transmissao', label:'Caixa de Envio', icon:'📣'}, {k:'ocorrencias', label:'Ocorrências', icon:'🚩'}, {k:'feedbacks', label:'Feedbacks', icon:'⭐'}, {k:'configuracoes', label:'Configurações', icon:'⚙️'} ],
+  coordenador:[ {k:'acessos', label:'Gestão de Acessos', icon:'🔑'}, {k:'dashboard', label:'Dashboard Global', icon:'🌐'}, {k:'comunicados', label:'Comunicados', icon:'📣'}, {k:'painel', label:'Painel Hora a Hora', icon:'⏱️'}, {k:'status', label:'Status Operacional', icon:'📶'}, {k:'anomalias', label:'Ocorrências', icon:'🚩'}, {k:'metricas', label:'Métricas', icon:'📊'}, {k:'resultadospr', label:'Resultado SPR', icon:'🎯'}, {k:'configuracoes', label:'Configurações', icon:'⚙️'} ],
 };
 
 let activeNavKey = null;
@@ -256,7 +256,7 @@ function openMenuConfigModal(){
 function renderMain(){
   const main = document.getElementById('mainArea');
   if(activeNavKey==='configuracoes') main.innerHTML = renderConfiguracoes();
-  else if(session.role==='analista') main.innerHTML = activeNavKey==='recados' ? renderRecadosAnalista() : activeNavKey==='lembretes' ? renderLembretes() : activeNavKey==='feedback' ? renderFeedbackAnalista() : renderAnalista();
+  else if(session.role==='analista') main.innerHTML = activeNavKey==='recados' ? renderRecadosAnalista() : activeNavKey==='feedback' ? renderFeedbackAnalista() : renderAnalista();
   else if(session.role==='supervisor') main.innerHTML = renderSupervisor();
   else if(session.role==='coordenador') main.innerHTML = renderCoordenador();
   bindMainEvents();
@@ -265,6 +265,7 @@ function renderMain(){
   if(activeNavKey==='ocorrencias' || activeNavKey==='anomalias') renderOcorrenciasCharts();
   if(activeNavKey==='dashboard') renderDashboardCharts();
   if(activeNavKey==='status') renderStatusCharts();
+  if(activeNavKey==='resultadospr') renderSPRCharts();
 }
 
 

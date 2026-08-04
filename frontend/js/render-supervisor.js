@@ -7,6 +7,7 @@ function renderSupervisor(){
   if(activeNavKey==='cadastros') content = supCadastros(myAnalistas);
   else if(activeNavKey==='basemestra') content = supBaseMestra(myAnalistas);
   else if(activeNavKey==='spr') content = supSPR();
+  else if(activeNavKey==='resultadospr') content = supResultadoSPR(myAnalistas);
   else if(activeNavKey==='suplencias') content = renderImportPendentesBanner('suplencias', myAnalistas) + supSugerirSuplente(myAnalistas) + supSuplencias(myAnalistas);
   else if(activeNavKey==='programacao') content = supProgramacao(myAnalistas);
   else if(activeNavKey==='grade') content = supGrade(myAnalistas);
@@ -91,7 +92,7 @@ function supCadastros(myAnalistas){
   <div class="card">
     <table><thead><tr><th>Nome</th><th>E-mail</th><th>Jornada de trabalho</th><th>Status</th><th></th></tr></thead><tbody>
     ${myAnalistas.map(a=>`<tr>
-      <td>${a.name}</td><td class="mono" style="color:var(--text-muted);">${a.email}</td>
+      <td style="cursor:pointer;" data-analista-timeline="${a.id}" title="Ver histórico">${a.name}</td><td class="mono" style="color:var(--text-muted);">${a.email}</td>
       <td class="jornada-tag">${jornadaLabel(a)}</td>
       <td>${a.active?'<span class="pill pill-done">Ativo</span>':'<span class="pill pill-off">Inativo</span>'}</td>
       <td style="text-align:right;white-space:nowrap;">
@@ -279,7 +280,7 @@ function supGrade(myAnalistas){
     const slots = getDaySlots(id, dateStr);
     slots.forEach(s=>{
       const status = computeStatus(s.horaInicio, dateStr, id, s.operacao, s.isOff);
-      rows.push({chave:s.id, analista:userById(id).name, op:s.operacao, hora:s.horaInicio, horaFim:s.horaFim, nome:s.responsavelNome, isCobertura:!!s.isCobertura, status});
+      rows.push({chave:s.id, analistaId:id, analista:userById(id).name, op:s.operacao, hora:s.horaInicio, horaFim:s.horaFim, nome:s.responsavelNome, isCobertura:!!s.isCobertura, status});
     });
   });
   // Uma cobertura gera 2 entradas com o mesmo id em getDaySlots: uma na
@@ -305,7 +306,26 @@ function supGrade(myAnalistas){
       <option value="all">${label}: todos</option>
       ${values.filter(v=>v!=='all').map(v=>`<option value="${v}" ${f[key]===v?'selected':''}>${key==='status'?statusLabels[v]:v}</option>`).join('')}
     </select>`;
+
+  // Mesmo alerta proativo + semáforo de risco do Dashboard Global do
+  // coordenador (analistasEmRisco, em render-coordenador.js), só que
+  // escopado à própria equipe — aqui é o equivalente do supervisor pra
+  // essa visão executiva.
+  const atrasoHoje = dateStr===hojeAgendaISO() ? filtered.filter(r=>r.status==='atraso').length : 0;
+  const risco = analistasEmRisco(myAnalistas);
+  gradeExportRows = filtered;
+
   return `
+  ${atrasoHoje>0 ? `<div class="highlight-card" style="margin-bottom:14px;border-color:var(--alert);">
+    <div class="section-title">🚨 ${atrasoHoje} operação(ões) de hoje com Raio-X pendente há mais de 1h</div>
+  </div>` : ''}
+  ${risco.length>0 ? `<div class="card" style="margin-bottom:16px;">
+    <div class="section-title">🟡 Analistas em risco (últimos 7 dias)</div>
+    ${risco.map(r=>`<div class="msg-item" style="cursor:pointer;" data-analista-timeline="${r.id}">
+      <div class="msg-meta">${escapeHtml(r.name)}</div>
+      <div class="chip-row" style="margin-top:4px;">${r.motivos.map(m=>`<span class="chip-pessoa">${escapeHtml(m)}</span>`).join('')}</div>
+    </div>`).join('')}
+  </div>` : ''}
   <div class="filter-row">
     <input type="date" data-gradefilter="data" value="${dateStr}">
     ${select('hora','Horário', uniq('hora'))}
@@ -313,11 +333,18 @@ function supGrade(myAnalistas){
     ${select('op','Operação', uniq('op'))}
     ${select('nome','Responsável', uniq('nome'))}
     ${select('status','Status', ['all','wait','live','done','atraso'])}
+    <button class="btn" id="btnExportGrade">⬇ Exportar Excel</button>
   </div>
   <div class="card">
   <table><thead><tr><th>Horário</th><th>Analista</th><th>Operação</th><th>Responsável</th><th>Status</th></tr></thead><tbody>
-  ${filtered.map(r=>`<tr class="${r.isCobertura?'row-suplente':''}"><td class="mono">${r.hora}–${r.horaFim}</td><td>${r.analista} ${r.isCobertura?'<span class="pill pill-suplente">🔁 Suplente</span>':''}</td><td>${r.op}</td><td>${r.nome}</td><td>${statusPill(r.status)}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">Nenhum registro para os filtros selecionados</td></tr>'}
+  ${filtered.map(r=>`<tr class="${r.isCobertura?'row-suplente':''}"><td class="mono">${r.hora}–${r.horaFim}</td><td style="cursor:pointer;" data-analista-timeline="${r.analistaId}" title="Ver histórico">${r.analista} ${r.isCobertura?'<span class="pill pill-suplente">🔁 Suplente</span>':''}</td><td>${r.op}</td><td>${r.nome}</td><td>${statusPill(r.status)}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">Nenhum registro para os filtros selecionados</td></tr>'}
   </tbody></table></div>`;
+}
+
+let gradeExportRows = [];
+function exportarGrade(){
+  const linhas = gradeExportRows.map(r=>[r.hora, r.analista, r.op, r.nome, r.isCobertura?'Suplente':'Titular', {wait:'A Iniciar',live:'Em Andamento',done:'Finalizada',atraso:'Pendente Raio-X'}[r.status]||r.status]);
+  exportarRelatorioExcel(`grade-do-dia_${uiState.gradeFilters.data||hojeAgendaISO()}.xlsx`, ['Hora Início','Analista','Operação','Responsável','Tipo','Status'], linhas);
 }
 
 
@@ -448,6 +475,7 @@ function metricasBody(selecionados, picker, notaSingular){
     : c.status==='folga' ? `<span class="pill" style="background:rgba(184,134,11,0.14);color:var(--folga);">Em Folga</span>`
     : '<span class="pill pill-off">Sem registro</span>';
 
+  metricasExportAnalistas = selecionados;
   return `
   <div class="filter-row">
     <label style="font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">Início
@@ -457,6 +485,7 @@ function metricasBody(selecionados, picker, notaSingular){
       <input type="date" data-metricasfiltro="fim" value="${fim}" min="${inicio}">
     </label>
     ${picker}
+    <button class="btn" id="btnExportMetricas">⬇ Exportar Excel</button>
   </div>
   <div class="grid-4" style="margin-bottom:20px;">
     <div class="stat-card"><div class="stat-num">${ativos.length}</div><div class="stat-label">Analistas ativos no período</div></div>
@@ -486,7 +515,7 @@ function metricasBody(selecionados, picker, notaSingular){
     const cob = ranking.find(r=>r.name===c.name)?.count || 0;
     return `<tr><td>${escapeHtml(c.name)}</td><td>${statusPill(c)}</td><td class="mono">${cob}</td></tr>`;
   }).join('') || '<tr><td colspan="3" class="empty">Sem dados</td></tr>'}
-  </tbody></table></div>`;
+  </tbody></table></div>` + coberturaHeatmap(selecionados);
 }
 
 function analistaPicker(myAnalistas){
@@ -557,6 +586,157 @@ function renderMetricasCharts(){
         y:{ ticks:{ color:textColor, precision:0 }, grid:{ color:gridColor } } } }
     });
   }
+}
+
+
+// ===== Resultado SPR =====
+// Compara sprRoteirizado (real, informado ao finalizar o Raio-X) com
+// sprMeta (a meta vigente NO MOMENTO da finalização, congelada — ver
+// backend/src/controllers/raioX.controller.js e a tela de finalização em
+// events.js) — assim a meta muda de dono no dia que muda o cadastro de
+// SPR, sem reescrever histórico. Convenção assumida (ninguém confirmou
+// ainda): SPR roteirizado >= meta é "bateu a meta" — se for ao contrário
+// nessa operação (SPR menor = melhor), inverter essa comparação aqui e em
+// sprResultadoBody().
+function bateuMetaSPR(r){ return r.sprRoteirizado >= r.sprMeta; }
+
+let sprChartData = null;
+let sprExportRows = [];
+
+// Núcleo compartilhado entre supResultadoSPR (filtra por analista) e
+// coordResultadoSPR (filtra por supervisor, em render-coordenador.js) —
+// mesmo padrão de metricasBody/coberturaHeatmap acima.
+function sprResultadoBody(selecionados, picker){
+  const flt = uiState.sprFiltro;
+  const inicio = flt.inicio || addDaysISO(todayISO(), -30);
+  const fim = flt.fim || todayISO();
+  const ids = new Set(selecionados.map(a=>a.id));
+  const noPeriodo = r => (r.data||'')>=inicio && (r.data||'')<=fim && ids.has(r.analistaId);
+
+  const doPeriodo = DB.raioX.filter(noPeriodo).filter(r=> flt.operacao==='all' || r.operacao===flt.operacao);
+  const operacoesDisponiveis = [...new Set(DB.raioX.filter(noPeriodo).map(r=>r.operacao))].sort();
+
+  const comMeta = doPeriodo.filter(r=>r.sprMeta!=null);
+  const semMeta = doPeriodo.length - comMeta.length;
+  const bateram = comMeta.filter(bateuMetaSPR);
+  const abaixo = comMeta.filter(r=>!bateuMetaSPR(r));
+
+  const porAnalista = {};
+  comMeta.forEach(r=>{
+    const nome = userById(r.analistaId)?.name || '—';
+    if(!porAnalista[nome]) porAnalista[nome] = { total:0, bateram:0, deltaSoma:0 };
+    porAnalista[nome].total++;
+    if(bateuMetaSPR(r)) porAnalista[nome].bateram++;
+    porAnalista[nome].deltaSoma += (r.sprRoteirizado - r.sprMeta);
+  });
+  const ranking = Object.entries(porAnalista).map(([name,d])=>({
+    name, total:d.total, bateram:d.bateram, abaixo:d.total-d.bateram,
+    pct: d.total ? Math.round((d.bateram/d.total)*100) : 0,
+    deltaMedio: d.total ? d.deltaSoma/d.total : 0,
+  })).sort((a,b)=>a.pct-b.pct);
+  const ofensores = ranking.filter(r=>r.abaixo>0).slice(0,5);
+
+  sprChartData = {
+    status: { bateram: bateram.length, abaixo: abaixo.length, semMeta },
+    ofensores: [...ranking].sort((a,b)=>a.pct-b.pct).slice(0,10).reverse(),
+  };
+  sprExportRows = comMeta;
+
+  return `
+  <div class="filter-row" style="margin-bottom:16px;">
+    <label style="font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">Início
+      <input type="date" data-sprfiltro="inicio" value="${inicio}" max="${fim}">
+    </label>
+    <label style="font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">Fim
+      <input type="date" data-sprfiltro="fim" value="${fim}" min="${inicio}">
+    </label>
+    <select data-sprfiltro="operacao">
+      <option value="all">Operação: todas</option>
+      ${operacoesDisponiveis.map(op=>`<option value="${op}" ${flt.operacao===op?'selected':''}>${op}</option>`).join('')}
+    </select>
+    ${picker}
+    <button class="btn" id="btnExportSPR">⬇ Exportar Excel</button>
+  </div>
+  <div class="grid-3" style="margin-bottom:16px;">
+    <div class="stat-card"><div class="stat-num" style="color:var(--done);">${bateram.length}</div><div class="stat-label">Bateram a meta</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--alert);">${abaixo.length}</div><div class="stat-label">Abaixo da meta</div></div>
+    <div class="stat-card"><div class="stat-num">${comMeta.length ? Math.round((bateram.length/comMeta.length)*100) : 0}%</div><div class="stat-label">Taxa de meta batida</div></div>
+  </div>
+  ${ofensores.length>0 ? `<div class="highlight-card" style="margin-bottom:16px;border-color:var(--alert);">
+    <div class="section-title">🚨 Ofensores em destaque (mais abaixo da meta)</div>
+    <div class="chip-row">${ofensores.map(o=>`<span class="chip-pessoa">${escapeHtml(o.name)} — ${o.pct}% na meta</span>`).join('')}</div>
+  </div>` : ''}
+  <div class="grid-2" style="margin-bottom:20px;align-items:start;">
+    <div class="chart-card"><div class="section-title">Resultado geral</div><canvas id="chartSprStatus"></canvas></div>
+    <div class="chart-card"><div class="section-title">% na meta por analista</div><canvas id="chartSprOfensores"></canvas></div>
+  </div>
+  <div class="card">
+  <div class="section-title">Detalhamento por analista</div>
+  <table><thead><tr><th>Analista</th><th>Finalizações</th><th>Bateram meta</th><th>Abaixo</th><th>% na meta</th><th>Delta médio</th></tr></thead><tbody>
+  ${ranking.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td class="mono">${r.total}</td><td class="mono">${r.bateram}</td><td class="mono">${r.abaixo}</td><td class="mono">${r.pct}%</td><td class="mono" style="color:${r.deltaMedio>=0?'var(--done)':'var(--alert)'};">${r.deltaMedio>=0?'+':''}${r.deltaMedio.toFixed(1)}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">Sem finalizações com meta cadastrada no período</td></tr>'}
+  </tbody></table>
+  ${semMeta>0 ? `<div class="help-text" style="margin-top:10px;">${semMeta} finalização(ões) no período sem meta SPR cadastrada pra operação/ciclo — não entram nesse cálculo.</div>` : ''}
+  </div>`;
+}
+
+function exportarSPR(){
+  const linhas = sprExportRows.map(r=>[userById(r.analistaId)?.name||'—', r.operacao, r.data, r.hora, r.sprRoteirizado, r.sprMeta, bateuMetaSPR(r)?'Sim':'Não']);
+  exportarRelatorioExcel(`resultado-spr_${uiState.sprFiltro.inicio}_a_${uiState.sprFiltro.fim}.xlsx`, ['Analista','Operação','Data','Hora','SPR Roteirizado','SPR Meta','Bateu a meta'], linhas);
+}
+
+// Mesmo padrão de renderMetricasCharts() — destrói as instâncias antigas e
+// não faz nada fora da tela de Resultado SPR.
+let sprChartInstances = {};
+function renderSPRCharts(){
+  Object.values(sprChartInstances).forEach(c=>c.destroy());
+  sprChartInstances = {};
+  const elStatus = document.getElementById('chartSprStatus');
+  if(!elStatus || !sprChartData || typeof Chart === 'undefined') return;
+
+  const isDark = document.documentElement.getAttribute('data-theme')==='dark';
+  const textColor = isDark ? '#9A9DA6' : '#767676';
+  const gridColor = isDark ? '#2E3138' : '#E8E8E8';
+
+  sprChartInstances.status = new Chart(elStatus, {
+    type:'doughnut',
+    data:{ labels:['Bateram a meta','Abaixo da meta','Sem meta cadastrada'],
+      datasets:[{ data:[sprChartData.status.bateram, sprChartData.status.abaixo, sprChartData.status.semDados||sprChartData.status.semMeta],
+        backgroundColor:['#2FAE60','#EE4D2D','#A8A8A8'] }] },
+    options:{ plugins:{ legend:{ position:'bottom', labels:{ color:textColor } } } }
+  });
+
+  const elOf = document.getElementById('chartSprOfensores');
+  if(elOf){
+    sprChartInstances.ofensores = new Chart(elOf, {
+      type:'bar',
+      data:{ labels: sprChartData.ofensores.map(r=>r.name), datasets:[{ label:'% na meta', data: sprChartData.ofensores.map(r=>r.pct), backgroundColor:'#2F80ED', borderRadius:4 }] },
+      options:{ plugins:{ legend:{ display:false } }, indexAxis:'y', scales:{
+        x:{ min:0, max:100, ticks:{ color:textColor }, grid:{ color:gridColor } },
+        y:{ ticks:{ color:textColor, autoSkip:false } } } }
+    });
+  }
+}
+
+function sprAnalistaPicker(myAnalistas){
+  const flt = uiState.sprFiltro;
+  return `<div class="multiselect">
+      <button type="button" class="multiselect-btn" id="btnSprAnalistaToggle">
+        <span>${flt.analistas.length===0 ? 'Todos os analistas' : `${flt.analistas.length} analista(s) selecionado(s)`}</span>
+        <span>▾</span>
+      </button>
+      ${uiState.sprAnalistaDropdownOpen ? `
+      <div class="multiselect-panel">
+        <label><input type="checkbox" id="sprAnalistaTodos" ${flt.analistas.length===0?'checked':''}> <b>Todos</b></label>
+        <div class="msep"></div>
+        ${myAnalistas.map(a=>`<label><input type="checkbox" class="sprAnalistaChk" value="${a.id}" ${flt.analistas.includes(a.id)?'checked':''}> ${escapeHtml(a.name)}</label>`).join('') || '<div class="help-text" style="margin:6px 8px;">Nenhum analista cadastrado</div>'}
+      </div>` : ''}
+    </div>`;
+}
+
+function supResultadoSPR(myAnalistas){
+  const flt = uiState.sprFiltro;
+  const selecionados = flt.analistas.length ? myAnalistas.filter(a=>flt.analistas.includes(a.id)) : myAnalistas;
+  return sprResultadoBody(selecionados, sprAnalistaPicker(myAnalistas));
 }
 
 
@@ -634,6 +814,11 @@ function supTransmissao(myAnalistas){
 
 // Mesmo padrão de metricasChartData — ver renderMetricasCharts() acima.
 let ocorrenciasChartData = null;
+let ocorrenciasExportRows = [];
+function exportarOcorrencias(){
+  const linhas = ocorrenciasExportRows.map(r=>[userById(r.analistaId)?.name||'—', r.operacao, r.data, r.hora, r.estrelas, r.observacao||'']);
+  exportarRelatorioExcel(`ocorrencias_${uiState.ocorrenciasFiltro.inicio}_a_${uiState.ocorrenciasFiltro.fim}.xlsx`, ['Analista','Operação','Data','Hora','Estrelas','Observação'], linhas);
+}
 
 function supOcorrencias(myAnalistas){
   const ids = myAnalistas.map(a=>a.id);
@@ -670,6 +855,7 @@ function supOcorrencias(myAnalistas){
 
   const distribuicaoEstrelas = [1,2,3,4,5].map(n=>rows.filter(r=>(r.estrelas||0)===n).length);
   ocorrenciasChartData = { ranking: ranking.slice(0,10), distribuicaoEstrelas };
+  ocorrenciasExportRows = rows;
 
   return `
   <div class="filter-row">
@@ -694,6 +880,7 @@ function supOcorrencias(myAnalistas){
       <option value="3" ${f.avaliacaoMax==='3'?'selected':''}>≤ 3 estrelas</option>
       <option value="4" ${f.avaliacaoMax==='4'?'selected':''}>≤ 4 estrelas</option>
     </select>
+    <button class="btn" id="btnExportOcorrencias">⬇ Exportar Excel</button>
   </div>
   <div class="grid-2" style="margin-bottom:18px;align-items:start;">
     <div class="chart-card"><div class="section-title">Distribuição de avaliações</div><canvas id="chartEstrelas"></canvas></div>

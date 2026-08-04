@@ -18,11 +18,16 @@ function analistaTimelineModal(analistaId){
   DB.raioX.filter(r=>r.analistaId===analistaId).forEach(r=>{
     eventos.push({ data: r.data, texto: `${starDisplay(r.estrelas)} Raio-X ${escapeHtml(r.operacao)} ${r.hora}${r.observacao?` — ${escapeHtml(r.observacao)}`:''}` });
   });
+  // "Cobriu" (passado) só depois que a data da cobertura já passou — antes
+  // disso ainda não aconteceu, é "A cobrir" (futuro/hoje em aberto).
+  const hoje = todayISO();
   DB.ausencias.filter(x=>x.suplenteId===analistaId).forEach(x=>{
-    eventos.push({ data: x.data, texto: `🤝 Cobriu ${x.tipo==='ferias'?'férias':'folga'} de ${escapeHtml(userById(x.analistaId)?.name||'—')}` });
+    const verbo = x.data < hoje ? 'Cobriu' : 'A cobrir';
+    eventos.push({ data: x.data, texto: `🤝 ${verbo} ${x.tipo==='ferias'?'férias':'folga'} de ${escapeHtml(userById(x.analistaId)?.name||'—')}` });
   });
   DB.suplencias.filter(s=>s.suplente===a.name).forEach(s=>{
-    eventos.push({ data: s.dataCobertura, texto: `🤝 Cobriu suplência: ${escapeHtml(s.operacao)} (${s.horaInicio}–${s.horaFim})` });
+    const verbo = s.dataCobertura < hoje ? 'Cobriu' : 'A cobrir';
+    eventos.push({ data: s.dataCobertura, texto: `🤝 ${verbo} suplência: ${escapeHtml(s.operacao)} (${s.horaInicio}–${s.horaFim})` });
   });
   eventos.sort((x,y)=> (y.data||'').localeCompare(x.data||''));
 
@@ -46,6 +51,7 @@ function renderCoordenador(){
   else if(activeNavKey==='status') content = coordStatus();
   else if(activeNavKey==='anomalias') content = coordAnomalias();
   else if(activeNavKey==='metricas') content = coordMetricas();
+  else if(activeNavKey==='resultadospr') content = coordResultadoSPR();
   return `<div class="page-head"><div><h1 class="page-title">${tabLabel}</h1><div class="page-desc">Visão executiva de toda a operação</div></div></div>${content}`;
 }
 
@@ -70,10 +76,31 @@ function coordMetricas(){
         <div class="msep"></div>
         ${sups.map(s=>`<label><input type="checkbox" class="metricasSupervisorChk" value="${s.id}" ${flt.supervisores.includes(s.id)?'checked':''}> ${escapeHtml(s.name)}</label>`).join('') || '<div class="help-text" style="margin:6px 8px;">Nenhum supervisor cadastrado</div>'}
       </div>` : ''}
-    </div>
-    <button class="btn" id="btnExportMetricas">⬇ Exportar Excel</button>`;
-  metricasExportAnalistas = selecionados;
-  return metricasBody(selecionados, picker, flt.supervisores.length===1 ? ' (equipe selecionada)' : '') + coberturaHeatmap(selecionados);
+    </div>`;
+  return metricasBody(selecionados, picker, flt.supervisores.length===1 ? ' (equipe selecionada)' : '');
+}
+
+// Mesmo núcleo de Resultado SPR do supervisor (sprResultadoBody, em
+// render-supervisor.js), filtrando por Supervisor em vez de Analista.
+function coordResultadoSPR(){
+  const flt = uiState.sprFiltro;
+  const sups = usersByRole('supervisor');
+  const supsSelecionados = flt.supervisores.length ? sups.filter(s=>flt.supervisores.includes(s.id)) : sups;
+  const supIds = supsSelecionados.map(s=>s.id);
+  const selecionados = DB.users.filter(u=>u.role==='analista' && supIds.includes(u.supervisorId));
+  const picker = `<div class="multiselect">
+      <button type="button" class="multiselect-btn" id="btnSprSupervisorToggle">
+        <span>${flt.supervisores.length===0 ? 'Todos os supervisores' : `${flt.supervisores.length} supervisor(es) selecionado(s)`}</span>
+        <span>▾</span>
+      </button>
+      ${uiState.sprSupervisorDropdownOpen ? `
+      <div class="multiselect-panel">
+        <label><input type="checkbox" id="sprSupervisorTodos" ${flt.supervisores.length===0?'checked':''}> <b>Todos</b></label>
+        <div class="msep"></div>
+        ${sups.map(s=>`<label><input type="checkbox" class="sprSupervisorChk" value="${s.id}" ${flt.supervisores.includes(s.id)?'checked':''}> ${escapeHtml(s.name)}</label>`).join('') || '<div class="help-text" style="margin:6px 8px;">Nenhum supervisor cadastrado</div>'}
+      </div>` : ''}
+    </div>`;
+  return sprResultadoBody(selecionados, picker);
 }
 
 // Reexecuta a classificação (mesma de metricasBody, em render-supervisor.js)
@@ -96,12 +123,15 @@ function exportarMetricas(){
 // Quem cobre e em qual dia da semana, pros 10 analistas que mais cobrem
 // (ausencias.suplenteId + suplencias.suplente) dentro da seleção atual —
 // útil pra achar sobrecarga (ex.: sempre a mesma pessoa cobrindo domingo).
+// Só conta cobertura já realizada (data no passado) — igual à mesma regra
+// aplicada em analistaDesempenho() e na timeline por analista.
 function coberturaHeatmap(analistas){
   const nomes = new Map(analistas.map(a=>[a.id, a.name]));
   const nomesValidos = new Set(nomes.values());
+  const hojeStr = todayISO();
   const porPessoa = {};
   function bump(nome, dataStr){
-    if(!nome || !dataStr || !nomesValidos.has(nome)) return;
+    if(!nome || !dataStr || !nomesValidos.has(nome) || dataStr>=hojeStr) return;
     const dow = new Date(dataStr+'T00:00:00').getDay();
     if(!porPessoa[nome]) porPessoa[nome] = [0,0,0,0,0,0,0];
     porPessoa[nome][dow]++;

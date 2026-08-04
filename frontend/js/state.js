@@ -32,11 +32,17 @@ let uiState = {
   anomaliasFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), supervisor: 'all', operacao: 'all' },
   statusFiltro:{ supervisores: [] },
   statusSupervisorDropdownOpen: false,
+  // Resultado SPR (supResultadoSPR/coordResultadoSPR) — analistas:[] usado
+  // pelo supervisor, supervisores:[] pelo coordenador (mesmo padrão de
+  // metricasFiltro acima).
+  sprFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), operacao: 'all', analistas: [], supervisores: [] },
+  sprAnalistaDropdownOpen: false,
+  sprSupervisorDropdownOpen: false,
   envioFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO() },
   ocorrenciasFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), analista: 'all', operacao: 'all', avaliacaoMax: '' },
   suplenciasFiltro:{ operacao:'', horario:'', suplente:'all', cobrindo:'all', inicio:'', fim:'' },
   progAnalista:'all', progDate: hojeAgendaISO(), progView:'diaria',
-  sugerir: null, inboxSelected: null, lembretesDate: todayISO(), lembretesView: 'semanal',
+  sugerir: null, inboxSelected: null,
   // Linhas de importação em massa (Excel) cujo nome de analista não bateu
   // com ninguém da equipe — { tipo:'basemestra'|'suplencias', items:[...] }.
   // Mostrado como banner no topo da tela até o supervisor resolver ou
