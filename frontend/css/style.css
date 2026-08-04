@@ -276,6 +276,7 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .cal-chip-fixa{background:rgba(47,174,96,0.14);color:var(--done);}
 .cal-chip-folga{background:rgba(184,134,11,0.16);color:var(--folga);}
 .cal-chip-cobertura{background:rgba(47,128,237,0.14);color:var(--wait);}
+.cal-chip-plantao{background:rgba(217,54,46,0.16);color:var(--alert);font-weight:700;}
 @media (max-width:900px){
   .cal-grid{grid-template-columns:repeat(7,minmax(90px,1fr));overflow-x:auto;}
 }

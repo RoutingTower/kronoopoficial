@@ -118,15 +118,17 @@ function isDomingo(dateStr){
   return WEEKDAYS[new Date(dateStr+'T00:00:00').getDay()]==='dom';
 }
 
-// Exceção de plantão do analista aos domingos (ver isFolgaDSR abaixo) —
-// reaproveita o cadastro de Plantão da aba Eventos (DB.plantoes: data +
-// cargo + nome do plantonista, ver supPlantao()/events.js). Esse cadastro
-// nasceu pra cobrir a AUSÊNCIA DO SUPERVISOR, mas quando o cargo marcado é
-// "Analista", ele também serve como a escala de plantão do analista —
-// então casamos pelo nome (normalizado, mesmo critério do import de
-// planilha em findAnalistaByName) dentro do time do supervisor dele, já
-// que coberturaNome é texto livre, sem vínculo direto de analistaId.
-function analistaEmPlantaoDomingo(analistaId, dateStr){
+// Analista escalado em plantão numa data — reaproveita o cadastro de
+// Plantão da aba Eventos (DB.plantoes: data + cargo + nome do plantonista,
+// ver supPlantao()/events.js). Esse cadastro nasceu pra cobrir a AUSÊNCIA
+// DO SUPERVISOR, mas quando o cargo marcado é "Analista", ele também serve
+// como a escala de plantão do analista — então casamos pelo nome
+// (normalizado, mesmo critério do import de planilha em findAnalistaByName)
+// dentro do time do supervisor dele, já que coberturaNome é texto livre,
+// sem vínculo direto de analistaId. Usado tanto na exceção de Folga DSR
+// (isFolgaDSR abaixo, específico de domingo) quanto no aviso visual na
+// agenda mensal do analista (renderAnalistaMensal, qualquer dia).
+function analistaEmPlantao(analistaId, dateStr){
   const me = userById(analistaId);
   if(!me) return false;
   return DB.plantoes.some(p=>
@@ -148,7 +150,7 @@ function isFolgaDSR(analistaId, dateStr){
   const temFixaPropria = slots.some(s=>categoriaOperacao(s)==='fixa');
   const temCobertura = slots.some(s=>categoriaOperacao(s)==='cobertura');
   if(!temFolgaPropria || temFixaPropria || temCobertura) return false;
-  if(analistaEmPlantaoDomingo(analistaId, dateStr)) return false;
+  if(analistaEmPlantao(analistaId, dateStr)) return false;
   return true;
 }
 

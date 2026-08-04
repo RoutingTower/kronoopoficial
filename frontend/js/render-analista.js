@@ -166,6 +166,7 @@ function renderAnalistaMensal(analistaId, dateStr, opFiltro){
     const isToday = ds===todayStr;
     cells += `<div class="cal-day-cell${isToday?' today':''}">
       <div class="cal-day-num${isToday?' today':''}" data-daypick="${ds}">${day}</div>
+      ${analistaEmPlantao(analistaId, ds) ? `<div class="cal-chip cal-chip-plantao" title="Escalado em plantão nesse dia">🔔 Plantão</div>` : ''}
       ${slots.map(s=>`<div class="cal-chip cal-chip-${categoriaOperacao(s)}" title="${s.operacao} · ${s.horaInicio}–${s.horaFim}${s.isOff?' · Folga · cobre: '+s.responsavelNome:s.isCobertura?' · Cobrindo '+s.responsavelNome:''}">${s.horaInicio} ${s.operacao}</div>`).join('')}
     </div>`;
   }
