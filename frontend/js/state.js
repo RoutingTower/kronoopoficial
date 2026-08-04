@@ -36,120 +36,48 @@ const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julh
 const WEEKDAY_LABELS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
 
-// Todo endpoint /api/* exige um Firebase ID token (ver backend/src/middleware/auth.js).
+// Todo endpoint /api/* exige um Supabase ID token (ver backend/src/middleware/auth.js).
 async function authHeaders(){
   const token = await KronoAuth.getIdToken();
   return token ? { 'Authorization': `Bearer ${token}` } : {};
 }
 
-// Só são chamadas depois de um login real (Firebase Auth) bem-sucedido, via
-// loadDBCached() abaixo.
+// Só é chamada depois de um login real (Supabase Auth) bem-sucedido, via
+// loadDB() abaixo. Busca as 11 coleções direto do backend a cada chamada —
+// sem cache local: o Postgres do Supabase não tem cota diária de leitura
+// (motivo pelo qual um cache de 24h existiu aqui antes, enquanto o banco
+// era o Firestore — ver docs/MIGRACAO-SUPABASE.md). Cachear causava dado
+// desatualizado/cruzado entre abas (achado real: incidente do Areli em
+// 04/08/2026, Raio-X finalizado que a tela de outra pessoa ainda mostrava
+// como pendente).
 //
 // Todo recurso já foi migrado do blob genérico para o endpoint próprio (ver
-// docs/ROADMAP.md, item 4) — /api/state hoje não é mais consultado. Isso
-// mantém a MESMA forma de DB.* que o resto do frontend sempre leu, só troca
-// de onde o dado vem. Se o backend não responder, propaga o erro — quem
-// chama (main.js) mostra isso na tela de login, sem fallback silencioso.
+// docs/ROADMAP.md, item 4) — mantém a MESMA forma de DB.* que o resto do
+// frontend sempre leu, só troca de onde o dado vem. Se o backend não
+// responder, propaga o erro — quem chama (main.js) mostra isso na tela de
+// login, sem fallback silencioso.
 //
-// Split em duas partes com comportamento de leitura BEM diferente — ver
-// DB_CACHE_TTL_MS logo abaixo pro motivo de existir cache:
-//
-// - "Cacheável" (users, baseMestra, suplencias, sprs): ~814 dos ~893
-//   documentos hoje (91%). Dado de escala/cadastro, muda pouco minuto a
-//   minuto — cachear por 24h é seguro.
-// - "Sempre fresco" (raioX, ausencias, recados, reunioes, plantoes,
-//   lembretes, feedbacks): só ~79 documentos (9%), mas alimenta painéis de
-//   status/compliance (ex.: "Pendente Raio-X" na Grade do Dia) — CACHEAR
-//   ISSO CAUSA FALSO-PENDENTE: um analista finaliza a operação, mas quem tá
-//   vendo o painel com DB cacheado de horas atrás não vê a finalização até
-//   o cache expirar ou alguém clicar "Atualizar dados" (achado real, ver
-//   incidente do Areli em 04/08/2026 — Raio-X dele já existia no banco e a
-//   tela ainda mostrava pendente). Como é barato (9% do total), busca de
-//   novo em toda chamada de loadDBCached(), cache ou não.
-async function loadDBFresh(){
-  const [raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks] = await Promise.all([
-    apiRequest('GET', '/raio-x'),
-    apiRequest('GET', '/ausencias'),
-    apiRequest('GET', '/recados'),
-    apiRequest('GET', '/reunioes'),
-    apiRequest('GET', '/plantoes'),
-    apiRequest('GET', '/lembretes'),
-    apiRequest('GET', '/feedbacks'),
-  ]);
-  return { raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks };
-}
-
-async function loadDBCacheable(){
-  const [users, baseMestra, suplencias, sprs] = await Promise.all([
-    apiRequest('GET', '/users'),
-    apiRequest('GET', '/base-mestra'),
-    apiRequest('GET', '/suplencias'),
-    apiRequest('GET', '/sprs'),
-  ]);
-  return { users, baseMestra, suplencias, sprs };
-}
-
-// Cache local só da parte "cacheável" acima — motivo: o Firestore (plano
-// gratuito) tem uma cota DIÁRIA de leituras, e cada login/F5 buscava as 11
-// coleções inteiras do zero, contando 1 leitura por documento. Com o time
-// inteiro recarregando várias vezes ao dia, isso estourou a cota e travou
-// o acesso de todo mundo (incidente de 04/08/2026). TTL de 24h — alinhado
-// com o reset diário da cota, escolhido deliberadamente pra cortar
-// leituras repetidas enquanto o projeto não migra pro Supabase (ver
-// docs/MIGRACAO-SUPABASE.md). Mudanças feitas na PRÓPRIA aba continuam
-// instantâneas (todo create/update/delete já atualiza o DB em memória
-// direto, sem precisar buscar de novo) — a janela de até 24h só afeta ver
-// mudanças feitas por OUTRA pessoa/aba nesse meio tempo, e só na parte
-// cacheável (a parte "sempre fresco" já cobre painéis de status). Ver
-// botão "Atualizar dados" em Configurações pra forçar uma busca nova
-// quando precisar de dado fresco mesmo assim.
-const DB_CACHE_KEY = 'kronoop-db-cache';
-const DB_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
-
-function readDBCache(){
-  try{
-    const raw = localStorage.getItem(DB_CACHE_KEY);
-    if(!raw) return null;
-    const parsed = JSON.parse(raw);
-    if(!parsed || !parsed.savedAt || !parsed.data) return null;
-    if(Date.now() - parsed.savedAt > DB_CACHE_TTL_MS) return null;
-    return parsed.data;
-  }catch(e){ return null; }
-}
-
-function writeDBCache(data){
-  try{ localStorage.setItem(DB_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), data })); }
-  catch(e){ /* localStorage cheio/indisponível — segue sem cache, não quebra o app */ }
-}
-
-function clearDBCache(){
-  try{ localStorage.removeItem(DB_CACHE_KEY); }catch(e){}
-}
-
-// Usa o cache local pra parte cacheável se existir e ainda for válido;
-// senão busca ela do zero e atualiza o cache. A parte "sempre fresco" é
-// buscada em toda chamada, cache ou não (ver loadDBFresh() acima).
-// forceRefresh=true ignora o cache da parte cacheável — usado pelo botão
-// "Atualizar dados".
-//
-// _loadDBInFlight faz as chamadas concorrentes reaproveitarem a MESMA
-// busca em vez de disparar uma pra cada — o onAuthStateChanged do
-// Firebase (main.js) pode disparar duas vezes em sequência rápida no
-// mesmo login, e sem isso cada uma iniciava sua própria busca, dobrando à
-// toa as leituras cobradas nesse login (achado ao investigar o incidente
-// de cota de 04/08/2026).
+// _loadDBInFlight faz chamadas concorrentes reaproveitarem a MESMA busca em
+// vez de disparar uma pra cada — o onAuthStateChanged (main.js) pode
+// disparar duas vezes em sequência rápida no mesmo login.
 let _loadDBInFlight = null;
-async function loadDBCached(forceRefresh){
+async function loadDB(){
   if(_loadDBInFlight) return _loadDBInFlight;
   _loadDBInFlight = (async ()=>{
-    const freshPromise = loadDBFresh();
-    let cacheable = !forceRefresh ? readDBCache() : null;
-    if(!cacheable){
-      cacheable = await loadDBCacheable();
-      writeDBCache(cacheable);
-    }
-    const fresh = await freshPromise;
-    DB = { ...cacheable, ...fresh };
+    const [users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks] = await Promise.all([
+      apiRequest('GET', '/users'),
+      apiRequest('GET', '/base-mestra'),
+      apiRequest('GET', '/suplencias'),
+      apiRequest('GET', '/sprs'),
+      apiRequest('GET', '/raio-x'),
+      apiRequest('GET', '/ausencias'),
+      apiRequest('GET', '/recados'),
+      apiRequest('GET', '/reunioes'),
+      apiRequest('GET', '/plantoes'),
+      apiRequest('GET', '/lembretes'),
+      apiRequest('GET', '/feedbacks'),
+    ]);
+    DB = { users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks };
   })();
   try{ await _loadDBInFlight; }
   finally{ _loadDBInFlight = null; }
@@ -186,7 +114,7 @@ async function apiRequest(method, path, body, _attempt){
 }
 
 // users — criação/edição/exclusão têm que passar por aqui porque só o
-// backend sabe criar/atualizar/apagar a conta correspondente no Firebase
+// backend sabe criar/atualizar/apagar a conta correspondente no Supabase
 // Auth — ver backend/src/controllers/users.controller.js.
 const apiCreateUser = (data) => apiRequest('POST', '/users', data);
 const apiUpdateUser = (id, patch) => apiRequest('PATCH', `/users/${id}`, patch);

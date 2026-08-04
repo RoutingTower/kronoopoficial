@@ -1160,8 +1160,7 @@ function bindMainEvents(){
     cfgRefreshData.disabled = true;
     cfgRefreshData.textContent = 'Atualizando...';
     try{
-      clearDBCache();
-      await loadDBCached(true);
+      await loadDB();
       renderMain();
     }catch(e){
       alert('Não foi possível atualizar: '+e.message);

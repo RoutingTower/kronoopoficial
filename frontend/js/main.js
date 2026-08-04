@@ -81,7 +81,7 @@ KronoAuth.onAuthStateChanged(async (user)=>{
   // rápido que isso, não vale mostrar o aviso de "conectando" toda vez.
   const slowHintTimer = setTimeout(()=>{ btn.textContent = 'Conectando ao servidor...'; }, 4000);
   try{
-    await loadDBCached();
+    await loadDB();
     const me = await apiRequest('GET', '/users/me');
     if(myReq !== authRequestSeq) return; // ficou obsoleto enquanto isso — um evento mais novo já assumiu
     session = { role: me.role, userId: me.id, name: me.name };
