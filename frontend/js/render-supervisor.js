@@ -316,16 +316,6 @@ function supGrade(myAnalistas){
   gradeExportRows = filtered;
 
   return `
-  ${atrasoHoje>0 ? `<div class="highlight-card" style="margin-bottom:14px;border-color:var(--alert);">
-    <div class="section-title">🚨 ${atrasoHoje} operação(ões) de hoje com Raio-X pendente há mais de 1h</div>
-  </div>` : ''}
-  ${risco.length>0 ? `<div class="card" style="margin-bottom:16px;">
-    <div class="section-title">🟡 Analistas em risco (últimos 7 dias)</div>
-    ${risco.map(r=>`<div class="msg-item" style="cursor:pointer;" data-analista-timeline="${r.id}">
-      <div class="msg-meta">${escapeHtml(r.name)}</div>
-      <div class="chip-row" style="margin-top:4px;">${r.motivos.map(m=>`<span class="chip-pessoa">${escapeHtml(m)}</span>`).join('')}</div>
-    </div>`).join('')}
-  </div>` : ''}
   <div class="filter-row">
     <input type="date" data-gradefilter="data" value="${dateStr}">
     ${select('hora','Horário', uniq('hora'))}
@@ -335,10 +325,20 @@ function supGrade(myAnalistas){
     ${select('status','Status', ['all','wait','live','done','atraso'])}
     <button class="btn" id="btnExportGrade">⬇ Exportar Excel</button>
   </div>
-  <div class="card">
+  <div class="card" style="margin-bottom:${(atrasoHoje>0||risco.length>0)?'16px':'0'};">
   <table><thead><tr><th>Horário</th><th>Analista</th><th>Operação</th><th>Responsável</th><th>Status</th></tr></thead><tbody>
   ${filtered.map(r=>`<tr class="${r.isCobertura?'row-suplente':''}"><td class="mono">${r.hora}–${r.horaFim}</td><td style="cursor:pointer;" data-analista-timeline="${r.analistaId}" title="Ver histórico">${r.analista} ${r.isCobertura?'<span class="pill pill-suplente">🔁 Suplente</span>':''}</td><td>${r.op}</td><td>${r.nome}</td><td>${statusPill(r.status)}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">Nenhum registro para os filtros selecionados</td></tr>'}
-  </tbody></table></div>`;
+  </tbody></table></div>
+  ${atrasoHoje>0 ? `<div class="highlight-card" style="margin-bottom:14px;border-color:var(--alert);">
+    <div class="section-title">🚨 ${atrasoHoje} operação(ões) de hoje com Raio-X pendente há mais de 1h</div>
+  </div>` : ''}
+  ${risco.length>0 ? `<div class="card">
+    <div class="section-title">🟡 Analistas em risco (últimos 7 dias)</div>
+    ${risco.map(r=>`<div class="msg-item" style="cursor:pointer;" data-analista-timeline="${r.id}">
+      <div class="msg-meta">${escapeHtml(r.name)}</div>
+      <div class="chip-row" style="margin-top:4px;">${r.motivos.map(m=>`<span class="chip-pessoa">${escapeHtml(m)}</span>`).join('')}</div>
+    </div>`).join('')}
+  </div>` : ''}`;
 }
 
 let gradeExportRows = [];

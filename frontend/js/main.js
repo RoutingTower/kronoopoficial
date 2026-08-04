@@ -3,6 +3,7 @@
 document.getElementById('logoutBtn').addEventListener('click', exitApp);
 document.getElementById('modalBg').addEventListener('click', e=>{ if(e.target.id==='modalBg') closeModal(); });
 document.getElementById('btnPersonalizarMenu').addEventListener('click', openMenuConfigModal);
+document.getElementById('btnNotificacoes').addEventListener('click', abrirNotificacoes);
 
 // Fecha o dropdown de multi-seleção (Métricas, Dashboard Global, Painel
 // Hora a Hora, Status Operacional) ao clicar fora dele — o botão e os

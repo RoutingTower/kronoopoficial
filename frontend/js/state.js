@@ -186,3 +186,12 @@ const apiDeleteLembrete = (id) => apiRequest('DELETE', `/lembretes/${id}`);
 const apiCreateFeedback = (data) => apiRequest('POST', '/feedbacks', data);
 const apiDeleteFeedback = (id) => apiRequest('DELETE', `/feedbacks/${id}`);
 
+// notificacoes — sino no sidebar (ver ui.js, refreshNotificacoes). Não
+// existe apiCreate aqui de propósito: quem cria é sempre o backend (ver
+// esqueciSenha em notificacoes.controller.js), nunca o próprio frontend.
+const apiListNotificacoes = () => apiRequest('GET', '/notificacoes');
+const apiMarcarNotificacaoLida = (id) => apiRequest('PATCH', `/notificacoes/${id}`, { lida: true });
+// Único endpoint que funciona sem sessão — chamado da tela de login, antes
+// de existir qualquer token (ver botão "Esqueci minha senha").
+const apiEsqueciSenha = (email) => apiRequest('POST', '/esqueci-senha', { email });
+

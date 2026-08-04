@@ -166,3 +166,17 @@ create table suplencias (
   analista_original_id  uuid not null references users(id)
 );
 create index idx_suplencias_analista_original on suplencias(analista_original_id);
+
+-- Notificações internas — hoje só usado por "Esqueci minha senha" (login
+-- avisa o supervisor/coordenador/admin da pessoa, ver
+-- backend/src/controllers/notificacoes.controller.js), desenhado genérico
+-- o bastante pra outros tipos de aviso no futuro (campo "tipo").
+create table notificacoes (
+  id              uuid primary key default gen_random_uuid(),
+  destinatario_id uuid not null references users(id),
+  tipo            text not null default 'esqueci_senha',
+  mensagem        text not null,
+  lida            boolean not null default false,
+  ts              bigint not null
+);
+create index idx_notificacoes_destinatario on notificacoes(destinatario_id);

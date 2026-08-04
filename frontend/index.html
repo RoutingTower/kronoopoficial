@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>KronoOP</title>
+<title>Kronos</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
@@ -18,15 +18,17 @@
 </script>
 </head>
 <body>
-<div id="view-boot"><div class="boot-logo">KronoOP</div></div>
+<div id="view-boot"><div class="boot-logo">Kronos</div></div>
 <div id="view-login">
-  <div class="grid-floor"><div class="plane"></div></div>
+  <div class="login-globe" aria-hidden="true"></div>
   <div class="glow-orb orb-1"></div>
   <div class="glow-orb orb-2"></div>
+  <div class="login-88-watermark" aria-hidden="true">8.8</div>
   <div class="login-card">
-    <div class="login-eyebrow">KronoOP · Ops Control</div>
+    <div class="login-88-badge">🔥 KRONOS 8.8 · OPS DAY</div>
+    <div class="login-eyebrow">Kronos · Ops Control</div>
     <div class="title-row">
-      <h1 class="login-title display">KronoOP</h1>
+      <h1 class="login-title display">Kronos</h1>
       <label class="theme-switch" title="Alternar tema">
         <input type="checkbox" class="theme-switch-input" aria-label="Alternar tema">
         <span class="theme-switch-track"><span class="theme-switch-thumb">🌙</span></span>
@@ -43,6 +45,10 @@
       <label>Senha</label>
       <input type="password" id="loginPassReal" placeholder="••••••••" autocomplete="current-password">
     </div>
+    <div class="login-options-row">
+      <label class="login-remember"><input type="checkbox" id="loginRemember"> Lembrar meu e-mail</label>
+      <a href="javascript:void(0)" id="loginForgotLink">Esqueci minha senha</a>
+    </div>
     <button class="btn-primary" id="loginBtnReal">Entrar</button>
   </div>
 </div>
@@ -53,8 +59,11 @@
       <div class="brand-row">
         <button class="sidebar-toggle" id="btnSidebarToggle" title="Recolher menu" aria-label="Recolher/expandir menu">☰</button>
         <div class="brand-dot"></div>
-        <div class="brand-name">KronoOP</div>
-        <label class="theme-switch" style="margin-left:auto;" title="Alternar tema">
+        <div class="brand-name">Kronos</div>
+        <button class="notif-bell-btn" id="btnNotificacoes" title="Notificações" aria-label="Notificações" style="display:none;margin-left:auto;">
+          🔔<span class="notif-badge" id="notifBadgeCount"></span>
+        </button>
+        <label class="theme-switch" title="Alternar tema">
           <input type="checkbox" class="theme-switch-input" aria-label="Alternar tema">
           <span class="theme-switch-track"><span class="theme-switch-thumb">🌙</span></span>
         </label>

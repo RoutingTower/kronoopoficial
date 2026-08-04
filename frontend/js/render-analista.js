@@ -297,7 +297,7 @@ function renderFeedbackAnalista(){
     <div id="feedbackMsg" class="login-error"></div>
     <div class="field">
       <label>Sua mensagem</label>
-      <textarea id="feedbackTxt" rows="6" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;" placeholder="O que poderia melhorar no KronoOP? Conte um problema, uma ideia, o que fizer sentido..."></textarea>
+      <textarea id="feedbackTxt" rows="6" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;" placeholder="O que poderia melhorar no Kronos? Conte um problema, uma ideia, o que fizer sentido..."></textarea>
     </div>
     <div style="display:flex;justify-content:flex-end;">
       <button class="btn btn-brand" id="btnEnviarFeedback">Enviar feedback</button>

@@ -54,12 +54,57 @@ function loginBloqueado(email){
   return true;
 }
 
-// Chamada uma única vez no bootstrap (main.js). O listener do Firebase Auth
+// Chamada uma única vez no bootstrap (main.js). O listener do Supabase Auth
 // dispara tanto no login manual quanto na retomada de uma sessão já
 // persistida (F5) — os dois casos convergem aqui.
+const REMEMBER_EMAIL_KEY = 'kronoop-remember-email';
 function initLogin(){
   document.getElementById('loginBtnReal').addEventListener('click', doRealLogin);
   document.getElementById('loginPassReal').addEventListener('keydown', e=>{ if(e.key==='Enter') doRealLogin(); });
+
+  // "Lembrar meu e-mail" — só o e-mail (nunca a senha: guardar senha em
+  // texto puro no navegador é risco de segurança real, ao contrário do
+  // gerenciador de senha nativo do navegador, que já funciona sozinho
+  // graças ao autocomplete="current-password" no campo de senha).
+  const emailEl = document.getElementById('loginEmail');
+  const rememberEl = document.getElementById('loginRemember');
+  try{
+    const lembrado = localStorage.getItem(REMEMBER_EMAIL_KEY);
+    if(lembrado){ emailEl.value = lembrado; rememberEl.checked = true; }
+  }catch(e){}
+  rememberEl.addEventListener('change', ()=>{
+    if(!rememberEl.checked){ try{ localStorage.removeItem(REMEMBER_EMAIL_KEY); }catch(e){} }
+  });
+
+  document.getElementById('loginForgotLink').addEventListener('click', openForgotPasswordModal);
+}
+
+function openForgotPasswordModal(){
+  const emailAtual = document.getElementById('loginEmail').value.trim();
+  openModal(`<h3>Esqueci minha senha</h3>
+    <div class="help-text">Digite seu e-mail — a pessoa responsável por resetar sua senha (seu supervisor, coordenador ou o administrador) vai ser avisada.</div>
+    <div class="field"><label>E-mail</label><input type="email" id="forgotEmail" value="${escapeHtml(emailAtual)}" placeholder="Digite seu e-mail"></div>
+    <div id="forgotMsg" class="login-error"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn" data-modal-cancel>Cancelar</button>
+      <button class="btn btn-brand" id="confirmForgot">Avisar responsável</button>
+    </div>`);
+  const cancelBtn = document.querySelector('[data-modal-cancel]');
+  if(cancelBtn) cancelBtn.onclick = closeModal;
+  document.getElementById('confirmForgot').onclick = async ()=>{
+    const email = document.getElementById('forgotEmail').value.trim();
+    const msgEl = document.getElementById('forgotMsg');
+    if(!email){ setFormMsg(msgEl, 'Digite um e-mail.', true); return; }
+    const btn = document.getElementById('confirmForgot');
+    btn.disabled = true;
+    try{
+      const r = await apiEsqueciSenha(email);
+      setFormMsg(msgEl, r.message || 'Se esse e-mail estiver cadastrado, a pessoa responsável foi avisada.', false);
+    }catch(e){
+      setFormMsg(msgEl, 'Não foi possível enviar o aviso agora. Tente de novo em instantes.', true);
+    }
+    btn.disabled = false;
+  };
 }
 
 async function doRealLogin(){
@@ -69,6 +114,10 @@ async function doRealLogin(){
   errEl.style.display='none';
   if(!email || !pass){ showLoginErrorReal('Preencha e-mail e senha.'); return; }
   if(loginBloqueado(email)){ showLoginErrorReal(LOGIN_MSG_BLOQUEADO); return; }
+  try{
+    if(document.getElementById('loginRemember').checked) localStorage.setItem(REMEMBER_EMAIL_KEY, email);
+    else localStorage.removeItem(REMEMBER_EMAIL_KEY);
+  }catch(e){}
   const btn = document.getElementById('loginBtnReal');
   btn.disabled = true;
   try{
@@ -93,7 +142,7 @@ function hideBootScreen(){
 }
 
 // instant=true pula a animação de "saída" da tela de login (420ms) — usado
-// quando o Firebase já resolveu uma sessão salva antes de mostrar qualquer
+// quando o Supabase já resolveu uma sessão salva antes de mostrar qualquer
 // coisa (view-boot cobrindo a tela, ver main.js), então não faz sentido
 // animar a saída de um login que o usuário nunca chegou a ver.
 function enterApp(instant){
@@ -113,10 +162,56 @@ function enterApp(instant){
     } else { chipSup.textContent=''; }
     buildNav();
     renderMain();
+    refreshNotificacoes();
     requestAnimationFrame(()=> appEl.classList.add('entered'));
   }
   if(instant){ finish(); }
   else { loginEl.classList.add('leaving'); setTimeout(finish, 420); }
+}
+
+// Sino de notificações (sidebar) — só Supervisor/Coordenador recebem por
+// enquanto (ver notificacoes.controller.js, esqueciSenha). Chamado de novo
+// a cada login/boot (enterApp acima); a lista em si só atualiza ao abrir o
+// sino ou marcar como lida, não fica dando poll sozinho.
+let minhasNotificacoes = [];
+async function refreshNotificacoes(){
+  const bell = document.getElementById('btnNotificacoes');
+  if(!bell) return;
+  if(session.role!=='supervisor' && session.role!=='coordenador'){ bell.style.display='none'; return; }
+  bell.style.display='flex';
+  try{ minhasNotificacoes = await apiListNotificacoes(); }
+  catch(e){ minhasNotificacoes = []; }
+  const naoLidas = minhasNotificacoes.filter(n=>!n.lida).length;
+  const badge = document.getElementById('notifBadgeCount');
+  badge.textContent = naoLidas>9 ? '9+' : String(naoLidas);
+  badge.classList.toggle('show', naoLidas>0);
+}
+
+function abrirNotificacoes(){
+  openModal(`<h3>Notificações</h3>
+    <div style="max-height:60vh;overflow-y:auto;margin-top:10px;display:flex;flex-direction:column;gap:8px;">
+    ${minhasNotificacoes.length===0 ? '<div class="empty">Nenhuma notificação.</div>' : minhasNotificacoes.map(n=>`
+      <div class="msg-item" style="${n.lida?'opacity:0.55;':''}">
+        <div class="msg-meta">${timeAgo(n.ts)}</div>
+        <div style="margin-top:2px;">${escapeHtml(n.mensagem)}</div>
+        ${!n.lida ? `<div style="margin-top:8px;"><button class="btn" data-marcar-notif-lida="${n.id}">Marcar como lida</button></div>` : ''}
+      </div>`).join('')}
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px;"><button class="btn" data-modal-cancel>Fechar</button></div>`);
+  const cancelBtn = document.querySelector('[data-modal-cancel]');
+  if(cancelBtn) cancelBtn.onclick = closeModal;
+  document.querySelectorAll('#modalBody [data-marcar-notif-lida]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = btn.dataset.marcarNotifLida;
+      try{
+        await apiMarcarNotificacaoLida(id);
+        const n = minhasNotificacoes.find(x=>x.id===id);
+        if(n) n.lida = true;
+        await refreshNotificacoes();
+        abrirNotificacoes();
+      }catch(e){ alert('Não foi possível marcar como lida: '+e.message); }
+    });
+  });
 }
 
 async function exitApp(){

@@ -78,19 +78,52 @@ input,select,textarea{font-family:inherit;}
   background:radial-gradient(ellipse at 50% -10%, #2A1E1A 0%, #15161A 55%);
 }
 #view-login.leaving{opacity:0;transform:scale(0.97) translateY(-8px);}
-.grid-floor{position:absolute;left:0;right:0;bottom:0;height:60%;perspective:600px;overflow:hidden;z-index:0;pointer-events:none;}
-.grid-floor .plane{
-  position:absolute;inset:0;transform:rotateX(62deg);transform-origin:bottom;
-  background-image:
-    linear-gradient(rgba(238,77,45,0.14) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(238,77,45,0.14) 1px, transparent 1px);
-  background-size:44px 44px;
-  animation:gridScroll 6s linear infinite;
+/* Globo girando estilo "visão de satélite" — sem textura/imagem externa:
+   um círculo com sombreamento radial (dá volume 3D) + listras verticais
+   (longitude) cujo background-position anima horizontalmente, mascaradas
+   pelo raio do círculo — clássico truque CSS de "esfera girando" sem
+   canvas/WebGL. As elipses horizontais estáticas fazem de linhas de
+   latitude. */
+.login-globe{
+  position:absolute;top:50%;left:50%;width:760px;height:760px;
+  transform:translate(-50%,-46%);border-radius:50%;overflow:hidden;
+  z-index:0;pointer-events:none;
+  background:radial-gradient(circle at 36% 32%, #FFC199 0%, #FF8A5B 24%, var(--brand) 48%, #9C3212 76%, #2A0D05 100%);
+  box-shadow:0 0 180px rgba(238,77,45,0.4), inset -50px -50px 120px rgba(0,0,0,0.45), inset 30px 30px 80px rgba(255,255,255,0.15);
+  animation:globePulse 8s ease-in-out infinite;
 }
-@keyframes gridScroll{ from{background-position:0 0;} to{background-position:0 88px;} }
+.login-globe::before{
+  content:'';position:absolute;inset:-20% -60%;
+  background-image:repeating-linear-gradient(90deg, rgba(255,255,255,0.22) 0 2px, transparent 2px 46px);
+  mix-blend-mode:overlay;animation:globeScrollX 16s linear infinite;
+}
+.login-globe::after{
+  content:'';position:absolute;inset:0;border-radius:50%;
+  background:
+    repeating-radial-gradient(ellipse 100% 60% at 50% 50%, transparent 0 54px, rgba(255,255,255,0.09) 54px 56px),
+    radial-gradient(circle at 68% 70%, transparent 38%, rgba(0,0,0,0.6) 100%);
+}
+@keyframes globeScrollX{ from{background-position-x:0;} to{background-position-x:-736px;} }
+@keyframes globePulse{ 0%,100%{box-shadow:0 0 180px rgba(238,77,45,0.4), inset -50px -50px 120px rgba(0,0,0,0.45), inset 30px 30px 80px rgba(255,255,255,0.15);} 50%{box-shadow:0 0 220px rgba(238,77,45,0.55), inset -50px -50px 120px rgba(0,0,0,0.45), inset 30px 30px 80px rgba(255,255,255,0.18);} }
+:root[data-theme="dark"] .login-globe{opacity:0.85;}
 .glow-orb{position:absolute;border-radius:50%;filter:blur(50px);opacity:0.35;z-index:0;}
 .orb-1{width:260px;height:260px;background:var(--brand);top:-60px;left:-60px;}
 .orb-2{width:220px;height:220px;background:var(--wait);bottom:-40px;right:-40px;opacity:0.18;}
+
+/* "Tema 8.8" — vibe de campanha de venda Shopee: numeral gigante
+   semi-transparente ao fundo + selo chamativo no card. */
+.login-88-watermark{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:min(46vw,560px);line-height:1;
+  color:rgba(238,77,45,0.07);letter-spacing:-0.02em;z-index:0;pointer-events:none;user-select:none;
+}
+:root[data-theme="dark"] .login-88-watermark{color:rgba(255,107,69,0.09);}
+.login-88-badge{
+  display:inline-flex;align-items:center;gap:6px;margin-bottom:14px;padding:5px 12px;
+  background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#fff;
+  font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.06em;
+  border-radius:999px;box-shadow:0 6px 18px rgba(238,77,45,0.35);
+}
 .login-card{
   position:relative;z-index:1;width:100%;max-width:420px;
   background:rgba(255,255,255,0.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
@@ -127,6 +160,21 @@ input,select,textarea{font-family:inherit;}
 .login-hint{margin-top:16px;font-size:11.5px;color:var(--text-faint);text-align:center;}
 .login-hint a{color:var(--brand);text-decoration:none;}
 .login-hint a:hover{text-decoration:underline;}
+.login-options-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-2px 0 16px;font-size:12px;flex-wrap:wrap;}
+.login-remember{display:flex;align-items:center;gap:6px;color:var(--text-muted);cursor:pointer;user-select:none;}
+.login-remember input{cursor:pointer;}
+.login-options-row a{color:var(--brand);text-decoration:none;font-weight:500;}
+.login-options-row a:hover{text-decoration:underline;}
+
+/* Sino de notificações (sidebar) — só visível pra Supervisor/Coordenador
+   (ver refreshNotificacoes em ui.js), avisa quando alguém "esqueceu a
+   senha" (ou outro tipo futuro). */
+.notif-bell-btn{position:relative;flex-shrink:0;width:30px;height:30px;border-radius:8px;border:1px solid transparent;
+  background:transparent;color:var(--text-muted);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.notif-bell-btn:hover{border-color:var(--border);background:var(--bg-2);}
+.notif-badge{position:absolute;top:-2px;right:-2px;min-width:15px;height:15px;padding:0 3px;border-radius:999px;
+  background:var(--alert);color:#fff;font-size:9.5px;font-weight:700;line-height:15px;text-align:center;display:none;}
+.notif-badge.show{display:block;}
 .login-error{background:rgba(217,54,46,0.08);border:1px solid rgba(217,54,46,0.35);color:var(--alert);
   padding:9px 12px;border-radius:7px;font-size:12.5px;margin-bottom:14px;display:none;}
 .form-success{background:rgba(47,174,96,0.1);border:1px solid rgba(47,174,96,0.35);color:var(--done);
@@ -134,7 +182,7 @@ input,select,textarea{font-family:inherit;}
 .progress-track{width:100%;height:10px;border-radius:6px;background:var(--bg-2);border:1px solid var(--border);overflow:hidden;}
 .progress-fill{height:100%;background:linear-gradient(135deg,var(--brand),var(--brand-2));transition:width .15s ease;}
 
-/* Cobre a tela inteira enquanto o Firebase Auth confirma (de forma
+/* Cobre a tela inteira enquanto o Supabase Auth confirma (de forma
    assíncrona) se já existe uma sessão salva — sem isso, quem já está
    logado vê a tela de login piscar por um instante a cada F5, antes do
    JS decidir se mostra o login ou entra direto no app. */
@@ -193,13 +241,15 @@ input,select,textarea{font-family:inherit;}
 .shell.nav-collapsed .nav-label,
 .shell.nav-collapsed .mcb-label,
 .shell.nav-collapsed .user-chip,
-.shell.nav-collapsed .logout-label,
-.shell.nav-collapsed .particularidades-label{display:none;}
+.shell.nav-collapsed .logout-label{display:none;}
+/* !important necessário aqui: refreshNotificacoes() (ui.js) liga o sino
+   via style.display inline (pra Supervisor/Coordenador), que teria
+   precedência sobre uma regra de classe comum. */
+.shell.nav-collapsed .notif-bell-btn{display:none !important;}
 .shell.nav-collapsed .nav-item{justify-content:center;padding:11px 6px;}
 .shell.nav-collapsed .nav-badge{position:absolute;margin-left:0;transform:translate(10px,-10px);}
 .shell.nav-collapsed .nav-item{position:relative;}
-.shell.nav-collapsed .menu-config-btn,
-.shell.nav-collapsed .particularidades-btn{justify-content:center;}
+.shell.nav-collapsed .menu-config-btn{justify-content:center;}
 
 .main{padding:28px 34px;overflow-x:hidden;}
 .page-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:22px;flex-wrap:wrap;gap:12px;}
