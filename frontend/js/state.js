@@ -42,39 +42,56 @@ async function authHeaders(){
   return token ? { 'Authorization': `Bearer ${token}` } : {};
 }
 
-// Só é chamada depois de um login real (Firebase Auth) bem-sucedido.
+// Só são chamadas depois de um login real (Firebase Auth) bem-sucedido, via
+// loadDBCached() abaixo.
 //
 // Todo recurso já foi migrado do blob genérico para o endpoint próprio (ver
 // docs/ROADMAP.md, item 4) — /api/state hoje não é mais consultado. Isso
 // mantém a MESMA forma de DB.* que o resto do frontend sempre leu, só troca
 // de onde o dado vem. Se o backend não responder, propaga o erro — quem
 // chama (main.js) mostra isso na tela de login, sem fallback silencioso.
-async function loadDB(){
-  // /raio-x sem parâmetros vem com um default de 30 dias aplicado pelo
-  // backend (ver raioX.controller.js) — a coleção só cresce (1 registro por
-  // finalização de operação, de toda a equipe, pra sempre) e sem esse corte
-  // cada carga de página lia o histórico inteiro de novo. Telas que
-  // precisem de um histórico mais antigo (Métricas/Ocorrências com range
-  // manual maior que 30 dias) não vão achar esses dados em DB.raioX hoje.
-  const [users, raioX, baseMestra, ausencias, suplencias, recados, reunioes, plantoes, lembretes, feedbacks, sprs] = await Promise.all([
-    apiRequest('GET', '/users'),
+//
+// Split em duas partes com comportamento de leitura BEM diferente — ver
+// DB_CACHE_TTL_MS logo abaixo pro motivo de existir cache:
+//
+// - "Cacheável" (users, baseMestra, suplencias, sprs): ~814 dos ~893
+//   documentos hoje (91%). Dado de escala/cadastro, muda pouco minuto a
+//   minuto — cachear por 24h é seguro.
+// - "Sempre fresco" (raioX, ausencias, recados, reunioes, plantoes,
+//   lembretes, feedbacks): só ~79 documentos (9%), mas alimenta painéis de
+//   status/compliance (ex.: "Pendente Raio-X" na Grade do Dia) — CACHEAR
+//   ISSO CAUSA FALSO-PENDENTE: um analista finaliza a operação, mas quem tá
+//   vendo o painel com DB cacheado de horas atrás não vê a finalização até
+//   o cache expirar ou alguém clicar "Atualizar dados" (achado real, ver
+//   incidente do Areli em 04/08/2026 — Raio-X dele já existia no banco e a
+//   tela ainda mostrava pendente). Como é barato (9% do total), busca de
+//   novo em toda chamada de loadDBCached(), cache ou não.
+async function loadDBFresh(){
+  const [raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks] = await Promise.all([
     apiRequest('GET', '/raio-x'),
-    apiRequest('GET', '/base-mestra'),
     apiRequest('GET', '/ausencias'),
-    apiRequest('GET', '/suplencias'),
     apiRequest('GET', '/recados'),
     apiRequest('GET', '/reunioes'),
     apiRequest('GET', '/plantoes'),
     apiRequest('GET', '/lembretes'),
     apiRequest('GET', '/feedbacks'),
-    apiRequest('GET', '/sprs'),
   ]);
-  DB = { users, raioX, baseMestra, ausencias, suplencias, recados, reunioes, plantoes, lembretes, feedbacks, sprs };
+  return { raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks };
 }
 
-// Cache local do DB inteiro — motivo: o Firestore (plano gratuito) tem uma
-// cota DIÁRIA de leituras, e cada login/F5 buscava as 11 coleções inteiras
-// do zero (loadDB() acima), contando 1 leitura por documento. Com o time
+async function loadDBCacheable(){
+  const [users, baseMestra, suplencias, sprs] = await Promise.all([
+    apiRequest('GET', '/users'),
+    apiRequest('GET', '/base-mestra'),
+    apiRequest('GET', '/suplencias'),
+    apiRequest('GET', '/sprs'),
+  ]);
+  return { users, baseMestra, suplencias, sprs };
+}
+
+// Cache local só da parte "cacheável" acima — motivo: o Firestore (plano
+// gratuito) tem uma cota DIÁRIA de leituras, e cada login/F5 buscava as 11
+// coleções inteiras do zero, contando 1 leitura por documento. Com o time
 // inteiro recarregando várias vezes ao dia, isso estourou a cota e travou
 // o acesso de todo mundo (incidente de 04/08/2026). TTL de 24h — alinhado
 // com o reset diário da cota, escolhido deliberadamente pra cortar
@@ -82,9 +99,10 @@ async function loadDB(){
 // docs/MIGRACAO-SUPABASE.md). Mudanças feitas na PRÓPRIA aba continuam
 // instantâneas (todo create/update/delete já atualiza o DB em memória
 // direto, sem precisar buscar de novo) — a janela de até 24h só afeta ver
-// mudanças feitas por OUTRA pessoa/aba nesse meio tempo. Ver botão
-// "Atualizar dados" em Configurações pra forçar uma busca nova quando
-// precisar de dado fresco.
+// mudanças feitas por OUTRA pessoa/aba nesse meio tempo, e só na parte
+// cacheável (a parte "sempre fresco" já cobre painéis de status). Ver
+// botão "Atualizar dados" em Configurações pra forçar uma busca nova
+// quando precisar de dado fresco mesmo assim.
 const DB_CACHE_KEY = 'kronoop-db-cache';
 const DB_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
 
@@ -108,26 +126,30 @@ function clearDBCache(){
   try{ localStorage.removeItem(DB_CACHE_KEY); }catch(e){}
 }
 
-// Usa o cache local se existir e ainda for válido; senão busca tudo do
-// Firestore (loadDB()) e atualiza o cache. forceRefresh=true ignora o
-// cache e força uma busca nova — usado pelo botão "Atualizar dados".
+// Usa o cache local pra parte cacheável se existir e ainda for válido;
+// senão busca ela do zero e atualiza o cache. A parte "sempre fresco" é
+// buscada em toda chamada, cache ou não (ver loadDBFresh() acima).
+// forceRefresh=true ignora o cache da parte cacheável — usado pelo botão
+// "Atualizar dados".
 //
 // _loadDBInFlight faz as chamadas concorrentes reaproveitarem a MESMA
 // busca em vez de disparar uma pra cada — o onAuthStateChanged do
 // Firebase (main.js) pode disparar duas vezes em sequência rápida no
-// mesmo login, e sem isso cada uma iniciava seu próprio loadDB(),
-// dobrando à toa as leituras cobradas nesse login (achado ao investigar
-// o incidente de cota de 04/08/2026).
+// mesmo login, e sem isso cada uma iniciava sua própria busca, dobrando à
+// toa as leituras cobradas nesse login (achado ao investigar o incidente
+// de cota de 04/08/2026).
 let _loadDBInFlight = null;
 async function loadDBCached(forceRefresh){
-  if(!forceRefresh){
-    const cached = readDBCache();
-    if(cached){ DB = cached; return; }
-  }
   if(_loadDBInFlight) return _loadDBInFlight;
   _loadDBInFlight = (async ()=>{
-    await loadDB();
-    writeDBCache(DB);
+    const freshPromise = loadDBFresh();
+    let cacheable = !forceRefresh ? readDBCache() : null;
+    if(!cacheable){
+      cacheable = await loadDBCacheable();
+      writeDBCache(cacheable);
+    }
+    const fresh = await freshPromise;
+    DB = { ...cacheable, ...fresh };
   })();
   try{ await _loadDBInFlight; }
   finally{ _loadDBInFlight = null; }
