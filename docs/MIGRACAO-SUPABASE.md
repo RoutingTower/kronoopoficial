@@ -346,6 +346,18 @@ do zero, com senhas novas), então nesse caso avise antes.
   escalas). Corrigido: `analista_id` virou opcional em `base_mestra` e
   `raio_x` — `migrate-to-supabase.js` já gravava `null` como fallback
   quando o id não é encontrado no mapa, só faltava o banco aceitar.
+- **`SUPABASE_URL` com `.com` em vez de `.co` no Render**: colada errada
+  (autocorreção/digitação) no painel de env vars, causando `fetch failed`
+  (`ENOTFOUND`) em toda chamada do backend ao Supabase — o domínio
+  `simkcmjwfpcljyvcmhjs.supabase.com` simplesmente não existe. Sintoma
+  enganoso: parecia falha de rede/IPv6 (daí o `dns.setDefaultResultOrder`
+  em [server.js](../backend/src/server.js), que não fazia mal mas também
+  não era a causa). Achado só depois de adicionar um endpoint de
+  diagnóstico temporário (`/api/debug-network`, já removido) que testava
+  DNS + fetch cru, porque a lib `supabase-js` descarta o erro de rede
+  original e só propaga "fetch failed" genérico. Lição: sempre conferir
+  o domínio (`.co`, não `.com`) ao colar a Project URL do Supabase em
+  qualquer lugar.
 - **`main.js` chamava `firebase.auth().onAuthStateChanged(...)` direto**,
   por fora da abstração `KronoAuth` — não coberto por nenhum item deste
   checklist. Se os `<script>` fossem trocados sem isso, o boot da página
