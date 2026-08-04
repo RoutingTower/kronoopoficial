@@ -346,6 +346,17 @@ function downloadXLSX(filename, headers, exampleRow){
   XLSX.writeFile(wb, filename);
 }
 
+// Export genérico de relatório (telas do Coordenador com filtro) — mesma
+// lib (SheetJS) já usada pra template/import acima, só que com N linhas em
+// vez de uma linha de exemplo. `rows` é array de arrays, já na ordem de
+// `headers`.
+function exportarRelatorioExcel(filename, headers, rows){
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Relatório');
+  XLSX.writeFile(wb, filename);
+}
+
 const XLSX_TIME_KEYS = new Set(['hora_inicio','hora_fim']);
 
 // Células de hora no Excel chegam de formas diferentes dependendo de como a

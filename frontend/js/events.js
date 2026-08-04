@@ -346,6 +346,25 @@ function bindMainEvents(){
     });
   });
 
+  // Abre o histórico do analista (ver analistaTimelineModal em
+  // render-coordenador.js) — qualquer nome marcado com esse atributo
+  // (Dashboard Global: lista de risco; Painel Hora a Hora: coluna Analista).
+  main.querySelectorAll('[data-analista-timeline]').forEach(el=>{
+    el.addEventListener('click', ()=> analistaTimelineModal(el.dataset.analistaTimeline));
+  });
+
+  // Botões "Exportar Excel" das telas do coordenador (render-coordenador.js).
+  const btnExportDashboard = document.getElementById('btnExportDashboard');
+  if(btnExportDashboard) btnExportDashboard.addEventListener('click', exportarDashboard);
+  const btnExportPainel = document.getElementById('btnExportPainel');
+  if(btnExportPainel) btnExportPainel.addEventListener('click', exportarPainelHoraAHora);
+  const btnExportStatus = document.getElementById('btnExportStatus');
+  if(btnExportStatus) btnExportStatus.addEventListener('click', exportarStatus);
+  const btnExportAnomalias = document.getElementById('btnExportAnomalias');
+  if(btnExportAnomalias) btnExportAnomalias.addEventListener('click', exportarAnomalias);
+  const btnExportMetricas = document.getElementById('btnExportMetricas');
+  if(btnExportMetricas) btnExportMetricas.addEventListener('click', exportarMetricas);
+
   bindMultiselect(main, 'btnMetricasAnalistaToggle', 'metricasAnalistaTodos', 'metricasAnalistaChk', uiState.metricasFiltro, 'analistas', 'metricasAnalistaDropdownOpen');
   // Filtro por Supervisor da tela de Métricas do coordenador (ver
   // coordMetricas em render-coordenador.js) e das outras telas executivas.
