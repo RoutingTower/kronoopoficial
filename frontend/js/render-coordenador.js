@@ -9,23 +9,33 @@ function renderCoordenador(){
   else if(activeNavKey==='painel') content = coordPainelHoraAHora();
   else if(activeNavKey==='status') content = coordStatus();
   else if(activeNavKey==='anomalias') content = coordAnomalias();
-  else if(activeNavKey==='feedbacks') content = coordFeedbacks();
+  else if(activeNavKey==='metricas') content = coordMetricas();
   return `<div class="page-head"><div><h1 class="page-title">${tabLabel}</h1><div class="page-desc">Visão executiva de toda a operação</div></div></div>${content}`;
 }
 
 
-// Só o coordenador vê isso — o analista só tem a tela de envio (ver
-// renderFeedbackAnalista em render-analista.js).
-function coordFeedbacks(){
-  const items = [...DB.feedbacks].sort((a,b)=>b.ts-a.ts);
-  return `
-  <div class="card">
-  ${items.length===0 ? '<div class="empty">Nenhum feedback recebido ainda.</div>' : items.map(f=>`<div class="msg-item">
-    <div class="msg-meta">${escapeHtml(f.analistaNome||userById(f.analistaId)?.name||'—')} · ${timeAgo(f.ts)}</div>
-    <div style="margin-top:4px;white-space:pre-wrap;">${escapeHtml(f.texto)}</div>
-    <div style="margin-top:8px;"><button class="btn btn-danger" data-excluir-feedback="${f.id}">Excluir</button></div>
-  </div>`).join('')}
-  </div>`;
+// Mesmo núcleo de cálculo/gráficos do supervisor (metricasBody, em
+// render-supervisor.js), mas filtrando por Supervisor em vez de Analista —
+// cada supervisor selecionado expande pra equipe dele inteira.
+function coordMetricas(){
+  const flt = uiState.metricasFiltro;
+  const sups = usersByRole('supervisor');
+  const supsSelecionados = flt.supervisores.length ? sups.filter(s=>flt.supervisores.includes(s.id)) : sups;
+  const supIds = supsSelecionados.map(s=>s.id);
+  const selecionados = DB.users.filter(u=>u.role==='analista' && supIds.includes(u.supervisorId));
+  const picker = `<div class="multiselect">
+      <button type="button" class="multiselect-btn" id="btnMetricasSupervisorToggle">
+        <span>${flt.supervisores.length===0 ? 'Todos os supervisores' : `${flt.supervisores.length} supervisor(es) selecionado(s)`}</span>
+        <span>▾</span>
+      </button>
+      ${uiState.metricasSupervisorDropdownOpen ? `
+      <div class="multiselect-panel">
+        <label><input type="checkbox" id="metricasSupervisorTodos" ${flt.supervisores.length===0?'checked':''}> <b>Todos</b></label>
+        <div class="msep"></div>
+        ${sups.map(s=>`<label><input type="checkbox" class="metricasSupervisorChk" value="${s.id}" ${flt.supervisores.includes(s.id)?'checked':''}> ${escapeHtml(s.name)}</label>`).join('') || '<div class="help-text" style="margin:6px 8px;">Nenhum supervisor cadastrado</div>'}
+      </div>` : ''}
+    </div>`;
+  return metricasBody(selecionados, picker, flt.supervisores.length===1 ? ' (equipe selecionada)' : '');
 }
 
 

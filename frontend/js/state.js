@@ -15,10 +15,14 @@ let session = null;
 let uiState = {
   analistaView:'diaria', analistaDate: hojeAgendaISO(), analistaOpFiltro: 'all',
   gradeFilters:{ data: hojeAgendaISO(), hora:'all', analista:'all', op:'all', nome:'all', status:'all' },
-  // analistas:[] = "Todos". Preenchido = só os ids selecionados no
-  // dropdown de multi-seleção (ver supMetricas em render-supervisor.js).
-  metricasFiltro:{ inicio: addDaysISO(todayISO(), -7), fim: todayISO(), analistas: [] },
+  // analistas:[] = "Todos" (supervisor filtra por analista da própria
+  // equipe, ver supMetricas). supervisores:[] = "Todos" (coordenador filtra
+  // por supervisor — expande pra equipe de cada um, ver coordMetricas em
+  // render-coordenador.js). Preenchido = só os ids selecionados no
+  // dropdown de multi-seleção correspondente.
+  metricasFiltro:{ inicio: addDaysISO(todayISO(), -7), fim: todayISO(), analistas: [], supervisores: [] },
   metricasAnalistaDropdownOpen: false,
+  metricasSupervisorDropdownOpen: false,
   envioFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO() },
   ocorrenciasFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), analista: 'all', operacao: 'all', avaliacaoMax: '' },
   suplenciasFiltro:{ operacao:'', horario:'', suplente:'all', cobrindo:'all', inicio:'', fim:'' },
@@ -163,7 +167,7 @@ const apiCreateLembrete = (data) => apiRequest('POST', '/lembretes', data);
 const apiUpdateLembrete = (id, patch) => apiRequest('PATCH', `/lembretes/${id}`, patch);
 const apiDeleteLembrete = (id) => apiRequest('DELETE', `/lembretes/${id}`);
 
-// feedbacks — analista cria, só coordenador lista/exclui na UI.
+// feedbacks — analista cria, só o supervisor da equipe lista/exclui na UI.
 const apiCreateFeedback = (data) => apiRequest('POST', '/feedbacks', data);
 const apiDeleteFeedback = (id) => apiRequest('DELETE', `/feedbacks/${id}`);
 

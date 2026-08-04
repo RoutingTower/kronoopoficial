@@ -1,11 +1,12 @@
 const supabaseService = require("../services/supabaseService");
-const { getCaller } = require("../services/authz");
+const { getCaller, supervisorIdDoAnalista } = require("../services/authz");
 
 const COLLECTION = "feedbacks";
 
 // Lista pra todo mundo (mesmo padrão de baseMestra/ausencias/etc.: o
 // backend não filtra por role, quem decide o que mostrar é a tela — só o
-// Coordenador tem uma tela que lista isso, ver frontend/js/render-coordenador.js).
+// supervisor tem uma tela que lista isso, filtrada pra própria equipe, ver
+// frontend/js/render-supervisor.js, supFeedbacks).
 async function listFeedbacks(req, res) {
   const feedbacks = await supabaseService.listAll(COLLECTION);
   res.json(feedbacks);
@@ -32,14 +33,16 @@ async function createFeedback(req, res) {
   res.status(201).json(feedback);
 }
 
-// Só coordenador (ou admin) exclui — é quem tem a tela de gestão desses
-// feedbacks.
+// Só o supervisor do analista que enviou (ou admin) exclui — é quem tem a
+// tela de gestão desses feedbacks agora (ver frontend/js/render-supervisor.js).
 async function deleteFeedback(req, res) {
   const existing = await supabaseService.getById(COLLECTION, req.params.id);
   if (!existing) return res.status(404).json({ error: "not_found" });
   const caller = await getCaller(req);
-  if (!caller || (!caller.isAdmin && caller.role !== "coordenador")) {
-    return res.status(403).json({ error: "forbidden", message: "Só coordenadores podem excluir feedbacks." });
+  if (!caller) return res.status(403).json({ error: "forbidden", message: "Usuário autenticado não encontrado." });
+  const isSupervisorDoAnalista = caller.role === "supervisor" && (await supervisorIdDoAnalista(existing.analistaId)) === caller.id;
+  if (!caller.isAdmin && !isSupervisorDoAnalista) {
+    return res.status(403).json({ error: "forbidden", message: "Só o supervisor da equipe pode excluir este feedback." });
   }
   await supabaseService.remove(COLLECTION, req.params.id);
   res.status(204).send();

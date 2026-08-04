@@ -14,6 +14,7 @@ function renderSupervisor(){
   else if(activeNavKey==='metricas') content = supMetricas(myAnalistas);
   else if(activeNavKey==='transmissao') content = supTransmissao(myAnalistas);
   else if(activeNavKey==='ocorrencias') content = supOcorrencias(myAnalistas);
+  else if(activeNavKey==='feedbacks') content = supFeedbacks(myAnalistas);
   return `<div class="page-head"><div><h1 class="page-title">${tabLabel}</h1><div class="page-desc">Gestão da equipe de ${session.name}</div></div></div>${content}`;
 }
 
@@ -354,19 +355,44 @@ function supPlantao(){
 }
 
 
+// Feedbacks de melhoria enviados pelos analistas da própria equipe — cada
+// supervisor só vê (e exclui) os da equipe dele (ver
+// backend/src/controllers/feedbacks.controller.js, deleteFeedback exige
+// ser o supervisor do analista que enviou). O analista só tem a tela de
+// envio (ver renderFeedbackAnalista em render-analista.js).
+function supFeedbacks(myAnalistas){
+  const meusIds = new Set(myAnalistas.map(a=>a.id));
+  const items = DB.feedbacks.filter(f=>meusIds.has(f.analistaId)).sort((a,b)=>b.ts-a.ts);
+  return `
+  <div class="card">
+  ${items.length===0 ? '<div class="empty">Nenhum feedback recebido ainda.</div>' : items.map(f=>`<div class="msg-item">
+    <div class="msg-meta">${escapeHtml(f.analistaNome||userById(f.analistaId)?.name||'—')} · ${timeAgo(f.ts)}</div>
+    <div style="margin-top:4px;white-space:pre-wrap;">${escapeHtml(f.texto)}</div>
+    <div style="margin-top:8px;"><button class="btn btn-danger" data-excluir-feedback="${f.id}">Excluir</button></div>
+  </div>`).join('')}
+  </div>`;
+}
+
+
 // Guarda os dados já calculados da última renderização pra
 // renderMetricasCharts() (events.js) desenhar os gráficos sem recalcular
 // tudo de novo — chamado logo depois do innerHTML ser trocado (mesmo
 // padrão de updateNavBadges()).
 let metricasChartData = null;
 
-function supMetricas(myAnalistas){
+// Núcleo do cálculo/render de Métricas, compartilhado entre supervisor
+// (supMetricas, filtra a própria equipe por analista) e coordenador
+// (coordMetricas em render-coordenador.js, filtra toda a operação por
+// supervisor — expande pra equipe de cada um selecionado). `picker` é o
+// dropdown de seleção, específico de cada tela; `notaSingular` aparece
+// junto do número de folgas quando a seleção resultante é só 1
+// pessoa/equipe (ex.: " (analista selecionado)"), pra dar contexto.
+function metricasBody(selecionados, picker, notaSingular){
   const flt = uiState.metricasFiltro;
   const inicio = flt.inicio || addDaysISO(todayISO(), -7);
   const fim = flt.fim || todayISO();
   const noPeriodo = data => data>=inicio && data<=fim;
 
-  const selecionados = flt.analistas.length ? myAnalistas.filter(a=>flt.analistas.includes(a.id)) : myAnalistas;
   const ids = selecionados.map(a=>a.id);
   const nomesSelecionados = new Set(selecionados.map(a=>a.name));
 
@@ -430,22 +456,11 @@ function supMetricas(myAnalistas){
     <label style="font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">Fim
       <input type="date" data-metricasfiltro="fim" value="${fim}" min="${inicio}">
     </label>
-    <div class="multiselect">
-      <button type="button" class="multiselect-btn" id="btnMetricasAnalistaToggle">
-        <span>${flt.analistas.length===0 ? 'Todos os analistas' : `${flt.analistas.length} analista(s) selecionado(s)`}</span>
-        <span>▾</span>
-      </button>
-      ${uiState.metricasAnalistaDropdownOpen ? `
-      <div class="multiselect-panel">
-        <label><input type="checkbox" id="metricasAnalistaTodos" ${flt.analistas.length===0?'checked':''}> <b>Todos</b></label>
-        <div class="msep"></div>
-        ${myAnalistas.map(a=>`<label><input type="checkbox" class="metricasAnalistaChk" value="${a.id}" ${flt.analistas.includes(a.id)?'checked':''}> ${escapeHtml(a.name)}</label>`).join('') || '<div class="help-text" style="margin:6px 8px;">Nenhum analista cadastrado</div>'}
-      </div>` : ''}
-    </div>
+    ${picker}
   </div>
   <div class="grid-4" style="margin-bottom:20px;">
     <div class="stat-card"><div class="stat-num">${ativos.length}</div><div class="stat-label">Analistas ativos no período</div></div>
-    <div class="stat-card"><div class="stat-num" style="color:var(--folga);">${periodoCurto ? emFolga.length : diasFolgaQtd}</div><div class="stat-label">${periodoCurto ? 'Analistas em folga/ausentes' : 'Folgas/férias no período'}${flt.analistas.length===1?' (analista selecionado)':''}</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--folga);">${periodoCurto ? emFolga.length : diasFolgaQtd}</div><div class="stat-label">${periodoCurto ? 'Analistas em folga/ausentes' : 'Folgas/férias no período'}${notaSingular||''}</div></div>
     <div class="stat-card"><div class="stat-num">${totalCoberturas}</div><div class="stat-label">Coberturas no período</div></div>
     <div class="stat-card"><div class="stat-num">${opsPeriodo}</div><div class="stat-label">Operações ativas no período</div></div>
   </div>
@@ -472,6 +487,28 @@ function supMetricas(myAnalistas){
     return `<tr><td>${escapeHtml(c.name)}</td><td>${statusPill(c)}</td><td class="mono">${cob}</td></tr>`;
   }).join('') || '<tr><td colspan="3" class="empty">Sem dados</td></tr>'}
   </tbody></table></div>`;
+}
+
+function analistaPicker(myAnalistas){
+  const flt = uiState.metricasFiltro;
+  return `<div class="multiselect">
+      <button type="button" class="multiselect-btn" id="btnMetricasAnalistaToggle">
+        <span>${flt.analistas.length===0 ? 'Todos os analistas' : `${flt.analistas.length} analista(s) selecionado(s)`}</span>
+        <span>▾</span>
+      </button>
+      ${uiState.metricasAnalistaDropdownOpen ? `
+      <div class="multiselect-panel">
+        <label><input type="checkbox" id="metricasAnalistaTodos" ${flt.analistas.length===0?'checked':''}> <b>Todos</b></label>
+        <div class="msep"></div>
+        ${myAnalistas.map(a=>`<label><input type="checkbox" class="metricasAnalistaChk" value="${a.id}" ${flt.analistas.includes(a.id)?'checked':''}> ${escapeHtml(a.name)}</label>`).join('') || '<div class="help-text" style="margin:6px 8px;">Nenhum analista cadastrado</div>'}
+      </div>` : ''}
+    </div>`;
+}
+
+function supMetricas(myAnalistas){
+  const flt = uiState.metricasFiltro;
+  const selecionados = flt.analistas.length ? myAnalistas.filter(a=>flt.analistas.includes(a.id)) : myAnalistas;
+  return metricasBody(selecionados, analistaPicker(myAnalistas), flt.analistas.length===1 ? ' (analista selecionado)' : '');
 }
 
 // Chamado de novo a cada renderMain() (ver ui.js) — os canvases são

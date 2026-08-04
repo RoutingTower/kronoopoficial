@@ -8,8 +8,9 @@ document.getElementById('btnPersonalizarMenu').addEventListener('click', openMen
 // botão e os itens de dentro do painel já dão stopPropagation (events.js),
 // então só chega aqui clique de fato fora.
 document.addEventListener('click', ()=>{
-  if(session && uiState.metricasAnalistaDropdownOpen){
+  if(session && (uiState.metricasAnalistaDropdownOpen || uiState.metricasSupervisorDropdownOpen)){
     uiState.metricasAnalistaDropdownOpen = false;
+    uiState.metricasSupervisorDropdownOpen = false;
     renderMain();
   }
 });

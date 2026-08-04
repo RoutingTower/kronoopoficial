@@ -190,11 +190,11 @@ function renderAnalistaMensal(analistaId, dateStr, opFiltro){
 
 
 // Só a tela de envio — o analista não vê os feedbacks que já mandou
-// (nem os de outros); só o coordenador tem uma tela de listagem (ver
-// coordFeedbacks em render-coordenador.js).
+// (nem os de outros); só o próprio supervisor tem uma tela de listagem
+// (ver supFeedbacks em render-supervisor.js).
 function renderFeedbackAnalista(){
   return `
-  <div class="page-head"><div><h1 class="page-title">Feedback</h1><div class="page-desc">Sugestões e melhorias pra ferramenta — só o coordenador lê</div></div></div>
+  <div class="page-head"><div><h1 class="page-title">Feedback</h1><div class="page-desc">Sugestões e melhorias pra ferramenta — só o seu supervisor lê</div></div></div>
   <div class="card" style="max-width:560px;">
     <div id="feedbackMsg" class="login-error"></div>
     <div class="field">

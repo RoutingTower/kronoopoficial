@@ -343,6 +343,31 @@ function bindMainEvents(){
       renderMain();
     });
   });
+
+  // Mesmo padrão acima, só que pro filtro por Supervisor da tela de
+  // Métricas do coordenador (ver coordMetricas em render-coordenador.js).
+  const btnMetricasSupervisorToggle = document.getElementById('btnMetricasSupervisorToggle');
+  if(btnMetricasSupervisorToggle) btnMetricasSupervisorToggle.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    uiState.metricasSupervisorDropdownOpen = !uiState.metricasSupervisorDropdownOpen;
+    renderMain();
+  });
+  const metricasSupervisorTodos = document.getElementById('metricasSupervisorTodos');
+  if(metricasSupervisorTodos) metricasSupervisorTodos.addEventListener('click', (e)=>{ e.stopPropagation(); });
+  if(metricasSupervisorTodos) metricasSupervisorTodos.addEventListener('change', ()=>{
+    uiState.metricasFiltro.supervisores = [];
+    renderMain();
+  });
+  main.querySelectorAll('.metricasSupervisorChk').forEach(chk=>{
+    chk.addEventListener('click', (e)=>{ e.stopPropagation(); });
+    chk.addEventListener('change', ()=>{
+      const arr = uiState.metricasFiltro.supervisores;
+      if(chk.checked){ if(!arr.includes(chk.value)) arr.push(chk.value); }
+      else { uiState.metricasFiltro.supervisores = arr.filter(x=>x!==chk.value); }
+      renderMain();
+    });
+  });
+
   const metricasPanel = main.querySelector('.multiselect-panel');
   if(metricasPanel) metricasPanel.addEventListener('click', e=>e.stopPropagation());
 
