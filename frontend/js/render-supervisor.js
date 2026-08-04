@@ -137,6 +137,11 @@ function supSPR(){
   <div class="help-text">Cadastre o SPR de cada Operação/Ciclo aqui — ele aparece automaticamente em Operações Fixas, Cobertura e na Programação do analista, sempre que a operação e o ciclo baterem.</div>
   <datalist id="sprOpList">${opsConhecidas.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>
   <datalist id="sprCicloList">${ciclosConhecidos.map(c=>`<option value="${escapeHtml(c)}">`).join('')}</datalist>
+  <div class="csv-row">
+    <span class="csv-label">Carga em massa de SPR (Excel)</span>
+    <button class="btn" id="btnBaixarModeloSpr">⭳ Baixar modelo Excel</button>
+    <label class="btn" style="margin:0;">⭱ Importar Excel<input type="file" accept=".xlsx,.xls" id="fileImportSpr" style="display:none;"></label>
+  </div>
   <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
     <button class="btn btn-brand" id="btnNovoSpr">+ Nova entrada SPR</button>
   </div>

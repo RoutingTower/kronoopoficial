@@ -589,6 +589,43 @@ function bindMainEvents(){
     });
   });
 
+  const btnBaixarModeloSpr = document.getElementById('btnBaixarModeloSpr');
+  if(btnBaixarModeloSpr) btnBaixarModeloSpr.addEventListener('click', ()=>{
+    downloadXLSX('modelo_spr.xlsx', ['operacao','ciclo','spr'], ['LM Hub_SP_Atibaia_Ponte_Alta','T3','92']);
+  });
+  const fileImportSpr = document.getElementById('fileImportSpr');
+  if(fileImportSpr) fileImportSpr.addEventListener('change', async ()=>{
+    const file = fileImportSpr.files[0]; if(!file) return;
+    let rows;
+    try { rows = await parseXLSX(file); }
+    catch(e){ fileImportSpr.value=''; alert('Não foi possível ler o arquivo Excel: '+e.message); return; }
+    let ok=0, fail=0;
+    openProgressModal('Importando SPR...');
+    for(const [idx, r] of rows.entries()){
+      const operacao = (r.operacao||'').trim();
+      const ciclo = (r.ciclo||'').trim();
+      if(!operacao || !ciclo || r.spr===''||r.spr===undefined){ fail++; updateProgressModal(idx+1, rows.length); continue; }
+      // Reimportar a mesma planilha (SPR atualizado) atualiza a entrada já
+      // existente pra essa Operação+Ciclo, em vez de duplicar linha.
+      const existente = DB.sprs.find(s=>s.supervisorId===session.userId && s.operacao===operacao && s.ciclo===ciclo);
+      try{
+        if(existente){
+          const atualizado = await apiUpdateSpr(existente.id, {spr: Number(r.spr)});
+          DB.sprs = DB.sprs.map(x=>x.id===existente.id ? atualizado : x);
+        } else {
+          const novo = await apiCreateSpr({supervisorId:session.userId, operacao, ciclo, spr: Number(r.spr)});
+          DB.sprs.push(novo);
+        }
+        ok++;
+      }catch(e){ console.error('Falha ao importar SPR', r, e); fail++; }
+      updateProgressModal(idx+1, rows.length);
+    }
+    closeModal();
+    fileImportSpr.value='';
+    renderMain();
+    alert(`Importação concluída: ${ok} entrada(s) salva(s)${fail?`, ${fail} linha(s) ignorada(s) (campos obrigatórios ausentes)`:''}.`);
+  });
+
   const btnBaixarModeloMestra = document.getElementById('btnBaixarModeloMestra');
   if(btnBaixarModeloMestra) btnBaixarModeloMestra.addEventListener('click', ()=>{
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
