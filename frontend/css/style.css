@@ -327,6 +327,7 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .cal-chip-folga{background:rgba(184,134,11,0.16);color:var(--folga);}
 .cal-chip-cobertura{background:rgba(47,128,237,0.14);color:var(--wait);}
 .cal-chip-plantao{background:rgba(217,54,46,0.16);color:var(--alert);font-weight:700;}
+.cal-chip-folga-dia{background:rgba(184,134,11,0.16);color:var(--folga);font-weight:700;}
 .cal-chip-reuniao{background:rgba(124,77,255,0.14);color:var(--suplente);}
 .cal-chip-lembrete{background:rgba(238,77,45,0.10);color:var(--brand);}
 .cal-chip-lembrete.cal-chip-done{background:var(--bg-2);color:var(--text-faint);text-decoration:line-through;}

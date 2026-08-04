@@ -219,6 +219,10 @@ function renderAnalista(){
 function extraChipsForDay(analistaId, ds){
   const chips = [];
   if(analistaEmPlantao(analistaId, ds)) chips.push(`<div class="cal-chip cal-chip-plantao" title="Escalado em plantão nesse dia">🔔 Plantão</div>`);
+  // isFolgaDSR() já é "dia totalmente livre": todas as operações do dia
+  // cobertas por outra pessoa, nenhuma operação própria sem cobertura e
+  // sem plantão — exatamente o critério de "folgando".
+  else if(isFolgaDSR(analistaId, ds)) chips.push(`<div class="cal-chip cal-chip-folga-dia" title="Dia de folga">🌙 Folgando</div>`);
   getReunioesForDate(analistaId, ds).forEach(r=>{
     chips.push(`<div class="cal-chip cal-chip-reuniao" title="${escapeHtml(r.titulo)} · ${r.tipo==='grupo'?'Grupo':'Individual'} · ${r.hora}">📅 ${r.hora} ${escapeHtml(r.titulo)}</div>`);
   });
@@ -230,9 +234,16 @@ function extraChipsForDay(analistaId, ds){
 
 function renderAnalistaSemanal(analistaId, dateStr, opFiltro){
   const todayStr = hojeAgendaISO();
+  // O cabeçalho abaixo é fixo (Dom Seg Ter Qua Qui Sex Sáb) — pra bater
+  // com as datas de cada coluna, a semana sempre tem que começar no
+  // domingo, senão a coluna 1 mostra "Dom" mas o card é de outro dia da
+  // semana (achado real: clicar numa terça no calendário Mensal fazia a
+  // visão Semanal começar naquela terça, com "terça" embaixo de "Dom").
+  const diaDaSemana = new Date(dateStr+'T00:00:00').getDay();
+  const inicioSemana = addDaysISO(dateStr, -diaDaSemana);
   const header = WEEKDAY_LABELS.map(w=>`<div class="cal-weekday-header">${w}</div>`).join('');
   const cells = Array.from({length:7}, (_,i)=>{
-    const ds = addDaysISO(dateStr, i);
+    const ds = addDaysISO(inicioSemana, i);
     let slots = filtrarSlotsAgenda(analistaId, ds, opFiltro);
     const dd = new Date(ds+'T00:00:00');
     const label = dd.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
