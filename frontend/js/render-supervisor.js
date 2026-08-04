@@ -6,6 +6,7 @@ function renderSupervisor(){
   let content='';
   if(activeNavKey==='cadastros') content = supCadastros(myAnalistas);
   else if(activeNavKey==='basemestra') content = supBaseMestra(myAnalistas);
+  else if(activeNavKey==='spr') content = supSPR();
   else if(activeNavKey==='suplencias') content = renderImportPendentesBanner('suplencias', myAnalistas) + supSugerirSuplente(myAnalistas) + supSuplencias(myAnalistas);
   else if(activeNavKey==='programacao') content = supProgramacao(myAnalistas);
   else if(activeNavKey==='grade') content = supGrade(myAnalistas);
@@ -117,9 +118,32 @@ function supBaseMestra(myAnalistas){
     <button class="btn btn-brand" id="btnNovaMestra">+ Nova entrada</button>
   </div>
   <div class="card">
-  <table><thead><tr><th>Operação</th><th>Ciclo</th><th>Horário</th><th>Dias</th><th>Titular</th><th>Vigência</th><th></th></tr></thead><tbody>
-  ${rows.map(b=>`<tr><td>${b.operacao}</td><td>${b.ciclo}</td><td class="mono">${b.horaInicio}–${b.horaFim}</td><td class="jornada-tag">${diasBaseMestraLabel(b)}</td><td>${b.titular}</td><td class="mono" style="color:var(--text-muted);">${b.dataInicio} → ${b.dataFim}</td>
-  <td style="text-align:right;white-space:nowrap;"><button class="btn" data-editar-mestra="${b.id}">Editar</button> <button class="btn btn-danger" data-excluir-mestra="${b.id}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="7" class="empty">Nenhuma operação fixa cadastrada</td></tr>'}
+  <table><thead><tr><th>Operação</th><th>Ciclo</th><th>SPR</th><th>Horário</th><th>Dias</th><th>Titular</th><th>Vigência</th><th></th></tr></thead><tbody>
+  ${rows.map(b=>`<tr><td>${b.operacao}</td><td>${b.ciclo}</td><td class="mono">${getSPR(session.userId, b.operacao, b.ciclo) ?? '—'}</td><td class="mono">${b.horaInicio}–${b.horaFim}</td><td class="jornada-tag">${diasBaseMestraLabel(b)}</td><td>${b.titular}</td><td class="mono" style="color:var(--text-muted);">${b.dataInicio} → ${b.dataFim}</td>
+  <td style="text-align:right;white-space:nowrap;"><button class="btn" data-editar-mestra="${b.id}">Editar</button> <button class="btn btn-danger" data-excluir-mestra="${b.id}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="8" class="empty">Nenhuma operação fixa cadastrada</td></tr>'}
+  </tbody></table></div>`;
+}
+
+
+function supSPR(){
+  const rows = [...DB.sprs].filter(s=>s.supervisorId===session.userId).sort((a,b)=> a.operacao.localeCompare(b.operacao) || a.ciclo.localeCompare(b.ciclo));
+  // Sugestões pro datalist do modal (Nova entrada/Editar) — operação e
+  // ciclo já usados em Operações Fixas ou Cobertura, pra evitar erro de
+  // digitação que faria o SPR não bater com nada (mesmo problema que já
+  // resolvemos pro nome do suplente na importação de Cobertura).
+  const opsConhecidas = [...new Set([...DB.baseMestra, ...DB.suplencias].map(b=>b.operacao))].sort();
+  const ciclosConhecidos = [...new Set([...DB.baseMestra, ...DB.suplencias].map(b=>b.ciclo).filter(Boolean))].sort();
+  return `
+  <div class="help-text">Cadastre o SPR de cada Operação/Ciclo aqui — ele aparece automaticamente em Operações Fixas, Cobertura e na Programação do analista, sempre que a operação e o ciclo baterem.</div>
+  <datalist id="sprOpList">${opsConhecidas.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>
+  <datalist id="sprCicloList">${ciclosConhecidos.map(c=>`<option value="${escapeHtml(c)}">`).join('')}</datalist>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+    <button class="btn btn-brand" id="btnNovoSpr">+ Nova entrada SPR</button>
+  </div>
+  <div class="card">
+  <table><thead><tr><th>Operação</th><th>Ciclo</th><th>SPR</th><th></th></tr></thead><tbody>
+  ${rows.map(s=>`<tr><td>${escapeHtml(s.operacao)}</td><td>${escapeHtml(s.ciclo)}</td><td class="mono">${escapeHtml(String(s.spr))}</td>
+  <td style="text-align:right;white-space:nowrap;"><button class="btn" data-editar-spr="${s.id}">Editar</button> <button class="btn btn-danger" data-excluir-spr="${s.id}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="4" class="empty">Nenhum SPR cadastrado</td></tr>'}
   </tbody></table></div>`;
 }
 
@@ -169,9 +193,9 @@ function supSuplencias(myAnalistas){
     <button class="btn btn-danger" id="btnExcluirTodasSuplencias" ${rows.length===0?'disabled':''}>Excluir todos (${rows.length})</button>
   </div>
   <div class="card" style="margin-bottom:22px;">
-  <table><thead><tr><th>Operação</th><th>Ciclo</th><th>Horário</th><th>Folgando</th><th>Suplente</th><th>Data</th><th></th></tr></thead><tbody>
-  ${rows.map(s=>`<tr><td>${s.operacao}</td><td>${s.ciclo||'—'}</td><td class="mono">${s.horaInicio}–${s.horaFim}</td><td>${userById(s.analistaOriginalId)?.name||'—'}</td><td>${s.suplente}</td><td class="mono">${s.dataCobertura}</td>
-  <td style="text-align:right;white-space:nowrap;"><button class="btn" data-editar-suplencia="${s.id}">Editar</button> <button class="btn btn-danger" data-excluir-suplencia="${s.id}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="7" class="empty">Nenhuma cobertura avulsa registrada</td></tr>'}
+  <table><thead><tr><th>Operação</th><th>Ciclo</th><th>SPR</th><th>Horário</th><th>Folgando</th><th>Suplente</th><th>Data</th><th></th></tr></thead><tbody>
+  ${rows.map(s=>`<tr><td>${s.operacao}</td><td>${s.ciclo||'—'}</td><td class="mono">${getSPR(session.userId, s.operacao, s.ciclo) ?? '—'}</td><td class="mono">${s.horaInicio}–${s.horaFim}</td><td>${userById(s.analistaOriginalId)?.name||'—'}</td><td>${s.suplente}</td><td class="mono">${s.dataCobertura}</td>
+  <td style="text-align:right;white-space:nowrap;"><button class="btn" data-editar-suplencia="${s.id}">Editar</button> <button class="btn btn-danger" data-excluir-suplencia="${s.id}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="8" class="empty">Nenhuma cobertura avulsa registrada</td></tr>'}
   </tbody></table></div>`;
 }
 

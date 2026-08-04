@@ -10,6 +10,7 @@ const recadosRoutes = require("./recados.routes");
 const reunioesRoutes = require("./reunioes.routes");
 const plantoesRoutes = require("./plantoes.routes");
 const feedbacksRoutes = require("./feedbacks.routes");
+const sprsRoutes = require("./sprs.routes");
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use("/recados", recadosRoutes);
 router.use("/reunioes", reunioesRoutes);
 router.use("/plantoes", plantoesRoutes);
 router.use("/feedbacks", feedbacksRoutes);
+router.use("/sprs", sprsRoutes);
 
 module.exports = router;

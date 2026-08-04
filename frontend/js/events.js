@@ -525,6 +525,70 @@ function bindMainEvents(){
     });
   });
 
+  const btnNovoSpr = document.getElementById('btnNovoSpr');
+  if(btnNovoSpr) btnNovoSpr.addEventListener('click', ()=>{
+    openModal(`<h3>Nova entrada SPR</h3>
+      <div class="field"><label>Operação</label><input id="fSprOp" list="sprOpList" placeholder="ex: LM Hub_SP_Atibaia_Ponte_Alta"></div>
+      <div class="field"><label>Ciclo</label><input id="fSprCiclo" list="sprCicloList" placeholder="ex: T3"></div>
+      <div class="field"><label>SPR</label><input id="fSprValor" type="number" placeholder="ex: 92"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn" data-modal-cancel>Cancelar</button>
+        <button class="btn btn-brand" id="confirmNovoSpr">Salvar</button>
+      </div>`);
+    const cancelBtn = document.querySelector('[data-modal-cancel]');
+    if(cancelBtn) cancelBtn.onclick = closeModal;
+    document.getElementById('confirmNovoSpr').onclick = async ()=>{
+      const operacao = document.getElementById('fSprOp').value.trim();
+      const ciclo = document.getElementById('fSprCiclo').value.trim();
+      const spr = document.getElementById('fSprValor').value;
+      if(!operacao || !ciclo || spr===''){ alert('Preencha operação, ciclo e SPR.'); return; }
+      const entrada = {supervisorId:session.userId, operacao, ciclo, spr: Number(spr)};
+      try{
+        const novo = await apiCreateSpr(entrada);
+        DB.sprs.push(novo);
+        closeModal(); renderMain();
+      }catch(e){ alert('Não foi possível salvar: '+e.message); }
+    };
+  });
+
+  main.querySelectorAll('[data-editar-spr]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const s = DB.sprs.find(x=>x.id===btn.dataset.editarSpr);
+      if(!s) return;
+      openModal(`<h3>Editar SPR</h3>
+        <div class="field"><label>Operação</label><input id="fEditSprOp" list="sprOpList" value="${escapeHtml(s.operacao)}"></div>
+        <div class="field"><label>Ciclo</label><input id="fEditSprCiclo" list="sprCicloList" value="${escapeHtml(s.ciclo)}"></div>
+        <div class="field"><label>SPR</label><input id="fEditSprValor" type="number" value="${s.spr}"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn" data-modal-cancel>Cancelar</button>
+          <button class="btn btn-brand" id="confirmEditarSpr">Salvar</button>
+        </div>`);
+      const cancelBtn = document.querySelector('[data-modal-cancel]');
+      if(cancelBtn) cancelBtn.onclick = closeModal;
+      document.getElementById('confirmEditarSpr').onclick = async ()=>{
+        const operacao = document.getElementById('fEditSprOp').value.trim();
+        const ciclo = document.getElementById('fEditSprCiclo').value.trim();
+        const spr = document.getElementById('fEditSprValor').value;
+        if(!operacao || !ciclo || spr===''){ alert('Preencha operação, ciclo e SPR.'); return; }
+        const patch = {operacao, ciclo, spr: Number(spr)};
+        try{
+          const atualizado = await apiUpdateSpr(s.id, patch);
+          DB.sprs = DB.sprs.map(x=>x.id===s.id ? atualizado : x);
+          closeModal(); renderMain();
+        }catch(e){ alert('Não foi possível salvar: '+e.message); }
+      };
+    });
+  });
+
+  main.querySelectorAll('[data-excluir-spr]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(!confirm('Excluir esta entrada de SPR?')) return;
+      const id = btn.dataset.excluirSpr;
+      try{ await apiDeleteSpr(id); DB.sprs = DB.sprs.filter(x=>x.id!==id); renderMain(); }
+      catch(e){ alert('Não foi possível excluir: '+e.message); }
+    });
+  });
+
   const btnBaixarModeloMestra = document.getElementById('btnBaixarModeloMestra');
   if(btnBaixarModeloMestra) btnBaixarModeloMestra.addEventListener('click', ()=>{
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);

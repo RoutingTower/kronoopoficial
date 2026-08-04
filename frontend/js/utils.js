@@ -87,6 +87,16 @@ function computeStatus(hora, dataStr, analistaId, operacao, isOff){
 // visual mais limpo — o emoji já carrega o significado, e o texto completo
 // ainda fica disponível no title (tooltip). Tabelas administrativas (Grade
 // do Dia, dashboards) continuam chamando sem esse parâmetro, com o texto.
+// SPR cadastrado (tela SPR do supervisor) pra uma Operação+Ciclo — usado
+// em Operações Fixas, Cobertura e nos flashcards da Programação (própria
+// ou vista pelo supervisor). Escopado por supervisorId (mesma convenção de
+// baseMestra/suplencias/plantoes) pra não misturar SPR de times diferentes
+// que por acaso usem o mesmo nome de operação.
+function getSPR(supervisorId, operacao, ciclo){
+  const rec = DB.sprs.find(s=>s.supervisorId===supervisorId && s.operacao===operacao && s.ciclo===ciclo);
+  return rec ? rec.spr : null;
+}
+
 function statusPill(status, emojiOnly){
   const map = { wait:['pill-wait','⏳','A Iniciar'], live:['pill-live','🏃','Em Andamento'], done:['pill-done','✅','Finalizada'], off:['pill-off','🌙','Ausente'], atraso:['pill-atraso','🚨','Pendente Raio-X'] };
   const [cls,emoji,text] = map[status] || map.wait;

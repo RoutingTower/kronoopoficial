@@ -50,7 +50,7 @@ async function authHeaders(){
 // de onde o dado vem. Se o backend não responder, propaga o erro — quem
 // chama (main.js) mostra isso na tela de login, sem fallback silencioso.
 async function loadDB(){
-  const [users, raioX, baseMestra, ausencias, suplencias, recados, reunioes, plantoes, lembretes, feedbacks] = await Promise.all([
+  const [users, raioX, baseMestra, ausencias, suplencias, recados, reunioes, plantoes, lembretes, feedbacks, sprs] = await Promise.all([
     apiRequest('GET', '/users'),
     apiRequest('GET', '/raio-x'),
     apiRequest('GET', '/base-mestra'),
@@ -61,8 +61,9 @@ async function loadDB(){
     apiRequest('GET', '/plantoes'),
     apiRequest('GET', '/lembretes'),
     apiRequest('GET', '/feedbacks'),
+    apiRequest('GET', '/sprs'),
   ]);
-  DB = { users, raioX, baseMestra, ausencias, suplencias, recados, reunioes, plantoes, lembretes, feedbacks };
+  DB = { users, raioX, baseMestra, ausencias, suplencias, recados, reunioes, plantoes, lembretes, feedbacks, sprs };
 }
 
 // Chamada genérica a um endpoint por recurso (ex.: /users, /raio-x) — usada
@@ -134,6 +135,11 @@ const apiDeleteReuniao = (id) => apiRequest('DELETE', `/reunioes/${id}`);
 const apiCreatePlantao = (data) => apiRequest('POST', '/plantoes', data);
 const apiUpdatePlantao = (id, patch) => apiRequest('PATCH', `/plantoes/${id}`, patch);
 const apiDeletePlantao = (id) => apiRequest('DELETE', `/plantoes/${id}`);
+
+// sprs
+const apiCreateSpr = (data) => apiRequest('POST', '/sprs', data);
+const apiUpdateSpr = (id, patch) => apiRequest('PATCH', `/sprs/${id}`, patch);
+const apiDeleteSpr = (id) => apiRequest('DELETE', `/sprs/${id}`);
 
 // lembretes
 const apiCreateLembrete = (data) => apiRequest('POST', '/lembretes', data);

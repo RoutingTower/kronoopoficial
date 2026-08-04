@@ -7,6 +7,7 @@
 // opFiltro (fixa/cobertura/folga) também só vem preenchido da própria
 // Programação do analista — ver categoriaOperacao() em utils.js.
 function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
+  const supervisorId = userById(analistaId)?.supervisorId;
   let slots = filtrarSlotsAgenda(analistaId, dateStr, opFiltro);
   const reunioes = getReunioesForDate(analistaId, dateStr);
   const lembretesDoDia = showLembretes ? getLembretesForAnalista(analistaId).filter(l=>(l.data||todayISO())===dateStr) : [];
@@ -22,11 +23,12 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
     let cardsHtml = items.map(it=>{
       const status = computeStatus(hour, dateStr, analistaId, it.operacao, it.isOff);
       const raiox = DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===it.horaInicio && r.data===dateStr);
+      const spr = getSPR(supervisorId, it.operacao, it.ciclo);
       return `<div class="flash-card flash-card-${categoriaOperacao(it)}${status==='atraso'?' flash-card-atraso':''}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
           <span class="flash-sigla">${it.operacao}</span>${statusPill(status, true)}
         </div>
-        <div class="flash-meta">${it.ciclo} · ${it.horaInicio}–${it.horaFim}</div>
+        <div class="flash-meta">${it.ciclo} · ${it.horaInicio}–${it.horaFim}${spr!=null ? ` · SPR ${escapeHtml(String(spr))}` : ''}</div>
         <div class="flash-meta">${it.isSuplente ? 'Suplente' : 'Titular'}: ${it.responsavelNome}</div>
         ${it.isOff ? `<div class="flash-cover">${it.tipo==='ferias'?'🏖️ Férias':'🌙 Folga'} do titular</div>`
           : it.isCobertura ? `<div class="flash-cover">🔁 Cobrindo ${it.tipo==='ferias'?'férias':'folga'} de ${it.responsavelNome}</div>` : ''}
