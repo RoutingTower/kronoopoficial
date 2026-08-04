@@ -4,11 +4,25 @@ const { getCaller } = require("../services/authz");
 const COLLECTION = "raioX";
 const MIN_OBSERVACAO_LEN = 150;
 
+// raioX cresce sem limite (1 registro por finalização de operação, de toda
+// a equipe, pra sempre) — sem filtro no próprio Firestore, uma coleção
+// grande faz cada carga de página contar 1 leitura por documento já
+// existente, não só pelos novos. Quando o caller não pede um "inicio",
+// aplicamos um default de 30 dias (mesma janela do filtro de Ocorrências no
+// frontend) pra manter esse custo limitado — quem precisar de um histórico
+// mais antigo tem que pedir explicitamente via ?inicio=.
+const DEFAULT_JANELA_DIAS = 30;
+function inicioPadrao() {
+  const d = new Date();
+  d.setDate(d.getDate() - DEFAULT_JANELA_DIAS);
+  return d.toISOString().slice(0, 10);
+}
+
 async function listRaioX(req, res) {
   const { analistaId, inicio, fim } = req.query;
-  let rows = await firestoreService.listAll(COLLECTION);
+  const inicioEfetivo = inicio || inicioPadrao();
+  let rows = await firestoreService.listWhere(COLLECTION, [["data", ">=", inicioEfetivo]]);
   if (analistaId) rows = rows.filter((r) => r.analistaId === analistaId);
-  if (inicio) rows = rows.filter((r) => (r.data || "") >= inicio);
   if (fim) rows = rows.filter((r) => (r.data || "") <= fim);
   res.json(rows);
 }

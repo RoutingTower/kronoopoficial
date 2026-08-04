@@ -38,6 +38,19 @@ async function listAll(collection) {
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 }
 
+// Igual a listAll, mas filtrando no próprio Firestore em vez de buscar a
+// coleção inteira e filtrar em memória — só os documentos que batem com a
+// condição contam como leitura. `conditions` é uma lista de
+// [campo, operador, valor], ex.: [["data", ">=", "2026-07-01"]].
+async function listWhere(collection, conditions) {
+  let query = getDb().collection(collection);
+  for (const [field, op, value] of conditions) {
+    query = query.where(field, op, value);
+  }
+  const snapshot = await query.get();
+  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+}
+
 async function getById(collection, id) {
   const doc = await getDb().collection(collection).doc(id).get();
   return doc.exists ? { id: doc.id, ...doc.data() } : null;
@@ -64,4 +77,4 @@ async function remove(collection, id) {
   await getDb().collection(collection).doc(id).delete();
 }
 
-module.exports = { getDb, getAuth, listAll, getById, create, update, replace, remove };
+module.exports = { getDb, getAuth, listAll, listWhere, getById, create, update, replace, remove };

@@ -90,7 +90,7 @@ function coordDashboard(){
   </div>
   <div class="grid-2">
     <div class="stat-card"><div class="stat-num">${folgasHoje}</div><div class="stat-label">Analistas em folga/férias hoje</div></div>
-    <div class="stat-card"><div class="stat-num" style="color:var(--alert);">${avaliacaoBaixa}</div><div class="stat-label">Raio-X com avaliação baixa (≤2★)</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--alert);">${avaliacaoBaixa}</div><div class="stat-label">Raio-X com avaliação baixa (≤2★, últimos 30 dias)</div></div>
   </div>`;
 }
 
@@ -136,7 +136,7 @@ function coordAnomalias(){
 
   return `
   <div class="grid-2" style="margin-bottom:16px;">
-    <div class="stat-card"><div class="stat-num">${rows.length}</div><div class="stat-label">Registros de Raio-X totais</div></div>
+    <div class="stat-card"><div class="stat-num">${rows.length}</div><div class="stat-label">Registros de Raio-X (últimos 30 dias)</div></div>
     <div class="stat-card"><div class="stat-num" style="color:var(--alert);">${baixa}</div><div class="stat-label">Avaliação baixa (≤2★)</div></div>
   </div>
   <div class="card" style="margin-bottom:16px;"><div class="section-title">Avaliação média por operação</div>

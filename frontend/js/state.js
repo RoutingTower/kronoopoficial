@@ -50,6 +50,12 @@ async function authHeaders(){
 // de onde o dado vem. Se o backend não responder, propaga o erro — quem
 // chama (main.js) mostra isso na tela de login, sem fallback silencioso.
 async function loadDB(){
+  // /raio-x sem parâmetros vem com um default de 30 dias aplicado pelo
+  // backend (ver raioX.controller.js) — a coleção só cresce (1 registro por
+  // finalização de operação, de toda a equipe, pra sempre) e sem esse corte
+  // cada carga de página lia o histórico inteiro de novo. Telas que
+  // precisem de um histórico mais antigo (Métricas/Ocorrências com range
+  // manual maior que 30 dias) não vão achar esses dados em DB.raioX hoje.
   const [users, raioX, baseMestra, ausencias, suplencias, recados, reunioes, plantoes, lembretes, feedbacks, sprs] = await Promise.all([
     apiRequest('GET', '/users'),
     apiRequest('GET', '/raio-x'),
@@ -70,16 +76,17 @@ async function loadDB(){
 // cota DIÁRIA de leituras, e cada login/F5 buscava as 11 coleções inteiras
 // do zero (loadDB() acima), contando 1 leitura por documento. Com o time
 // inteiro recarregando várias vezes ao dia, isso estourou a cota e travou
-// o acesso de todo mundo (incidente de 04/08/2026). TTL de 1h — bem mais
-// longo que o normal pra um cache assim, escolhido deliberadamente pra
-// cortar leituras repetidas enquanto o projeto não migra pro plano pago.
-// Mudanças feitas na PRÓPRIA aba continuam instantâneas (todo
-// create/update/delete já atualiza o DB em memória direto, sem precisar
-// buscar de novo) — a janela de até 1h só afeta ver mudanças feitas por
-// OUTRA pessoa/aba nesse meio tempo. Ver botão "Atualizar dados" em
-// Configurações pra forçar uma busca nova quando precisar de dado fresco.
+// o acesso de todo mundo (incidente de 04/08/2026). TTL de 24h — alinhado
+// com o reset diário da cota, escolhido deliberadamente pra cortar
+// leituras repetidas enquanto o projeto não migra pro Supabase (ver
+// docs/MIGRACAO-SUPABASE.md). Mudanças feitas na PRÓPRIA aba continuam
+// instantâneas (todo create/update/delete já atualiza o DB em memória
+// direto, sem precisar buscar de novo) — a janela de até 24h só afeta ver
+// mudanças feitas por OUTRA pessoa/aba nesse meio tempo. Ver botão
+// "Atualizar dados" em Configurações pra forçar uma busca nova quando
+// precisar de dado fresco.
 const DB_CACHE_KEY = 'kronoop-db-cache';
-const DB_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hora
+const DB_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
 
 function readDBCache(){
   try{
