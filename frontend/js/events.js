@@ -1153,4 +1153,20 @@ function bindMainEvents(){
     }
     cfgSavePass.disabled = false;
   });
+
+  const cfgRefreshData = document.getElementById('cfgRefreshData');
+  if(cfgRefreshData) cfgRefreshData.addEventListener('click', async ()=>{
+    const label = cfgRefreshData.textContent;
+    cfgRefreshData.disabled = true;
+    cfgRefreshData.textContent = 'Atualizando...';
+    try{
+      clearDBCache();
+      await loadDBCached(true);
+      renderMain();
+    }catch(e){
+      alert('Não foi possível atualizar: '+e.message);
+      cfgRefreshData.disabled = false;
+      cfgRefreshData.textContent = label;
+    }
+  });
 }

@@ -287,6 +287,11 @@ function renderConfiguracoes(){
     <div class="field"><label>Nova senha</label><input type="password" id="cfgNewPass" autocomplete="new-password"></div>
     <div class="field"><label>Confirmar nova senha</label><input type="password" id="cfgNewPass2" autocomplete="new-password"></div>
     <button class="btn btn-brand" id="cfgSavePass">Salvar nova senha</button>
+  </div>
+  <div class="card" style="max-width:420px;margin-top:16px;">
+    <div class="section-title">Atualizar dados</div>
+    <div class="help-text">Os dados ficam guardados no seu navegador por até 1 hora antes de buscar de novo, pra economizar a cota do banco. Se alguém acabou de mudar algo (escala, cobertura etc.) e você precisa ver na hora, clique aqui.</div>
+    <button class="btn" id="cfgRefreshData">🔄 Atualizar dados agora</button>
   </div>`;
 }
 

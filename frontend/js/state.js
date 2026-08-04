@@ -66,6 +66,66 @@ async function loadDB(){
   DB = { users, raioX, baseMestra, ausencias, suplencias, recados, reunioes, plantoes, lembretes, feedbacks, sprs };
 }
 
+// Cache local do DB inteiro — motivo: o Firestore (plano gratuito) tem uma
+// cota DIÁRIA de leituras, e cada login/F5 buscava as 11 coleções inteiras
+// do zero (loadDB() acima), contando 1 leitura por documento. Com o time
+// inteiro recarregando várias vezes ao dia, isso estourou a cota e travou
+// o acesso de todo mundo (incidente de 04/08/2026). TTL de 1h — bem mais
+// longo que o normal pra um cache assim, escolhido deliberadamente pra
+// cortar leituras repetidas enquanto o projeto não migra pro plano pago.
+// Mudanças feitas na PRÓPRIA aba continuam instantâneas (todo
+// create/update/delete já atualiza o DB em memória direto, sem precisar
+// buscar de novo) — a janela de até 1h só afeta ver mudanças feitas por
+// OUTRA pessoa/aba nesse meio tempo. Ver botão "Atualizar dados" em
+// Configurações pra forçar uma busca nova quando precisar de dado fresco.
+const DB_CACHE_KEY = 'kronoop-db-cache';
+const DB_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hora
+
+function readDBCache(){
+  try{
+    const raw = localStorage.getItem(DB_CACHE_KEY);
+    if(!raw) return null;
+    const parsed = JSON.parse(raw);
+    if(!parsed || !parsed.savedAt || !parsed.data) return null;
+    if(Date.now() - parsed.savedAt > DB_CACHE_TTL_MS) return null;
+    return parsed.data;
+  }catch(e){ return null; }
+}
+
+function writeDBCache(data){
+  try{ localStorage.setItem(DB_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), data })); }
+  catch(e){ /* localStorage cheio/indisponível — segue sem cache, não quebra o app */ }
+}
+
+function clearDBCache(){
+  try{ localStorage.removeItem(DB_CACHE_KEY); }catch(e){}
+}
+
+// Usa o cache local se existir e ainda for válido; senão busca tudo do
+// Firestore (loadDB()) e atualiza o cache. forceRefresh=true ignora o
+// cache e força uma busca nova — usado pelo botão "Atualizar dados".
+//
+// _loadDBInFlight faz as chamadas concorrentes reaproveitarem a MESMA
+// busca em vez de disparar uma pra cada — o onAuthStateChanged do
+// Firebase (main.js) pode disparar duas vezes em sequência rápida no
+// mesmo login, e sem isso cada uma iniciava seu próprio loadDB(),
+// dobrando à toa as leituras cobradas nesse login (achado ao investigar
+// o incidente de cota de 04/08/2026).
+let _loadDBInFlight = null;
+async function loadDBCached(forceRefresh){
+  if(!forceRefresh){
+    const cached = readDBCache();
+    if(cached){ DB = cached; return; }
+  }
+  if(_loadDBInFlight) return _loadDBInFlight;
+  _loadDBInFlight = (async ()=>{
+    await loadDB();
+    writeDBCache(DB);
+  })();
+  try{ await _loadDBInFlight; }
+  finally{ _loadDBInFlight = null; }
+}
+
 // Chamada genérica a um endpoint por recurso (ex.: /users, /raio-x) — usada
 // pelos recursos já migrados do blob genérico (ver docs/ROADMAP.md, item 4).
 // Lança com a mensagem amigável que o backend manda em {message}.
