@@ -1072,6 +1072,14 @@ function supOcorrencias(myAnalistas){
     </select>
     <button class="btn" id="btnExportOcorrencias">⬇ Exportar Excel</button>
   </div>
+  <div class="grid-3" style="grid-template-columns:repeat(6,1fr);margin-bottom:16px;">
+    <div class="stat-card"><div class="stat-num">${rows.length}</div><div class="stat-label">Total de Raio-X</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:#D9362E;">${distribuicaoEstrelas[0]}</div><div class="stat-label">1★</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:#EE4D2D;">${distribuicaoEstrelas[1]}</div><div class="stat-label">2★</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:#B8860B;">${distribuicaoEstrelas[2]}</div><div class="stat-label">3★</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:#7FB069;">${distribuicaoEstrelas[3]}</div><div class="stat-label">4★</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:#2FAE60;">${distribuicaoEstrelas[4]}</div><div class="stat-label">5★</div></div>
+  </div>
   <div class="grid-2" style="margin-bottom:18px;align-items:start;">
     <div class="chart-card"><div class="section-title">Distribuição de avaliações</div><canvas id="chartEstrelas"></canvas></div>
     <div class="chart-card"><div class="section-title">Avaliação média por operação</div><canvas id="chartAvaliacaoOperacao"></canvas></div>

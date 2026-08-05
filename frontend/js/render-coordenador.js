@@ -534,7 +534,6 @@ function coordAnomalias(){
     && (!idsPermitidos || idsPermitidos.has(r.analistaId))
     && (f.operacao==='all' || r.operacao===f.operacao)
   ).sort((a,b)=>b.ts-a.ts);
-  const baixa = rows.filter(r=>(r.estrelas||0)<=2).length;
 
   const porOperacao = {};
   rows.forEach(r=>{
@@ -567,9 +566,13 @@ function coordAnomalias(){
     </select>
     <button class="btn" id="btnExportAnomalias">⬇ Exportar Excel</button>
   </div>
-  <div class="grid-2" style="margin-bottom:16px;">
-    <div class="stat-card"><div class="stat-num">${rows.length}</div><div class="stat-label">Registros de Raio-X no período</div></div>
-    <div class="stat-card"><div class="stat-num" style="color:var(--alert);">${baixa}</div><div class="stat-label">Avaliação baixa (≤2★)</div></div>
+  <div class="grid-3" style="grid-template-columns:repeat(6,1fr);margin-bottom:16px;">
+    <div class="stat-card"><div class="stat-num">${rows.length}</div><div class="stat-label">Total de Raio-X</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:#D9362E;">${distribuicaoEstrelas[0]}</div><div class="stat-label">1★</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:#EE4D2D;">${distribuicaoEstrelas[1]}</div><div class="stat-label">2★</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:#B8860B;">${distribuicaoEstrelas[2]}</div><div class="stat-label">3★</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:#7FB069;">${distribuicaoEstrelas[3]}</div><div class="stat-label">4★</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:#2FAE60;">${distribuicaoEstrelas[4]}</div><div class="stat-label">5★</div></div>
   </div>
   <div class="grid-2" style="margin-bottom:18px;align-items:start;">
     <div class="chart-card"><div class="section-title">Distribuição de avaliações</div><canvas id="chartEstrelas"></canvas></div>
