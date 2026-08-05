@@ -699,12 +699,12 @@ function sprResultadoBody(selecionados, picker){
   <div class="grid-2" style="margin-bottom:20px;align-items:start;">
     <div class="chart-card"><div class="section-title">Resultado geral</div><canvas id="chartSprStatus"></canvas></div>
     <div class="chart-card"><div class="section-title">Hubs que bateram a meta</div><canvas id="chartSprHubsBateram"></canvas></div>
-    <div class="chart-card"><div class="section-title">Média de SPR por hub (lançado x meta)</div><canvas id="chartSprMedia"></canvas></div>
+    <div class="chart-card"><div class="section-title">Média de SPR por hub (lançado x REF)</div><canvas id="chartSprMedia"></canvas></div>
     <div class="chart-card"><div class="section-title">Maiores ofensores (hubs)</div><canvas id="chartSprOfensores"></canvas></div>
   </div>
   <div class="card">
   <div class="section-title">Detalhamento por operação</div>
-  <table><thead><tr><th>Operação</th><th>Analista</th><th>SPR Cadastrado</th><th>SPR Lançado</th><th>% meta</th><th>Delta médio</th></tr></thead><tbody>
+  <table><thead><tr><th>Operação</th><th>Analista</th><th>SPR REF</th><th>SPR Lançado</th><th>% meta</th><th>Delta médio</th></tr></thead><tbody>
   ${detalhe.map(d=>`<tr><td>${escapeHtml(d.operacao)}</td><td style="cursor:pointer;" data-analista-timeline="${d.analistaId}" title="Ver histórico">${escapeHtml(d.nome)}</td><td class="mono">${d.metaMedio.toFixed(1)}</td><td class="mono">${d.roteirizadoMedio.toFixed(1)}</td><td class="mono">${d.pct}%</td><td class="mono" style="color:${d.deltaMedio>=0?'var(--done)':'var(--alert)'};">${d.deltaMedio>=0?'+':''}${d.deltaMedio.toFixed(1)}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">Sem finalizações com meta cadastrada no período</td></tr>'}
   </tbody></table>
   ${semMeta>0 ? `<div class="help-text" style="margin-top:10px;">${semMeta} finalização(ões) no período sem meta SPR cadastrada pra operação/ciclo — não entram nesse cálculo.</div>` : ''}
@@ -713,7 +713,7 @@ function sprResultadoBody(selecionados, picker){
 
 function exportarSPR(){
   const linhas = sprExportRows.map(r=>[userById(r.analistaId)?.name||'—', r.operacao, r.data, r.hora, r.sprRoteirizado, r.sprMeta, bateuMetaSPR(r)?'Sim':'Não']);
-  exportarRelatorioExcel(`resultado-spr_${uiState.sprFiltro.inicio}_a_${uiState.sprFiltro.fim}.xlsx`, ['Analista','Operação','Data','Hora','SPR Roteirizado','SPR Meta','Bateu a meta'], linhas);
+  exportarRelatorioExcel(`resultado-spr_${uiState.sprFiltro.inicio}_a_${uiState.sprFiltro.fim}.xlsx`, ['Analista','Operação','Data','Hora','SPR Lançado','SPR REF','Bateu a meta'], linhas);
 }
 
 // Mesmo padrão de renderMetricasCharts() — destrói as instâncias antigas e
@@ -759,7 +759,7 @@ function renderSPRCharts(){
       data:{ labels: sprChartData.porHub.map(h=>h.operacao),
         datasets:[
           { label:'SPR Lançado', data: sprChartData.porHub.map(h=>h.roteirizadoMedio), backgroundColor:'#2F80ED', borderRadius:4 },
-          { label:'SPR Meta', data: sprChartData.porHub.map(h=>h.metaMedio), backgroundColor:'#A8A8A8', borderRadius:4 },
+          { label:'SPR REF', data: sprChartData.porHub.map(h=>h.metaMedio), backgroundColor:'#A8A8A8', borderRadius:4 },
         ] },
       options:{ plugins:{ legend:{ position:'bottom', labels:{ color:textColor } } }, scales:{
         x:{ ticks:{ color:textColor, autoSkip:false, maxRotation:60, minRotation:0 }, grid:{ display:false } },

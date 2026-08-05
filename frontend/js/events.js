@@ -151,7 +151,7 @@ function bindMainEvents(){
       let estrelas = 0;
       openModal(`
         <h3>Finalizar operação — ${op} (${hora})</h3>
-        <div class="help-text">Este é o Raio-X da operação: avalie com estrelas, informe o SPR roteirizado e descreva o que aconteceu. A observação precisa de no mínimo ${RAIOX_MIN_OBS_LEN} caracteres para fechar — tudo isso é obrigatório para finalizar.</div>
+        <div class="help-text">Este é o Raio-X da operação: avalie com estrelas, informe o SPR lançado e descreva o que aconteceu. A observação precisa de no mínimo ${RAIOX_MIN_OBS_LEN} caracteres para fechar — tudo isso é obrigatório para finalizar.</div>
         <div class="field">
           <label>Avaliação</label>
           <div id="raioxStars" class="star-picker" style="display:flex;gap:6px;font-size:28px;line-height:1;">
@@ -159,7 +159,7 @@ function bindMainEvents(){
           </div>
         </div>
         <div class="field">
-          <label>SPR roteirizado${sprMeta!=null ? ` (meta: ${sprMeta})` : ' (sem meta cadastrada pra essa operação/ciclo)'}</label>
+          <label>SPR lançado (obrigatório)${sprMeta!=null ? ` — SPR REF: ${sprMeta}` : ' (sem SPR REF cadastrado pra essa operação/ciclo)'}</label>
           <input type="number" id="raioxSprReal" step="any" placeholder="Ex.: 108">
         </div>
         <div class="field">
