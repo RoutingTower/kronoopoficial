@@ -851,6 +851,55 @@ function bindMainEvents(){
     alert(`Importação concluída: ${ok} entrada(s) adicionada(s)${fail?`, ${fail} linha(s) ignorada(s) (campos obrigatórios ausentes)`:''}${pendentes.length?`, ${pendentes.length} nome(s) não encontrado(s) — corrija no aviso no topo da tela.`:''}.`);
   });
 
+  const btnBaixarModeloReuniao = document.getElementById('btnBaixarModeloReuniao');
+  if(btnBaixarModeloReuniao) btnBaixarModeloReuniao.addEventListener('click', ()=>{
+    downloadXLSX('modelo_reunioes.xlsx',
+      ['titulo','tipo','data','hora_inicio','hora_fim','analistas','link'],
+      ['Café da Madrugada','grupo', todayISO(), '00:00','00:20','','https://meet.google.com/exemplo']);
+  });
+  const fileImportReuniao = document.getElementById('fileImportReuniao');
+  if(fileImportReuniao) fileImportReuniao.addEventListener('change', async ()=>{
+    const file = fileImportReuniao.files[0]; if(!file) return;
+    const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
+    let rows;
+    try { rows = await parseXLSX(file); }
+    catch(e){ fileImportReuniao.value=''; alert('Não foi possível ler o arquivo Excel: '+e.message); return; }
+    let ok=0, fail=0;
+    const naoEncontrados = new Set();
+    openProgressModal('Importando reuniões...');
+    for(const [idx, r] of rows.entries()){
+      const titulo = (r.titulo||'').trim();
+      const tipo = (r.tipo||'').trim().toLowerCase()==='individual' ? 'individual' : 'grupo';
+      const data = (r.data||'').trim();
+      const hora = (r.hora_inicio||'').trim();
+      if(!titulo || !data || !hora){ fail++; updateProgressModal(idx+1, rows.length); continue; }
+      // Coluna "analistas" vazia + tipo grupo = toda a equipe (mesma
+      // convenção do modal Nova reunião, ver btnNovaReuniao). Em tipo
+      // individual precisa bater com exatamente um analista.
+      const nomes = (r.analistas||'').split(',').map(s=>s.trim()).filter(Boolean);
+      let analistaIds = [];
+      if(tipo==='individual'){
+        const a = findAnalistaByName(myAnalistas, nomes[0]||'');
+        if(!a){ if(nomes[0]) naoEncontrados.add(nomes[0]); fail++; updateProgressModal(idx+1, rows.length); continue; }
+        analistaIds = [a.id];
+      } else {
+        nomes.forEach(nome=>{
+          const a = findAnalistaByName(myAnalistas, nome);
+          if(a) analistaIds.push(a.id); else naoEncontrados.add(nome);
+        });
+      }
+      const entrada = {tipo, titulo, data, hora, horaFim:(r.hora_fim||'').trim(), analistaIds,
+        supervisorId:session.userId, criadoPor:session.name, link:normalizeUrl((r.link||'').trim())};
+      try{ DB.reunioes.push(await apiCreateReuniao(entrada)); ok++; }
+      catch(e){ console.error('Falha ao importar reunião', r, e); fail++; }
+      updateProgressModal(idx+1, rows.length);
+    }
+    closeModal();
+    fileImportReuniao.value='';
+    renderMain();
+    alert(`Importação concluída: ${ok} reunião(ões) adicionada(s)${fail?`, ${fail} linha(s) ignorada(s)`:''}${naoEncontrados.size?`, nome(s) não encontrado(s): ${[...naoEncontrados].join(', ')}`:''}.`);
+  });
+
   main.querySelectorAll('[data-pendente-idx]').forEach(sel=>{
     sel.addEventListener('change', ()=>{
       const idx = parseInt(sel.dataset.pendenteIdx, 10);

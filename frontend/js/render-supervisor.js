@@ -450,6 +450,11 @@ function supReunioes(myAnalistas){
       <button data-view="mensal" class="${view==='mensal'?'active':''}">Mensal</button>
     </div>
   </div>
+  <div class="csv-row">
+    <span class="csv-label">Carga em massa de reuniões (Excel)</span>
+    <button class="btn" id="btnBaixarModeloReuniao">⭳ Baixar modelo Excel</button>
+    <label class="btn" style="margin:0;">⭱ Importar Excel<input type="file" accept=".xlsx,.xls" id="fileImportReuniao" style="display:none;"></label>
+  </div>
   <div class="filter-row" style="align-items:center;margin-bottom:16px;">
     <input type="date" id="reunioesDatePick" value="${dateStr}" class="mono" style="background:var(--bg-2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;">
     <button class="btn btn-brand" id="btnNovaReuniao" style="margin-left:auto;">+ Nova reunião</button>
