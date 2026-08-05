@@ -624,15 +624,19 @@ function sprResultadoBody(selecionados, picker){
   const porAnalista = {};
   comMeta.forEach(r=>{
     const nome = userById(r.analistaId)?.name || '—';
-    if(!porAnalista[nome]) porAnalista[nome] = { total:0, bateram:0, deltaSoma:0 };
+    if(!porAnalista[nome]) porAnalista[nome] = { total:0, bateram:0, deltaSoma:0, roteirizadoSoma:0, metaSoma:0 };
     porAnalista[nome].total++;
     if(bateuMetaSPR(r)) porAnalista[nome].bateram++;
     porAnalista[nome].deltaSoma += (r.sprRoteirizado - r.sprMeta);
+    porAnalista[nome].roteirizadoSoma += r.sprRoteirizado;
+    porAnalista[nome].metaSoma += r.sprMeta;
   });
   const ranking = Object.entries(porAnalista).map(([name,d])=>({
     name, total:d.total, bateram:d.bateram, abaixo:d.total-d.bateram,
     pct: d.total ? Math.round((d.bateram/d.total)*100) : 0,
     deltaMedio: d.total ? d.deltaSoma/d.total : 0,
+    roteirizadoMedio: d.total ? d.roteirizadoSoma/d.total : 0,
+    metaMedio: d.total ? d.metaSoma/d.total : 0,
   })).sort((a,b)=>a.pct-b.pct);
   const ofensores = ranking.filter(r=>r.abaixo>0).slice(0,5);
 
@@ -672,8 +676,8 @@ function sprResultadoBody(selecionados, picker){
   </div>
   <div class="card">
   <div class="section-title">Detalhamento por analista</div>
-  <table><thead><tr><th>Analista</th><th>Finalizações</th><th>Bateram meta</th><th>Abaixo</th><th>% na meta</th><th>Delta médio</th></tr></thead><tbody>
-  ${ranking.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td class="mono">${r.total}</td><td class="mono">${r.bateram}</td><td class="mono">${r.abaixo}</td><td class="mono">${r.pct}%</td><td class="mono" style="color:${r.deltaMedio>=0?'var(--done)':'var(--alert)'};">${r.deltaMedio>=0?'+':''}${r.deltaMedio.toFixed(1)}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">Sem finalizações com meta cadastrada no período</td></tr>'}
+  <table><thead><tr><th>Analista</th><th>Finalizações</th><th>SPR Roteirizado (méd.)</th><th>SPR Meta (méd.)</th><th>Bateram meta</th><th>Abaixo</th><th>% na meta</th><th>Delta médio</th></tr></thead><tbody>
+  ${ranking.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td class="mono">${r.total}</td><td class="mono">${r.roteirizadoMedio.toFixed(1)}</td><td class="mono">${r.metaMedio.toFixed(1)}</td><td class="mono">${r.bateram}</td><td class="mono">${r.abaixo}</td><td class="mono">${r.pct}%</td><td class="mono" style="color:${r.deltaMedio>=0?'var(--done)':'var(--alert)'};">${r.deltaMedio>=0?'+':''}${r.deltaMedio.toFixed(1)}</td></tr>`).join('') || '<tr><td colspan="8" class="empty">Sem finalizações com meta cadastrada no período</td></tr>'}
   </tbody></table>
   ${semMeta>0 ? `<div class="help-text" style="margin-top:10px;">${semMeta} finalização(ões) no período sem meta SPR cadastrada pra operação/ciclo — não entram nesse cálculo.</div>` : ''}
   </div>`;
