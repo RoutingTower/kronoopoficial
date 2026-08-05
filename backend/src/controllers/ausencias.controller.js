@@ -1,5 +1,6 @@
 const supabaseService = require("../services/supabaseService");
 const { getCaller, supervisorIdDoAnalista } = require("../services/authz");
+const { notificar } = require("../services/notificar");
 
 const COLLECTION = "ausencias";
 
@@ -39,6 +40,11 @@ async function createAusencia(req, res) {
     suplenteId: suplenteId || null,
     suplenteNome: suplenteNome || "",
   });
+  const rotulo = tipo === "ferias" ? "férias" : "folga";
+  await notificar(analistaId, "agenda", `Sua ${rotulo} em ${data} (${operacao}) foi registrada.`);
+  if (suplenteId) {
+    await notificar(suplenteId, "agenda", `Você foi escalado(a) para cobrir ${operacao} em ${data}.`);
+  }
   res.status(201).json(entry);
 }
 
@@ -60,6 +66,17 @@ async function updateAusencia(req, res) {
     if (req.body[key] !== undefined) patch[key] = req.body[key];
   }
   const updated = await supabaseService.update(COLLECTION, req.params.id, patch);
+
+  const rotulo = updated.tipo === "ferias" ? "férias" : "folga";
+  await notificar(existing.analistaId, "agenda", `Sua ${rotulo} em ${updated.data} (${updated.operacao}) foi atualizada.`);
+  if (patch.suplenteId !== undefined && patch.suplenteId !== existing.suplenteId) {
+    if (existing.suplenteId) {
+      await notificar(existing.suplenteId, "agenda", `Você foi removido(a) da cobertura de ${existing.operacao} em ${existing.data}.`);
+    }
+    if (updated.suplenteId) {
+      await notificar(updated.suplenteId, "agenda", `Você foi escalado(a) para cobrir ${updated.operacao} em ${updated.data}.`);
+    }
+  }
   res.json(updated);
 }
 
@@ -70,6 +87,11 @@ async function deleteAusencia(req, res) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode gerenciar ausências da sua equipe." });
   }
   await supabaseService.remove(COLLECTION, req.params.id);
+  const rotulo = existing.tipo === "ferias" ? "férias" : "folga";
+  await notificar(existing.analistaId, "agenda", `Sua ${rotulo} em ${existing.data} (${existing.operacao}) foi cancelada.`);
+  if (existing.suplenteId) {
+    await notificar(existing.suplenteId, "agenda", `Sua cobertura de ${existing.operacao} em ${existing.data} foi cancelada.`);
+  }
   res.status(204).send();
 }
 

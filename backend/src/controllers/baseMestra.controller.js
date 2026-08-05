@@ -1,5 +1,6 @@
 const supabaseService = require("../services/supabaseService");
 const { getCaller, supervisorIdDoAnalista } = require("../services/authz");
+const { notificar } = require("../services/notificar");
 
 const COLLECTION = "baseMestra";
 
@@ -39,6 +40,7 @@ async function createBaseMestra(req, res) {
     // criados antes desse campo existir) — ver bmRodaNoDia() no frontend.
     dias: Array.isArray(dias) ? dias : [],
   });
+  await notificar(analistaId, "agenda", `Nova operação adicionada à sua agenda: ${operacao} (${horaInicio}–${horaFim}).`);
   res.status(201).json(entry);
 }
 
@@ -60,6 +62,7 @@ async function updateBaseMestra(req, res) {
     if (req.body[key] !== undefined) patch[key] = req.body[key];
   }
   const updated = await supabaseService.update(COLLECTION, req.params.id, patch);
+  await notificar(existing.analistaId, "agenda", `Uma operação da sua agenda foi alterada: ${updated.operacao} (${updated.horaInicio}–${updated.horaFim}).`);
   res.json(updated);
 }
 
@@ -70,6 +73,7 @@ async function deleteBaseMestra(req, res) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode gerenciar a base mestra da sua equipe." });
   }
   await supabaseService.remove(COLLECTION, req.params.id);
+  await notificar(existing.analistaId, "agenda", `Uma operação foi removida da sua agenda: ${existing.operacao} (${existing.horaInicio}–${existing.horaFim}).`);
   res.status(204).send();
 }
 

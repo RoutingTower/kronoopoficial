@@ -1,4 +1,5 @@
 const supabaseService = require("../services/supabaseService");
+const { notificar } = require("../services/notificar");
 
 const COLLECTION = "notificacoes";
 
@@ -45,11 +46,7 @@ async function esqueciSenha(req, res) {
   }
 
   const mensagem = `${alvo.name} (${alvo.email}) esqueceu a senha e precisa de um reset.`;
-  await Promise.all(
-    destinatarios.map((id) =>
-      supabaseService.create(COLLECTION, { destinatarioId: id, tipo: "esqueci_senha", mensagem, lida: false, ts: Date.now() })
-    )
-  );
+  await Promise.all(destinatarios.map((id) => notificar(id, "esqueci_senha", mensagem)));
   res.json(respostaGenerica);
 }
 

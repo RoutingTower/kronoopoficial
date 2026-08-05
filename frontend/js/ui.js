@@ -169,15 +169,16 @@ function enterApp(instant){
   else { loginEl.classList.add('leaving'); setTimeout(finish, 420); }
 }
 
-// Sino de notificações (sidebar) — só Supervisor/Coordenador recebem por
-// enquanto (ver notificacoes.controller.js, esqueciSenha). Chamado de novo
-// a cada login/boot (enterApp acima); a lista em si só atualiza ao abrir o
+// Sino de notificações (sidebar) — supervisor/coordenador recebem "esqueci
+// minha senha" (notificacoes.controller.js) e analista recebe qualquer
+// alteração na própria agenda (base mestra, ausência/cobertura, reunião —
+// ver notificar() em backend/src/services/notificar.js). Chamado de novo a
+// cada login/boot (enterApp acima); a lista em si só atualiza ao abrir o
 // sino ou marcar como lida, não fica dando poll sozinho.
 let minhasNotificacoes = [];
 async function refreshNotificacoes(){
   const bell = document.getElementById('btnNotificacoes');
   if(!bell) return;
-  if(session.role!=='supervisor' && session.role!=='coordenador'){ bell.style.display='none'; return; }
   bell.style.display='flex';
   try{ minhasNotificacoes = await apiListNotificacoes(); }
   catch(e){ minhasNotificacoes = []; }

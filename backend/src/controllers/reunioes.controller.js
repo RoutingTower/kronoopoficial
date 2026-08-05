@@ -1,7 +1,18 @@
 const supabaseService = require("../services/supabaseService");
 const { getCaller } = require("../services/authz");
+const { notificar } = require("../services/notificar");
 
 const COLLECTION = "reunioes";
+
+// "Grupo" com analistaIds vazio = toda a equipe (ver frontend/js/events.js,
+// btnNovaReuniao) — resolve pra lista real de ids pra poder notificar todo
+// mundo, já que o registro em si não guarda os ids nesse caso.
+async function participantesDaReuniao(reuniao) {
+  if (reuniao.tipo === "individual") return reuniao.analistaIds || [];
+  if ((reuniao.analistaIds || []).length > 0) return reuniao.analistaIds;
+  const users = await supabaseService.listAll("users");
+  return users.filter((u) => u.role === "analista" && u.supervisorId === reuniao.supervisorId).map((u) => u.id);
+}
 
 async function listReunioes(req, res) {
   const { supervisorId } = req.query;
@@ -37,6 +48,10 @@ async function createReuniao(req, res) {
     criadoPor: criadoPor || "",
     link: link || "",
   });
+  const participantes = await participantesDaReuniao(reuniao);
+  await Promise.all(
+    participantes.map((id) => notificar(id, "agenda", `Nova reunião agendada: ${reuniao.titulo} em ${reuniao.data} às ${reuniao.hora}.`))
+  );
   res.status(201).json(reuniao);
 }
 
@@ -58,6 +73,11 @@ async function updateReuniao(req, res) {
     if (req.body[key] !== undefined) patch[key] = req.body[key];
   }
   const updated = await supabaseService.update(COLLECTION, req.params.id, patch);
+  const [antigos, novos] = await Promise.all([participantesDaReuniao(existing), participantesDaReuniao(updated)]);
+  const afetados = new Set([...antigos, ...novos]);
+  await Promise.all(
+    [...afetados].map((id) => notificar(id, "agenda", `Reunião alterada: ${updated.titulo} em ${updated.data} às ${updated.hora}.`))
+  );
   res.json(updated);
 }
 
@@ -68,6 +88,10 @@ async function deleteReuniao(req, res) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode gerenciar reuniões da sua própria equipe." });
   }
   await supabaseService.remove(COLLECTION, req.params.id);
+  const participantes = await participantesDaReuniao(existing);
+  await Promise.all(
+    participantes.map((id) => notificar(id, "agenda", `Reunião cancelada: ${existing.titulo} em ${existing.data} às ${existing.hora}.`))
+  );
   res.status(204).send();
 }
 
