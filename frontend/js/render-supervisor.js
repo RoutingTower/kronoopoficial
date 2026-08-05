@@ -621,28 +621,54 @@ function sprResultadoBody(selecionados, picker){
   const bateram = comMeta.filter(bateuMetaSPR);
   const abaixo = comMeta.filter(r=>!bateuMetaSPR(r));
 
-  const porAnalista = {};
+  // Detalhamento por Operação (hub) + Analista que roteirizou — uma linha
+  // por combinação, agrupada/ordenada por operação. As médias (SPR
+  // cadastrado/lançado) cobrem o caso de o mesmo par operação+analista ter
+  // mais de uma finalização no período.
+  const porOperacaoAnalista = {};
   comMeta.forEach(r=>{
     const nome = userById(r.analistaId)?.name || '—';
-    if(!porAnalista[nome]) porAnalista[nome] = { total:0, bateram:0, deltaSoma:0, roteirizadoSoma:0, metaSoma:0 };
-    porAnalista[nome].total++;
-    if(bateuMetaSPR(r)) porAnalista[nome].bateram++;
-    porAnalista[nome].deltaSoma += (r.sprRoteirizado - r.sprMeta);
-    porAnalista[nome].roteirizadoSoma += r.sprRoteirizado;
-    porAnalista[nome].metaSoma += r.sprMeta;
+    const chave = r.operacao+'||'+nome;
+    if(!porOperacaoAnalista[chave]) porOperacaoAnalista[chave] = { operacao:r.operacao, nome, analistaId:r.analistaId, total:0, bateram:0, deltaSoma:0, roteirizadoSoma:0, metaSoma:0 };
+    const d = porOperacaoAnalista[chave];
+    d.total++;
+    if(bateuMetaSPR(r)) d.bateram++;
+    d.deltaSoma += (r.sprRoteirizado - r.sprMeta);
+    d.roteirizadoSoma += r.sprRoteirizado;
+    d.metaSoma += r.sprMeta;
   });
-  const ranking = Object.entries(porAnalista).map(([name,d])=>({
-    name, total:d.total, bateram:d.bateram, abaixo:d.total-d.bateram,
+  const detalhe = Object.values(porOperacaoAnalista).map(d=>({
+    operacao:d.operacao, nome:d.nome, analistaId:d.analistaId, total:d.total, bateram:d.bateram, abaixo:d.total-d.bateram,
     pct: d.total ? Math.round((d.bateram/d.total)*100) : 0,
     deltaMedio: d.total ? d.deltaSoma/d.total : 0,
     roteirizadoMedio: d.total ? d.roteirizadoSoma/d.total : 0,
     metaMedio: d.total ? d.metaSoma/d.total : 0,
-  })).sort((a,b)=>a.pct-b.pct);
-  const ofensores = ranking.filter(r=>r.abaixo>0).slice(0,5);
+  })).sort((a,b)=> a.operacao.localeCompare(b.operacao) || a.nome.localeCompare(b.nome));
+
+  // Agregado por Operação (todos os analistas juntos) — alimenta os 3
+  // gráficos por hub abaixo.
+  const porOperacao = {};
+  comMeta.forEach(r=>{
+    if(!porOperacao[r.operacao]) porOperacao[r.operacao] = { total:0, bateram:0, roteirizadoSoma:0, metaSoma:0 };
+    const d = porOperacao[r.operacao];
+    d.total++;
+    if(bateuMetaSPR(r)) d.bateram++;
+    d.roteirizadoSoma += r.sprRoteirizado;
+    d.metaSoma += r.sprMeta;
+  });
+  const porHub = Object.entries(porOperacao).map(([operacao,d])=>({
+    operacao, total:d.total, bateram:d.bateram,
+    pct: d.total ? Math.round((d.bateram/d.total)*100) : 0,
+    roteirizadoMedio: d.total ? d.roteirizadoSoma/d.total : 0,
+    metaMedio: d.total ? d.metaSoma/d.total : 0,
+  })).sort((a,b)=>a.operacao.localeCompare(b.operacao));
+
+  const ofensoresHub = [...porHub].sort((a,b)=>a.pct-b.pct).slice(0,5);
 
   sprChartData = {
     status: { bateram: bateram.length, abaixo: abaixo.length, semMeta },
-    ofensores: [...ranking].sort((a,b)=>a.pct-b.pct).slice(0,10).reverse(),
+    porHub,
+    ofensoresHub: [...porHub].sort((a,b)=>a.pct-b.pct).slice(0,10).reverse(),
   };
   sprExportRows = comMeta;
 
@@ -666,18 +692,20 @@ function sprResultadoBody(selecionados, picker){
     <div class="stat-card"><div class="stat-num" style="color:var(--alert);">${abaixo.length}</div><div class="stat-label">Abaixo da meta</div></div>
     <div class="stat-card"><div class="stat-num">${comMeta.length ? Math.round((bateram.length/comMeta.length)*100) : 0}%</div><div class="stat-label">Taxa de meta batida</div></div>
   </div>
-  ${ofensores.length>0 ? `<div class="highlight-card" style="margin-bottom:16px;border-color:var(--alert);">
-    <div class="section-title">🚨 Ofensores em destaque (mais abaixo da meta)</div>
-    <div class="chip-row">${ofensores.map(o=>`<span class="chip-pessoa">${escapeHtml(o.name)} — ${o.pct}% na meta</span>`).join('')}</div>
+  ${ofensoresHub.length>0 ? `<div class="highlight-card" style="margin-bottom:16px;border-color:var(--alert);">
+    <div class="section-title">🚨 Hubs em destaque (mais abaixo da meta)</div>
+    <div class="chip-row">${ofensoresHub.map(o=>`<span class="chip-pessoa">${escapeHtml(o.operacao)} — ${o.pct}% na meta</span>`).join('')}</div>
   </div>` : ''}
   <div class="grid-2" style="margin-bottom:20px;align-items:start;">
     <div class="chart-card"><div class="section-title">Resultado geral</div><canvas id="chartSprStatus"></canvas></div>
-    <div class="chart-card"><div class="section-title">% na meta por analista</div><canvas id="chartSprOfensores"></canvas></div>
+    <div class="chart-card"><div class="section-title">Hubs que bateram a meta</div><canvas id="chartSprHubsBateram"></canvas></div>
+    <div class="chart-card"><div class="section-title">Média de SPR por hub (lançado x meta)</div><canvas id="chartSprMedia"></canvas></div>
+    <div class="chart-card"><div class="section-title">Maiores ofensores (hubs)</div><canvas id="chartSprOfensores"></canvas></div>
   </div>
   <div class="card">
-  <div class="section-title">Detalhamento por analista</div>
-  <table><thead><tr><th>Analista</th><th>Finalizações</th><th>SPR Roteirizado (méd.)</th><th>SPR Meta (méd.)</th><th>Bateram meta</th><th>Abaixo</th><th>% na meta</th><th>Delta médio</th></tr></thead><tbody>
-  ${ranking.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td class="mono">${r.total}</td><td class="mono">${r.roteirizadoMedio.toFixed(1)}</td><td class="mono">${r.metaMedio.toFixed(1)}</td><td class="mono">${r.bateram}</td><td class="mono">${r.abaixo}</td><td class="mono">${r.pct}%</td><td class="mono" style="color:${r.deltaMedio>=0?'var(--done)':'var(--alert)'};">${r.deltaMedio>=0?'+':''}${r.deltaMedio.toFixed(1)}</td></tr>`).join('') || '<tr><td colspan="8" class="empty">Sem finalizações com meta cadastrada no período</td></tr>'}
+  <div class="section-title">Detalhamento por operação</div>
+  <table><thead><tr><th>Operação</th><th>Analista</th><th>SPR Cadastrado</th><th>SPR Lançado</th><th>% meta</th><th>Delta médio</th></tr></thead><tbody>
+  ${detalhe.map(d=>`<tr><td>${escapeHtml(d.operacao)}</td><td style="cursor:pointer;" data-analista-timeline="${d.analistaId}" title="Ver histórico">${escapeHtml(d.nome)}</td><td class="mono">${d.metaMedio.toFixed(1)}</td><td class="mono">${d.roteirizadoMedio.toFixed(1)}</td><td class="mono">${d.pct}%</td><td class="mono" style="color:${d.deltaMedio>=0?'var(--done)':'var(--alert)'};">${d.deltaMedio>=0?'+':''}${d.deltaMedio.toFixed(1)}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">Sem finalizações com meta cadastrada no período</td></tr>'}
   </tbody></table>
   ${semMeta>0 ? `<div class="help-text" style="margin-top:10px;">${semMeta} finalização(ões) no período sem meta SPR cadastrada pra operação/ciclo — não entram nesse cálculo.</div>` : ''}
   </div>`;
@@ -709,11 +737,41 @@ function renderSPRCharts(){
     options:{ plugins:{ legend:{ position:'bottom', labels:{ color:textColor } } } }
   });
 
+  // Hubs que bateram a meta — % de finalizações no hub que atingiram a
+  // meta, todos os analistas daquele hub somados.
+  const elHubs = document.getElementById('chartSprHubsBateram');
+  if(elHubs){
+    sprChartInstances.hubsBateram = new Chart(elHubs, {
+      type:'bar',
+      data:{ labels: sprChartData.porHub.map(h=>h.operacao), datasets:[{ label:'% na meta', data: sprChartData.porHub.map(h=>h.pct), backgroundColor:'#2FAE60', borderRadius:4 }] },
+      options:{ plugins:{ legend:{ display:false } }, scales:{
+        x:{ ticks:{ color:textColor, autoSkip:false, maxRotation:60, minRotation:0 }, grid:{ display:false } },
+        y:{ min:0, max:100, ticks:{ color:textColor }, grid:{ color:gridColor } } } }
+    });
+  }
+
+  // Média de SPR por hub — lançado (real) x meta (cadastrado), lado a
+  // lado, pra ver de cara onde o real está descolando do alvo.
+  const elMedia = document.getElementById('chartSprMedia');
+  if(elMedia){
+    sprChartInstances.media = new Chart(elMedia, {
+      type:'bar',
+      data:{ labels: sprChartData.porHub.map(h=>h.operacao),
+        datasets:[
+          { label:'SPR Lançado', data: sprChartData.porHub.map(h=>h.roteirizadoMedio), backgroundColor:'#2F80ED', borderRadius:4 },
+          { label:'SPR Meta', data: sprChartData.porHub.map(h=>h.metaMedio), backgroundColor:'#A8A8A8', borderRadius:4 },
+        ] },
+      options:{ plugins:{ legend:{ position:'bottom', labels:{ color:textColor } } }, scales:{
+        x:{ ticks:{ color:textColor, autoSkip:false, maxRotation:60, minRotation:0 }, grid:{ display:false } },
+        y:{ ticks:{ color:textColor }, grid:{ color:gridColor } } } }
+    });
+  }
+
   const elOf = document.getElementById('chartSprOfensores');
   if(elOf){
     sprChartInstances.ofensores = new Chart(elOf, {
       type:'bar',
-      data:{ labels: sprChartData.ofensores.map(r=>r.name), datasets:[{ label:'% na meta', data: sprChartData.ofensores.map(r=>r.pct), backgroundColor:'#2F80ED', borderRadius:4 }] },
+      data:{ labels: sprChartData.ofensoresHub.map(h=>h.operacao), datasets:[{ label:'% na meta', data: sprChartData.ofensoresHub.map(h=>h.pct), backgroundColor:'#EE4D2D', borderRadius:4 }] },
       options:{ plugins:{ legend:{ display:false } }, indexAxis:'y', scales:{
         x:{ min:0, max:100, ticks:{ color:textColor }, grid:{ color:gridColor } },
         y:{ ticks:{ color:textColor, autoSkip:false } } } }
