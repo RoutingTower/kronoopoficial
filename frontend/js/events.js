@@ -474,6 +474,18 @@ function bindMainEvents(){
       <div class="grid-2"><div class="field"><label>Data</label><input type="date" id="fRData" value="${todayISO()}"></div>
       <div class="field"><label>Hora</label><select id="fRHora">${HOURS.map(h=>`<option>${h}</option>`).join('')}</select></div></div>
       <div class="field" id="fRAnalistaWrap" style="display:none;"><label>Analista</label><select id="fRAnalista">${myAnalistas.map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}</select></div>
+      <div class="field"><label>Link (opcional)</label><input id="fRLink" placeholder="https://..."></div>
+      <div class="field"><label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fRRepetir"> Repetir em mais de uma data</label></div>
+      <div id="fRRepetirWrap" style="display:none;">
+        <div class="field">
+          <label>Dias da semana</label>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            ${WEEKDAY_LABELS.map((lbl,i)=>`<label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:400;"><input type="checkbox" class="fRDia" value="${i}"> ${lbl}</label>`).join('')}
+          </div>
+        </div>
+        <div class="field"><label>Repetir até</label><input type="date" id="fRRepetirAte"></div>
+        <div class="help-text" style="margin-top:-6px;">Limitado a no máximo 2 meses a partir da data inicial.</div>
+      </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
         <button class="btn" data-modal-cancel>Cancelar</button>
         <button class="btn btn-brand" id="confirmNovaReuniao">Agendar</button>
@@ -483,16 +495,50 @@ function bindMainEvents(){
     const tipoSel = document.getElementById('fRTipo');
     const wrap = document.getElementById('fRAnalistaWrap');
     tipoSel.addEventListener('change', ()=>{ wrap.style.display = tipoSel.value==='individual' ? 'block':'none'; });
+    const fRData = document.getElementById('fRData');
+    const fRRepetir = document.getElementById('fRRepetir');
+    const repetirWrap = document.getElementById('fRRepetirWrap');
+    const fRRepetirAte = document.getElementById('fRRepetirAte');
+    function syncRepetirAteMax(){
+      const max = addMonthsISO(fRData.value||todayISO(), 2);
+      fRRepetirAte.max = max;
+      if(!fRRepetirAte.value || fRRepetirAte.value>max) fRRepetirAte.value = max;
+    }
+    fRRepetir.addEventListener('change', ()=>{
+      repetirWrap.style.display = fRRepetir.checked ? 'block':'none';
+      if(fRRepetir.checked) syncRepetirAteMax();
+    });
+    fRData.addEventListener('change', ()=>{ if(fRRepetir.checked) syncRepetirAteMax(); });
     document.getElementById('confirmNovaReuniao').onclick = async ()=>{
       const tipo = tipoSel.value;
       const analistaIds = tipo==='individual' ? [document.getElementById('fRAnalista').value] : [];
-      const entrada = {tipo, titulo:document.getElementById('fRTitulo').value||'Reunião', data:document.getElementById('fRData').value,
-        hora:document.getElementById('fRHora').value, analistaIds, supervisorId:session.userId, criadoPor:session.name};
-      try{
-        const novo = await apiCreateReuniao(entrada);
-        DB.reunioes.push(novo);
-        closeModal(); renderMain();
-      }catch(e){ alert('Não foi possível agendar: '+e.message); }
+      const base = {tipo, titulo:document.getElementById('fRTitulo').value||'Reunião',
+        hora:document.getElementById('fRHora').value, analistaIds, supervisorId:session.userId, criadoPor:session.name,
+        link:document.getElementById('fRLink').value.trim()};
+      const dataInicio = fRData.value;
+      let datas = [dataInicio];
+      if(fRRepetir.checked){
+        const dias = [...document.querySelectorAll('.fRDia:checked')].map(el=>Number(el.value));
+        if(dias.length){
+          const limite = addMonthsISO(dataInicio, 2);
+          const fim = fRRepetirAte.value && fRRepetirAte.value<=limite ? fRRepetirAte.value : limite;
+          datas = [];
+          let cursor = dataInicio;
+          while(cursor<=fim){
+            if(dias.includes(new Date(cursor+'T00:00:00').getDay())) datas.push(cursor);
+            cursor = addDaysISO(cursor, 1);
+          }
+          if(datas.length===0) datas = [dataInicio];
+        }
+      }
+      let count=0, fail=0;
+      for(const d of datas){
+        try{ const novo = await apiCreateReuniao({...base, data:d}); DB.reunioes.push(novo); count++; }
+        catch(e){ fail++; }
+      }
+      closeModal(); renderMain();
+      if(datas.length>1) alert(`${count} reunião(ões) agendada(s).${fail?` ${fail} falharam.`:''}`);
+      else if(fail) alert('Não foi possível agendar.');
     };
   });
 
@@ -530,6 +576,7 @@ function bindMainEvents(){
         <div class="grid-2"><div class="field"><label>Data</label><input type="date" id="fEditRData" value="${r.data}"></div>
         <div class="field"><label>Hora</label><select id="fEditRHora">${HOURS.map(h=>`<option ${h===r.hora?'selected':''}>${h}</option>`).join('')}</select></div></div>
         <div class="field" id="fEditRAnalistaWrap" style="${r.tipo==='individual'?'':'display:none;'}"><label>Analista</label><select id="fEditRAnalista">${myAnalistas.map(a=>`<option value="${a.id}" ${a.id===r.analistaIds[0]?'selected':''}>${a.name}</option>`).join('')}</select></div>
+        <div class="field"><label>Link (opcional)</label><input id="fEditRLink" value="${escapeHtml(r.link||'')}" placeholder="https://..."></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
           <button class="btn" data-modal-cancel>Cancelar</button>
           <button class="btn btn-brand" id="confirmEditarReuniao">Salvar</button>
@@ -543,7 +590,8 @@ function bindMainEvents(){
         const tipo = tipoSel.value;
         const analistaIds = tipo==='individual' ? [document.getElementById('fEditRAnalista').value] : [];
         const patch = {tipo, titulo:document.getElementById('fEditRTitulo').value||'Reunião',
-          data:document.getElementById('fEditRData').value, hora:document.getElementById('fEditRHora').value, analistaIds};
+          data:document.getElementById('fEditRData').value, hora:document.getElementById('fEditRHora').value, analistaIds,
+          link:document.getElementById('fEditRLink').value.trim()};
         try{
           const atualizado = await apiUpdateReuniao(r.id, patch);
           DB.reunioes = DB.reunioes.map(x=>x.id===r.id ? atualizado : x);

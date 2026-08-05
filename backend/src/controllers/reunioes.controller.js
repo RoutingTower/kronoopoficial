@@ -13,7 +13,7 @@ async function listReunioes(req, res) {
 // Só supervisor agenda reunião, e só em nome da própria equipe (espelha
 // frontend/js/events.js, "Eventos").
 async function createReuniao(req, res) {
-  const { tipo, titulo, data, hora, analistaIds, supervisorId, criadoPor } = req.body;
+  const { tipo, titulo, data, hora, analistaIds, supervisorId, criadoPor, link } = req.body;
   if (!tipo || !data || !hora || !supervisorId) {
     return res.status(400).json({
       error: "bad_request",
@@ -35,6 +35,7 @@ async function createReuniao(req, res) {
     analistaIds: Array.isArray(analistaIds) ? analistaIds : [],
     supervisorId,
     criadoPor: criadoPor || "",
+    link: link || "",
   });
   res.status(201).json(reuniao);
 }
@@ -53,7 +54,7 @@ async function updateReuniao(req, res) {
   }
 
   const patch = {};
-  for (const key of ["tipo", "titulo", "data", "hora", "analistaIds"]) {
+  for (const key of ["tipo", "titulo", "data", "hora", "analistaIds", "link"]) {
     if (req.body[key] !== undefined) patch[key] = req.body[key];
   }
   const updated = await supabaseService.update(COLLECTION, req.params.id, patch);

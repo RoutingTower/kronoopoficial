@@ -43,8 +43,9 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
     }).join('');
     cardsHtml += rns.map(r=>`<div class="flash-card reuniao">
       <div class="flash-sigla">📅 Reunião</div>
-      <div class="flash-meta">${r.titulo}</div>
+      <div class="flash-meta">${escapeHtml(r.titulo)}</div>
       <div class="flash-meta">${r.tipo==='grupo'?'Grupo':'Individual'} · ${r.hora}</div>
+      ${r.link ? `<div class="flash-actions"><a class="btn btn-brand" href="${escapeHtml(r.link)}" target="_blank" rel="noopener noreferrer">Entrar na reunião</a></div>` : ''}
     </div>`).join('');
     cardsHtml += lembretes.map(lembreteCardHTML).join('');
     return `<div class="flash-col"><div class="flash-time">${hour}</div>${cardsHtml}</div>`;

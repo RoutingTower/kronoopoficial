@@ -354,13 +354,14 @@ function supReunioes(myAnalistas){
   <div class="section-title">Reuniões</div>
   <div style="display:flex;justify-content:flex-end;margin-bottom:14px;"><button class="btn btn-brand" id="btnNovaReuniao">+ Nova reunião</button></div>
   <div class="card" style="margin-bottom:22px;">
-  <table><thead><tr><th>Título</th><th>Tipo</th><th>Data</th><th>Hora</th><th>Participantes</th><th></th></tr></thead><tbody>
-  ${rows.map(r=>`<tr><td>${r.titulo}</td><td>${r.tipo==='grupo'?'Grupo':'Individual'}</td><td class="mono">${r.data}</td><td class="mono">${r.hora}</td>
+  <table><thead><tr><th>Título</th><th>Tipo</th><th>Data</th><th>Hora</th><th>Participantes</th><th>Link</th><th></th></tr></thead><tbody>
+  ${rows.map(r=>`<tr><td>${escapeHtml(r.titulo)}</td><td>${r.tipo==='grupo'?'Grupo':'Individual'}</td><td class="mono">${r.data}</td><td class="mono">${r.hora}</td>
   <td>${r.tipo==='grupo' ? (r.analistaIds.length===0?'Toda a equipe':r.analistaIds.map(id=>userById(id)?.name).join(', ')) : (userById(r.analistaIds[0])?.name||'—')}</td>
+  <td>${r.link ? `<a class="btn" href="${escapeHtml(r.link)}" target="_blank" rel="noopener noreferrer">Abrir link</a>` : '—'}</td>
   <td style="text-align:right;white-space:nowrap;">
     <button class="btn" data-editar-reuniao="${r.id}">Editar</button>
     <button class="btn btn-danger" data-excluir-reuniao="${r.id}">Excluir</button>
-  </td></tr>`).join('') || '<tr><td colspan="6" class="empty">Nenhuma reunião agendada</td></tr>'}
+  </td></tr>`).join('') || '<tr><td colspan="7" class="empty">Nenhuma reunião agendada</td></tr>'}
   </tbody></table></div>`;
 }
 

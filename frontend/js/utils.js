@@ -30,6 +30,11 @@ function hojeAgendaISO(){
 
 function addDaysISO(dateStr, n){ const d = new Date(dateStr+'T00:00:00'); d.setDate(d.getDate()+n); return dateToISO(d); }
 
+// Usado pra limitar a recorrência de reuniões a no máximo 2 meses (ver
+// events.js, btnNovaReuniao) — sem isso um "repetir toda terça" sem fim
+// geraria reuniões indefinidamente.
+function addMonthsISO(dateStr, n){ const d = new Date(dateStr+'T00:00:00'); d.setMonth(d.getMonth()+n); return dateToISO(d); }
+
 // Segunda-feira da semana de dateStr — Resultado SPR é uma média semanal
 // (segunda a domingo, ver render-supervisor.js, sprResultadoBody), então a
 // linha do tempo agrupa por essa semana "cheia", não por 7 dias corridos

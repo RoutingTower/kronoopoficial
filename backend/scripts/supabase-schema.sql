@@ -142,7 +142,8 @@ create table reunioes (
   hora           text not null,
   analista_ids   uuid[] not null default '{}',
   supervisor_id  uuid not null references users(id),
-  criado_por     text not null default ''
+  criado_por     text not null default '',
+  link           text not null default ''
 );
 create index idx_reunioes_supervisor on reunioes(supervisor_id);
 
