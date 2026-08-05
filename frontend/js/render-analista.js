@@ -316,6 +316,14 @@ function renderFeedbackAnalista(){
   </div>`;
 }
 
+// Mesmo núcleo de Resultado SPR do supervisor/coordenador (sprResultadoBody,
+// em render-supervisor.js), só que sempre escopado ao próprio analista —
+// sem seletor de "quem" (picker vazio), só os hubs fixos dele mesmo.
+function analistaResultadoSPR(){
+  const me = userById(session.userId);
+  return sprResultadoBody([me], '');
+}
+
 
 function renderRecadosAnalista(){
   const my = recadosParaAnalista(session.userId).sort((a,b)=>b.ts-a.ts);

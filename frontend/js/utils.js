@@ -30,6 +30,17 @@ function hojeAgendaISO(){
 
 function addDaysISO(dateStr, n){ const d = new Date(dateStr+'T00:00:00'); d.setDate(d.getDate()+n); return dateToISO(d); }
 
+// Segunda-feira da semana de dateStr — Resultado SPR é uma média semanal
+// (segunda a domingo, ver render-supervisor.js, sprResultadoBody), então a
+// linha do tempo agrupa por essa semana "cheia", não por 7 dias corridos
+// a partir de qualquer dia da semana.
+function weekStartISO(dateStr){
+  const d = new Date(dateStr+'T00:00:00');
+  const dow = d.getDay(); // 0=domingo...6=sábado
+  const diff = dow===0 ? -6 : 1-dow;
+  return addDaysISO(dateStr, diff);
+}
+
 function uid(prefix){ return prefix+'_'+Math.random().toString(36).slice(2,9); }
 
 function hourSortValue(hora){ const h = parseInt(hora.split(':')[0],10); return h < 7 ? h + 24 : h; }

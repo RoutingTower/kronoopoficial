@@ -613,8 +613,30 @@ function sprResultadoBody(selecionados, picker){
   const ids = new Set(selecionados.map(a=>a.id));
   const noPeriodo = r => (r.data||'')>=inicio && (r.data||'')<=fim && ids.has(r.analistaId);
 
-  const doPeriodo = DB.raioX.filter(noPeriodo).filter(r=> flt.operacao==='all' || r.operacao===flt.operacao);
+  const doPeriodoAmplo = DB.raioX.filter(noPeriodo).filter(r=> flt.operacao==='all' || r.operacao===flt.operacao);
   const operacoesDisponiveis = [...new Set(DB.raioX.filter(noPeriodo).map(r=>r.operacao))].sort();
+
+  // Linha do tempo semanal (segunda a domingo) usa SEMPRE o período
+  // inteiro (início/fim), mesmo com uma semana específica selecionada no
+  // filtro abaixo — senão a linha do tempo colapsaria pra 1 ponto só toda
+  // vez que alguém filtrasse por semana.
+  const semanasDisponiveis = [...new Set(doPeriodoAmplo.map(r=>weekStartISO(r.data)))].sort();
+  const porSemana = {};
+  doPeriodoAmplo.filter(r=>r.sprMeta!=null).forEach(r=>{
+    const ws = weekStartISO(r.data);
+    if(!porSemana[ws]) porSemana[ws] = { total:0, bateram:0 };
+    porSemana[ws].total++;
+    if(bateuMetaSPR(r)) porSemana[ws].bateram++;
+  });
+  const semanas = Object.entries(porSemana).map(([ws,d])=>({
+    semana: ws,
+    label: `${formatarDataCurta(ws)}–${formatarDataCurta(addDaysISO(ws,6))}`,
+    pct: d.total ? Math.round((d.bateram/d.total)*100) : 0,
+  })).sort((a,b)=>a.semana.localeCompare(b.semana));
+
+  // Filtro de semana específica (opcional) — só restringe o resto da
+  // tela (stats, tabela, gráficos por hub), não a linha do tempo acima.
+  const doPeriodo = flt.semana ? doPeriodoAmplo.filter(r=>weekStartISO(r.data)===flt.semana) : doPeriodoAmplo;
 
   const comMeta = doPeriodo.filter(r=>r.sprMeta!=null);
   const semMeta = doPeriodo.length - comMeta.length;
@@ -669,6 +691,7 @@ function sprResultadoBody(selecionados, picker){
     status: { bateram: bateram.length, abaixo: abaixo.length, semMeta },
     porHub,
     ofensoresHub: [...porHub].sort((a,b)=>a.pct-b.pct).slice(0,10).reverse(),
+    semanas,
   };
   sprExportRows = comMeta;
 
@@ -684,6 +707,10 @@ function sprResultadoBody(selecionados, picker){
       <option value="all">Operação: todas</option>
       ${operacoesDisponiveis.map(op=>`<option value="${op}" ${flt.operacao===op?'selected':''}>${op}</option>`).join('')}
     </select>
+    <select data-sprfiltro="semana">
+      <option value="">Semana: todas (${formatarDataCurta(inicio)} a ${formatarDataCurta(fim)})</option>
+      ${semanasDisponiveis.map(ws=>`<option value="${ws}" ${flt.semana===ws?'selected':''}>Semana ${formatarDataCurta(ws)}–${formatarDataCurta(addDaysISO(ws,6))}</option>`).join('')}
+    </select>
     ${picker}
     <button class="btn" id="btnExportSPR">⬇ Exportar Excel</button>
   </div>
@@ -698,7 +725,7 @@ function sprResultadoBody(selecionados, picker){
   </div>` : ''}
   <div class="grid-2" style="margin-bottom:20px;align-items:start;">
     <div class="chart-card"><div class="section-title">Resultado geral</div><canvas id="chartSprStatus"></canvas></div>
-    <div class="chart-card"><div class="section-title">Hubs que bateram a meta</div><canvas id="chartSprHubsBateram"></canvas></div>
+    <div class="chart-card"><div class="section-title">Linha do tempo — % na meta por semana (seg. a dom.)</div><canvas id="chartSprSemanas"></canvas></div>
     <div class="chart-card"><div class="section-title">Média de SPR por hub (lançado x REF)</div><canvas id="chartSprMedia"></canvas></div>
     <div class="chart-card"><div class="section-title">Maiores ofensores (hubs)</div><canvas id="chartSprOfensores"></canvas></div>
   </div>
@@ -737,15 +764,16 @@ function renderSPRCharts(){
     options:{ plugins:{ legend:{ position:'bottom', labels:{ color:textColor } } } }
   });
 
-  // Hubs que bateram a meta — % de finalizações no hub que atingiram a
-  // meta, todos os analistas daquele hub somados.
-  const elHubs = document.getElementById('chartSprHubsBateram');
-  if(elHubs){
-    sprChartInstances.hubsBateram = new Chart(elHubs, {
-      type:'bar',
-      data:{ labels: sprChartData.porHub.map(h=>h.operacao), datasets:[{ label:'% na meta', data: sprChartData.porHub.map(h=>h.pct), backgroundColor:'#2FAE60', borderRadius:4 }] },
+  // Linha do tempo semanal — % na meta por semana (segunda a domingo),
+  // sempre no período inteiro (início/fim), independente do filtro de
+  // semana específica (ver sprResultadoBody).
+  const elSemanas = document.getElementById('chartSprSemanas');
+  if(elSemanas){
+    sprChartInstances.semanas = new Chart(elSemanas, {
+      type:'line',
+      data:{ labels: sprChartData.semanas.map(s=>s.label), datasets:[{ label:'% na meta', data: sprChartData.semanas.map(s=>s.pct), borderColor:'#2F80ED', backgroundColor:'rgba(47,128,237,0.15)', fill:true, tension:0.3 }] },
       options:{ plugins:{ legend:{ display:false } }, scales:{
-        x:{ ticks:{ color:textColor, autoSkip:false, maxRotation:60, minRotation:0 }, grid:{ display:false } },
+        x:{ ticks:{ color:textColor }, grid:{ display:false } },
         y:{ min:0, max:100, ticks:{ color:textColor }, grid:{ color:gridColor } } } }
     });
   }
