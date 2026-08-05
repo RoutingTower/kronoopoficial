@@ -306,6 +306,16 @@ function timeAgo(ts){
 
 function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+// Link de reunião sem "http(s)://" (ex: "meet.google.com/xxx") vira um
+// caminho relativo da própria página em vez de um link externo — o
+// navegador monta a URL como "kronoopoficial/meet.google.com/xxx". Aplicado
+// tanto ao salvar (events.js) quanto ao exibir (render-*.js), pra também
+// corrigir links já salvos sem o prefixo.
+function normalizeUrl(url){
+  if(!url) return '';
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
+
 
 function candidatosParaSlot(myAnalistas, titularId, bm, dataStr){
   const s1 = hourSortValue(bm.horaInicio), e1 = hourSortValue(bm.horaFim);

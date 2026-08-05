@@ -514,7 +514,7 @@ function bindMainEvents(){
       const analistaIds = tipo==='individual' ? [document.getElementById('fRAnalista').value] : [];
       const base = {tipo, titulo:document.getElementById('fRTitulo').value||'Reunião',
         hora:document.getElementById('fRHora').value, analistaIds, supervisorId:session.userId, criadoPor:session.name,
-        link:document.getElementById('fRLink').value.trim()};
+        link:normalizeUrl(document.getElementById('fRLink').value.trim())};
       const dataInicio = fRData.value;
       let datas = [dataInicio];
       if(fRRepetir.checked){
@@ -591,7 +591,7 @@ function bindMainEvents(){
         const analistaIds = tipo==='individual' ? [document.getElementById('fEditRAnalista').value] : [];
         const patch = {tipo, titulo:document.getElementById('fEditRTitulo').value||'Reunião',
           data:document.getElementById('fEditRData').value, hora:document.getElementById('fEditRHora').value, analistaIds,
-          link:document.getElementById('fEditRLink').value.trim()};
+          link:normalizeUrl(document.getElementById('fEditRLink').value.trim())};
         try{
           const atualizado = await apiUpdateReuniao(r.id, patch);
           DB.reunioes = DB.reunioes.map(x=>x.id===r.id ? atualizado : x);

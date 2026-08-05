@@ -357,7 +357,7 @@ function supReunioes(myAnalistas){
   <table><thead><tr><th>Título</th><th>Tipo</th><th>Data</th><th>Hora</th><th>Participantes</th><th>Link</th><th></th></tr></thead><tbody>
   ${rows.map(r=>`<tr><td>${escapeHtml(r.titulo)}</td><td>${r.tipo==='grupo'?'Grupo':'Individual'}</td><td class="mono">${r.data}</td><td class="mono">${r.hora}</td>
   <td>${r.tipo==='grupo' ? (r.analistaIds.length===0?'Toda a equipe':r.analistaIds.map(id=>userById(id)?.name).join(', ')) : (userById(r.analistaIds[0])?.name||'—')}</td>
-  <td>${r.link ? `<a class="btn" href="${escapeHtml(r.link)}" target="_blank" rel="noopener noreferrer">Abrir link</a>` : '—'}</td>
+  <td>${r.link ? `<a class="btn" href="${escapeHtml(normalizeUrl(r.link))}" target="_blank" rel="noopener noreferrer">Abrir link</a>` : '—'}</td>
   <td style="text-align:right;white-space:nowrap;">
     <button class="btn" data-editar-reuniao="${r.id}">Editar</button>
     <button class="btn btn-danger" data-excluir-reuniao="${r.id}">Excluir</button>
