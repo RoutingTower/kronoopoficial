@@ -14,6 +14,10 @@ async function participantesDaReuniao(reuniao) {
   return users.filter((u) => u.role === "analista" && u.supervisorId === reuniao.supervisorId).map((u) => u.id);
 }
 
+function faixaHorario(reuniao) {
+  return reuniao.horaFim ? `${reuniao.hora}–${reuniao.horaFim}` : reuniao.hora;
+}
+
 async function listReunioes(req, res) {
   const { supervisorId } = req.query;
   let rows = await supabaseService.listAll(COLLECTION);
@@ -24,7 +28,7 @@ async function listReunioes(req, res) {
 // Só supervisor agenda reunião, e só em nome da própria equipe (espelha
 // frontend/js/events.js, "Eventos").
 async function createReuniao(req, res) {
-  const { tipo, titulo, data, hora, analistaIds, supervisorId, criadoPor, link } = req.body;
+  const { tipo, titulo, data, hora, horaFim, analistaIds, supervisorId, criadoPor, link } = req.body;
   if (!tipo || !data || !hora || !supervisorId) {
     return res.status(400).json({
       error: "bad_request",
@@ -43,6 +47,7 @@ async function createReuniao(req, res) {
     titulo: titulo || "Reunião",
     data,
     hora,
+    horaFim: horaFim || "",
     analistaIds: Array.isArray(analistaIds) ? analistaIds : [],
     supervisorId,
     criadoPor: criadoPor || "",
@@ -50,7 +55,7 @@ async function createReuniao(req, res) {
   });
   const participantes = await participantesDaReuniao(reuniao);
   await Promise.all(
-    participantes.map((id) => notificar(id, "agenda", `Nova reunião agendada: ${reuniao.titulo} em ${reuniao.data} às ${reuniao.hora}.`))
+    participantes.map((id) => notificar(id, "agenda", `Nova reunião agendada: ${reuniao.titulo} em ${reuniao.data} às ${faixaHorario(reuniao)}.`))
   );
   res.status(201).json(reuniao);
 }
@@ -69,14 +74,14 @@ async function updateReuniao(req, res) {
   }
 
   const patch = {};
-  for (const key of ["tipo", "titulo", "data", "hora", "analistaIds", "link"]) {
+  for (const key of ["tipo", "titulo", "data", "hora", "horaFim", "analistaIds", "link"]) {
     if (req.body[key] !== undefined) patch[key] = req.body[key];
   }
   const updated = await supabaseService.update(COLLECTION, req.params.id, patch);
   const [antigos, novos] = await Promise.all([participantesDaReuniao(existing), participantesDaReuniao(updated)]);
   const afetados = new Set([...antigos, ...novos]);
   await Promise.all(
-    [...afetados].map((id) => notificar(id, "agenda", `Reunião alterada: ${updated.titulo} em ${updated.data} às ${updated.hora}.`))
+    [...afetados].map((id) => notificar(id, "agenda", `Reunião alterada: ${updated.titulo} em ${updated.data} às ${faixaHorario(updated)}.`))
   );
   res.json(updated);
 }
@@ -90,7 +95,7 @@ async function deleteReuniao(req, res) {
   await supabaseService.remove(COLLECTION, req.params.id);
   const participantes = await participantesDaReuniao(existing);
   await Promise.all(
-    participantes.map((id) => notificar(id, "agenda", `Reunião cancelada: ${existing.titulo} em ${existing.data} às ${existing.hora}.`))
+    participantes.map((id) => notificar(id, "agenda", `Reunião cancelada: ${existing.titulo} em ${existing.data} às ${faixaHorario(existing)}.`))
   );
   res.status(204).send();
 }

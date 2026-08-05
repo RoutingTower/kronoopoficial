@@ -15,7 +15,11 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
   const semHoraCol = showLembretes ? `<div class="flash-col"><div class="flash-time">Sem hora</div>${semHora.length===0 ? `<div class="flash-card off"><div style="color:var(--text-faint);font-size:12px;">Sem lembrete</div></div>` : semHora.map(lembreteCardHTML).join('')}</div>` : '';
   return `<div class="flash-row">` + semHoraCol + HOURS.map(hour=>{
     const items = slots.filter(s=>s.horaInicio===hour);
-    const rns = reunioes.filter(r=>r.hora===hour);
+    // Reunião casa com a coluna pelo prefixo da hora (ex.: "19:20" cai na
+    // coluna "19:00") — o horário de início dela é livre de 20 em 20
+    // minutos (ver REUNIAO_HORAS em state.js), mais granular que as colunas
+    // do kanban, que seguem HOURS (hora a hora).
+    const rns = reunioes.filter(r=>r.hora.slice(0,2)===hour.slice(0,2));
     const lembretes = lembretesDoDia.filter(l=>l.hora===hour);
     if(items.length===0 && rns.length===0 && lembretes.length===0){
       return `<div class="flash-col"><div class="flash-time">${hour}</div><div class="flash-card off"><div style="color:var(--text-faint);font-size:12px;">Sem operação</div></div></div>`;
@@ -44,7 +48,7 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
     cardsHtml += rns.map(r=>`<div class="flash-card reuniao">
       <div class="flash-sigla">📅 Reunião</div>
       <div class="flash-meta">${escapeHtml(r.titulo)}</div>
-      <div class="flash-meta">${r.tipo==='grupo'?'Grupo':'Individual'} · ${r.hora}</div>
+      <div class="flash-meta">${r.tipo==='grupo'?'Grupo':'Individual'} · ${r.horaFim?`${r.hora}–${r.horaFim}`:r.hora}</div>
       ${r.link ? `<div class="flash-actions"><a class="btn btn-brand" href="${escapeHtml(normalizeUrl(r.link))}" target="_blank" rel="noopener noreferrer">Entrar na reunião</a></div>` : ''}
     </div>`).join('');
     cardsHtml += lembretes.map(lembreteCardHTML).join('');
@@ -225,7 +229,8 @@ function extraChipsForDay(analistaId, ds){
   // sem plantão — exatamente o critério de "folgando".
   else if(isFolgaDSR(analistaId, ds)) chips.push(`<div class="cal-chip cal-chip-folga-dia" title="Dia de folga">🌙 Folgando</div>`);
   getReunioesForDate(analistaId, ds).forEach(r=>{
-    chips.push(`<div class="cal-chip cal-chip-reuniao" title="${escapeHtml(r.titulo)} · ${r.tipo==='grupo'?'Grupo':'Individual'} · ${r.hora}">📅 ${r.hora} ${escapeHtml(r.titulo)}</div>`);
+    const faixa = r.horaFim ? `${r.hora}–${r.horaFim}` : r.hora;
+    chips.push(`<div class="cal-chip cal-chip-reuniao" title="${escapeHtml(r.titulo)} · ${r.tipo==='grupo'?'Grupo':'Individual'} · ${faixa}">📅 ${r.hora} ${escapeHtml(r.titulo)}</div>`);
   });
   getLembretesForAnalista(analistaId).filter(l=>(l.data||todayISO())===ds).forEach(l=>{
     chips.push(`<div class="cal-chip cal-chip-lembrete${l.done?' cal-chip-done':''}" title="${escapeHtml(l.texto)}">📝 ${l.hora?l.hora+' ':''}${escapeHtml(l.texto)}</div>`);

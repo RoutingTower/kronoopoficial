@@ -352,14 +352,18 @@ function reuniaoParticipantesLabel(r){
   return r.tipo==='grupo' ? (r.analistaIds.length===0?'Toda a equipe':r.analistaIds.map(id=>userById(id)?.name).join(', ')) : (userById(r.analistaIds[0])?.name||'—');
 }
 
+function reuniaoFaixa(r){
+  return r.horaFim ? `${r.hora}–${r.horaFim}` : r.hora;
+}
+
 function reuniaoChip(r){
-  return `<div class="cal-chip cal-chip-reuniao" data-editar-reuniao="${r.id}" style="cursor:pointer;" title="${escapeHtml(r.titulo)} · ${r.hora} · ${escapeHtml(reuniaoParticipantesLabel(r))}${r.link?' · com link':''}">📅 ${r.hora} ${escapeHtml(r.titulo)}</div>`;
+  return `<div class="cal-chip cal-chip-reuniao" data-editar-reuniao="${r.id}" style="cursor:pointer;" title="${escapeHtml(r.titulo)} · ${reuniaoFaixa(r)} · ${escapeHtml(reuniaoParticipantesLabel(r))}${r.link?' · com link':''}">📅 ${r.hora} ${escapeHtml(r.titulo)}</div>`;
 }
 
 function reuniaoCard(r){
   return `<div class="flash-card reuniao">
     <div class="flash-sigla">📅 ${escapeHtml(r.titulo)}</div>
-    <div class="flash-meta">${r.tipo==='grupo'?'Grupo':'Individual'} · ${r.hora}</div>
+    <div class="flash-meta">${r.tipo==='grupo'?'Grupo':'Individual'} · ${reuniaoFaixa(r)}</div>
     <div class="flash-meta">${escapeHtml(reuniaoParticipantesLabel(r))}</div>
     <div class="flash-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
       ${r.link ? `<a class="btn btn-brand" href="${escapeHtml(normalizeUrl(r.link))}" target="_blank" rel="noopener noreferrer">Abrir link</a>` : ''}

@@ -35,6 +35,14 @@ function addDaysISO(dateStr, n){ const d = new Date(dateStr+'T00:00:00'); d.setD
 // geraria reuniões indefinidamente.
 function addMonthsISO(dateStr, n){ const d = new Date(dateStr+'T00:00:00'); d.setMonth(d.getMonth()+n); return dateToISO(d); }
 
+// "HH:MM" + minutos -> "HH:MM", com wraparound de 24h. Usado pelos botões
+// de duração rápida (15/20/40/60min) do horário de fim da reunião.
+function addMinutesToTime(hhmm, minutes){
+  const [h, m] = hhmm.split(':').map(Number);
+  const total = ((h*60 + m + minutes) % 1440 + 1440) % 1440;
+  return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
+}
+
 // Segunda-feira da semana de dateStr — Resultado SPR é uma média semanal
 // (segunda a domingo, ver render-supervisor.js, sprResultadoBody), então a
 // linha do tempo agrupa por essa semana "cheia", não por 7 dias corridos

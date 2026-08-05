@@ -5,6 +5,25 @@
 
 const HOURS = ['19:00','20:00','21:00','22:00','23:00','00:00','01:00','02:00','03:00','04:00','05:00','06:00'];
 
+// Mesmo intervalo do turno (19h–06h) que HOURS, só que de 20 em 20 minutos
+// — usado no horário de início da reunião (mais granular que a operação,
+// que roda hora a hora). Mantido dentro do range de HOURS de propósito:
+// renderFlashcardRow (render-analista.js) encaixa a reunião na coluna do
+// kanban por prefixo de hora (ex.: "19:20" cai na coluna "19:00"); um
+// horário fora desse intervalo simplesmente não apareceria lá.
+const REUNIAO_HORAS = (()=>{
+  const out = [];
+  let h = 19, m = 0;
+  while(true){
+    const s = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    out.push(s);
+    if(s==='06:00') break;
+    m += 20;
+    if(m>=60){ m = 0; h = (h+1)%24; }
+  }
+  return out;
+})();
+
 const WEEKDAYS = ['dom','seg','ter','qua','qui','sex','sab'];
 
 

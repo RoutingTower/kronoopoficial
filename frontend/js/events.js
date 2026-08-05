@@ -481,7 +481,18 @@ function bindMainEvents(){
       <div class="field"><label>Tipo</label><select id="fRTipo"><option value="grupo">Grupo</option><option value="individual">Individual</option></select></div>
       <div class="field"><label>Título</label><input id="fRTitulo" placeholder="ex: Alinhamento semanal"></div>
       <div class="grid-2"><div class="field"><label>Data</label><input type="date" id="fRData" value="${uiState.reunioesDate||todayISO()}"></div>
-      <div class="field"><label>Hora</label><select id="fRHora">${HOURS.map(h=>`<option>${h}</option>`).join('')}</select></div></div>
+      <div class="field"><label>Hora início</label><select id="fRHora">${REUNIAO_HORAS.map(h=>`<option>${h}</option>`).join('')}</select></div></div>
+      <div class="grid-2">
+        <div class="field"><label>Hora fim</label><input type="time" id="fRHoraFim"></div>
+        <div class="field"><label>Duração rápida</label>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button type="button" class="btn" data-duracao="15">15 min</button>
+            <button type="button" class="btn" data-duracao="20">20 min</button>
+            <button type="button" class="btn" data-duracao="40">40 min</button>
+            <button type="button" class="btn" data-duracao="60">1 hora</button>
+          </div>
+        </div>
+      </div>
       <div class="field" id="fRAnalistaWrap" style="display:none;"><label>Analista</label><select id="fRAnalista">${myAnalistas.map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}</select></div>
       <div class="field"><label>Link (opcional)</label><input id="fRLink" placeholder="https://..."></div>
       <div class="field"><label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="fRRepetir"> Repetir em mais de uma data</label></div>
@@ -504,6 +515,11 @@ function bindMainEvents(){
     const tipoSel = document.getElementById('fRTipo');
     const wrap = document.getElementById('fRAnalistaWrap');
     tipoSel.addEventListener('change', ()=>{ wrap.style.display = tipoSel.value==='individual' ? 'block':'none'; });
+    const fRHora = document.getElementById('fRHora');
+    const fRHoraFim = document.getElementById('fRHoraFim');
+    document.querySelectorAll('[data-duracao]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{ fRHoraFim.value = addMinutesToTime(fRHora.value, Number(btn.dataset.duracao)); });
+    });
     const fRData = document.getElementById('fRData');
     const fRRepetir = document.getElementById('fRRepetir');
     const repetirWrap = document.getElementById('fRRepetirWrap');
@@ -522,7 +538,7 @@ function bindMainEvents(){
       const tipo = tipoSel.value;
       const analistaIds = tipo==='individual' ? [document.getElementById('fRAnalista').value] : [];
       const base = {tipo, titulo:document.getElementById('fRTitulo').value||'Reunião',
-        hora:document.getElementById('fRHora').value, analistaIds, supervisorId:session.userId, criadoPor:session.name,
+        hora:fRHora.value, horaFim:fRHoraFim.value, analistaIds, supervisorId:session.userId, criadoPor:session.name,
         link:normalizeUrl(document.getElementById('fRLink').value.trim())};
       const dataInicio = fRData.value;
       let datas = [dataInicio];
@@ -583,7 +599,18 @@ function bindMainEvents(){
         <div class="field"><label>Tipo</label><select id="fEditRTipo"><option value="grupo" ${r.tipo==='grupo'?'selected':''}>Grupo</option><option value="individual" ${r.tipo==='individual'?'selected':''}>Individual</option></select></div>
         <div class="field"><label>Título</label><input id="fEditRTitulo" value="${r.titulo}"></div>
         <div class="grid-2"><div class="field"><label>Data</label><input type="date" id="fEditRData" value="${r.data}"></div>
-        <div class="field"><label>Hora</label><select id="fEditRHora">${HOURS.map(h=>`<option ${h===r.hora?'selected':''}>${h}</option>`).join('')}</select></div></div>
+        <div class="field"><label>Hora início</label><select id="fEditRHora">${REUNIAO_HORAS.map(h=>`<option ${h===r.hora?'selected':''}>${h}</option>`).join('')}</select></div></div>
+        <div class="grid-2">
+          <div class="field"><label>Hora fim</label><input type="time" id="fEditRHoraFim" value="${escapeHtml(r.horaFim||'')}"></div>
+          <div class="field"><label>Duração rápida</label>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button type="button" class="btn" data-duracao="15">15 min</button>
+              <button type="button" class="btn" data-duracao="20">20 min</button>
+              <button type="button" class="btn" data-duracao="40">40 min</button>
+              <button type="button" class="btn" data-duracao="60">1 hora</button>
+            </div>
+          </div>
+        </div>
         <div class="field" id="fEditRAnalistaWrap" style="${r.tipo==='individual'?'':'display:none;'}"><label>Analista</label><select id="fEditRAnalista">${myAnalistas.map(a=>`<option value="${a.id}" ${a.id===r.analistaIds[0]?'selected':''}>${a.name}</option>`).join('')}</select></div>
         <div class="field"><label>Link (opcional)</label><input id="fEditRLink" value="${escapeHtml(r.link||'')}" placeholder="https://..."></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
@@ -595,10 +622,16 @@ function bindMainEvents(){
       const tipoSel = document.getElementById('fEditRTipo');
       const wrap = document.getElementById('fEditRAnalistaWrap');
       tipoSel.addEventListener('change', ()=>{ wrap.style.display = tipoSel.value==='individual' ? 'block':'none'; });
+      const fEditRHora = document.getElementById('fEditRHora');
+      const fEditRHoraFim = document.getElementById('fEditRHoraFim');
+      document.querySelectorAll('[data-duracao]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{ fEditRHoraFim.value = addMinutesToTime(fEditRHora.value, Number(btn.dataset.duracao)); });
+      });
       document.getElementById('confirmEditarReuniao').onclick = async ()=>{
         const tipo = tipoSel.value;
         const analistaIds = tipo==='individual' ? [document.getElementById('fEditRAnalista').value] : [];
         const patch = {tipo, titulo:document.getElementById('fEditRTitulo').value||'Reunião',
+          horaFim:fEditRHoraFim.value,
           data:document.getElementById('fEditRData').value, hora:document.getElementById('fEditRHora').value, analistaIds,
           link:normalizeUrl(document.getElementById('fEditRLink').value.trim())};
         try{

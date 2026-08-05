@@ -140,6 +140,7 @@ create table reunioes (
   titulo         text not null default 'Reunião',
   data           date not null,
   hora           text not null,
+  hora_fim       text not null default '',
   analista_ids   uuid[] not null default '{}',
   supervisor_id  uuid not null references users(id),
   criado_por     text not null default '',
