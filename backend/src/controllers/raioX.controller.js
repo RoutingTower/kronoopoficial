@@ -34,7 +34,7 @@ async function listRaioX(req, res) {
 // Finalização é sempre auto-declarada pelo próprio analista (ver
 // frontend/js/events.js) — ninguém finaliza operação de outra pessoa.
 async function createRaioX(req, res) {
-  const { analistaId, operacao, hora, data, estrelas, observacao, sprRoteirizado, sprMeta } = req.body;
+  const { analistaId, operacao, hora, data, estrelas, observacao, sprRoteirizado, sprMeta, semRoteirizacao } = req.body;
   if (!analistaId || !operacao || !hora || !data) {
     return res.status(400).json({
       error: "bad_request",
@@ -49,25 +49,43 @@ async function createRaioX(req, res) {
   if (!Number.isInteger(nota) || nota < 1 || nota > 5) {
     return res.status(400).json({ error: "bad_request", message: "estrelas deve ser um inteiro de 1 a 5" });
   }
-  if (!observacao || observacao.trim().length < MIN_OBSERVACAO_LEN) {
-    return res.status(400).json({
-      error: "bad_request",
-      message: `observacao é obrigatória, com no mínimo ${MIN_OBSERVACAO_LEN} caracteres`,
-    });
+
+  // Ciclo sem roteirização nesse horário: SPR e observação deixam de ser
+  // obrigatórios (não tem o que lançar/comparar). sprMeta é ignorado e
+  // sempre gravado como null pra esse registro nunca entrar nas contas de
+  // "bateu a meta" do Resultado SPR (ver sprResultadoBody, render-supervisor.js,
+  // e analistaDesempenho, render-analista.js — ambos filtram por sprMeta!=null).
+  let observacaoFinal, sprRealFinal, sprMetaFinal;
+  if (semRoteirizacao) {
+    observacaoFinal = (observacao || "").trim() || "Sem roteirização nesse horário.";
+    sprRealFinal = 0;
+    sprMetaFinal = null;
+  } else {
+    if (!observacao || observacao.trim().length < MIN_OBSERVACAO_LEN) {
+      return res.status(400).json({
+        error: "bad_request",
+        message: `observacao é obrigatória, com no mínimo ${MIN_OBSERVACAO_LEN} caracteres`,
+      });
+    }
+    const sprReal = Number(sprRoteirizado);
+    if (sprRoteirizado === undefined || sprRoteirizado === null || sprRoteirizado === "" || Number.isNaN(sprReal)) {
+      return res.status(400).json({ error: "bad_request", message: "sprRoteirizado é obrigatório e precisa ser um número" });
+    }
+    observacaoFinal = observacao.trim();
+    sprRealFinal = sprReal;
+    sprMetaFinal = sprMeta === undefined || sprMeta === null || sprMeta === "" ? null : Number(sprMeta);
   }
-  const sprReal = Number(sprRoteirizado);
-  if (sprRoteirizado === undefined || sprRoteirizado === null || sprRoteirizado === "" || Number.isNaN(sprReal)) {
-    return res.status(400).json({ error: "bad_request", message: "sprRoteirizado é obrigatório e precisa ser um número" });
-  }
+
   const entry = await supabaseService.create(COLLECTION, {
     analistaId,
     operacao,
     hora,
     data,
     estrelas: nota,
-    observacao: observacao.trim(),
-    sprRoteirizado: sprReal,
-    sprMeta: sprMeta === undefined || sprMeta === null || sprMeta === "" ? null : Number(sprMeta),
+    observacao: observacaoFinal,
+    sprRoteirizado: sprRealFinal,
+    sprMeta: sprMetaFinal,
+    semRoteirizacao: !!semRoteirizacao,
     ts: Date.now(),
   });
   res.status(201).json(entry);

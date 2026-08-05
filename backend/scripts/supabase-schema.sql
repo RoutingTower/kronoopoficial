@@ -116,6 +116,7 @@ create table raio_x (
   -- quando não havia meta cadastrada pra essa operação+ciclo no momento.
   spr_roteirizado numeric not null,
   spr_meta        numeric,
+  sem_roteirizacao boolean not null default false,
   ts            bigint not null
 );
 create index idx_raiox_analista on raio_x(analista_id);

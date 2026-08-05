@@ -160,12 +160,15 @@ function bindMainEvents(){
       let estrelas = 0;
       openModal(`
         <h3>Finalizar operação — ${op} (${hora})</h3>
-        <div class="help-text">Este é o Raio-X da operação: avalie com estrelas, informe o SPR lançado e descreva o que aconteceu. A observação precisa de no mínimo ${RAIOX_MIN_OBS_LEN} caracteres para fechar — tudo isso é obrigatório para finalizar.</div>
+        <div class="help-text">Este é o Raio-X da operação: avalie com estrelas, informe o SPR lançado e descreva o que aconteceu. A observação precisa de no mínimo ${RAIOX_MIN_OBS_LEN} caracteres para fechar — tudo isso é obrigatório para finalizar, a não ser que marque "Sem roteirização" abaixo.</div>
         <div class="field">
           <label>Avaliação</label>
           <div id="raioxStars" class="star-picker" style="display:flex;gap:6px;font-size:28px;line-height:1;">
             ${[1,2,3,4,5].map(n=>`<span data-star="${n}" style="cursor:pointer;opacity:0.3;">★</span>`).join('')}
           </div>
+        </div>
+        <div class="field">
+          <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" id="raioxSemRot"> Sem roteirização nesse horário</label>
         </div>
         <div class="field">
           <label>SPR lançado (obrigatório)${sprMeta!=null ? ` — SPR REF: ${sprMeta}` : ' (sem SPR REF cadastrado pra essa operação/ciclo)'}</label>
@@ -183,16 +186,26 @@ function bindMainEvents(){
       const cancelBtn = document.querySelector('[data-modal-cancel]');
       if(cancelBtn) cancelBtn.onclick = closeModal;
       const starsEl = document.getElementById('raioxStars');
+      const semRotEl = document.getElementById('raioxSemRot');
       const obsEl = document.getElementById('raioxObs');
       const sprRealEl = document.getElementById('raioxSprReal');
       const counterEl = document.getElementById('raioxCounter');
       const confirmBtn = document.getElementById('confirmFinalizar');
       function updateState(){
+        const semRot = semRotEl.checked;
+        sprRealEl.disabled = semRot;
+        sprRealEl.style.opacity = semRot ? '0.4' : '1';
         const len = obsEl.value.trim().length;
-        counterEl.textContent = `${len} / ${RAIOX_MIN_OBS_LEN} caracteres mínimos`;
-        counterEl.style.color = len>=RAIOX_MIN_OBS_LEN ? 'var(--done)' : 'var(--text-faint)';
-        const sprValido = sprRealEl.value.trim()!=='' && !Number.isNaN(Number(sprRealEl.value));
-        confirmBtn.disabled = !(estrelas>=1 && len>=RAIOX_MIN_OBS_LEN && sprValido);
+        if(semRot){
+          counterEl.textContent = 'Observação opcional (sem roteirização nesse horário)';
+          counterEl.style.color = 'var(--text-faint)';
+          confirmBtn.disabled = !(estrelas>=1);
+        } else {
+          counterEl.textContent = `${len} / ${RAIOX_MIN_OBS_LEN} caracteres mínimos`;
+          counterEl.style.color = len>=RAIOX_MIN_OBS_LEN ? 'var(--done)' : 'var(--text-faint)';
+          const sprValido = sprRealEl.value.trim()!=='' && !Number.isNaN(Number(sprRealEl.value));
+          confirmBtn.disabled = !(estrelas>=1 && len>=RAIOX_MIN_OBS_LEN && sprValido);
+        }
       }
       starsEl.querySelectorAll('[data-star]').forEach(s=>{
         s.addEventListener('click', ()=>{
@@ -205,13 +218,17 @@ function bindMainEvents(){
           updateState();
         });
       });
+      semRotEl.addEventListener('change', updateState);
       obsEl.addEventListener('input', updateState);
       sprRealEl.addEventListener('input', updateState);
       confirmBtn.onclick = async ()=>{
+        const semRot = semRotEl.checked;
         const observacao = obsEl.value.trim();
         const sprReal = Number(sprRealEl.value);
-        if(estrelas<1 || observacao.length<RAIOX_MIN_OBS_LEN || sprRealEl.value.trim()==='' || Number.isNaN(sprReal)) return;
-        const entrada = {analistaId:session.userId, operacao:op, hora, data, estrelas, observacao, sprRoteirizado:sprReal, sprMeta, ciclo};
+        if(estrelas<1) return;
+        if(!semRot && (observacao.length<RAIOX_MIN_OBS_LEN || sprRealEl.value.trim()==='' || Number.isNaN(sprReal))) return;
+        const entrada = {analistaId:session.userId, operacao:op, hora, data, estrelas, observacao,
+          sprRoteirizado: semRot ? 0 : sprReal, sprMeta: semRot ? null : sprMeta, ciclo, semRoteirizacao:semRot};
         confirmBtn.disabled = true;
         try{
           const novo = await apiCreateRaioX(entrada);
