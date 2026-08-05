@@ -348,21 +348,111 @@ function exportarGrade(){
 }
 
 
-function supReunioes(myAnalistas){
-  const rows = DB.reunioes.filter(r=>r.supervisorId===session.userId).sort((a,b)=> (b.data+b.hora).localeCompare(a.data+a.hora));
+function reuniaoParticipantesLabel(r){
+  return r.tipo==='grupo' ? (r.analistaIds.length===0?'Toda a equipe':r.analistaIds.map(id=>userById(id)?.name).join(', ')) : (userById(r.analistaIds[0])?.name||'—');
+}
+
+function reuniaoChip(r){
+  return `<div class="cal-chip cal-chip-reuniao" data-editar-reuniao="${r.id}" style="cursor:pointer;" title="${escapeHtml(r.titulo)} · ${r.hora} · ${escapeHtml(reuniaoParticipantesLabel(r))}${r.link?' · com link':''}">📅 ${r.hora} ${escapeHtml(r.titulo)}</div>`;
+}
+
+function reuniaoCard(r){
+  return `<div class="flash-card reuniao">
+    <div class="flash-sigla">📅 ${escapeHtml(r.titulo)}</div>
+    <div class="flash-meta">${r.tipo==='grupo'?'Grupo':'Individual'} · ${r.hora}</div>
+    <div class="flash-meta">${escapeHtml(reuniaoParticipantesLabel(r))}</div>
+    <div class="flash-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+      ${r.link ? `<a class="btn btn-brand" href="${escapeHtml(normalizeUrl(r.link))}" target="_blank" rel="noopener noreferrer">Abrir link</a>` : ''}
+      <button class="btn" data-editar-reuniao="${r.id}">Editar</button>
+      <button class="btn btn-danger" data-excluir-reuniao="${r.id}">Excluir</button>
+    </div>
+  </div>`;
+}
+
+function reunioesDiaria(rows, dateStr){
+  const doDia = rows.filter(r=>r.data===dateStr).sort((a,b)=>a.hora.localeCompare(b.hora));
+  return `<div class="cal-grid" style="grid-template-columns:repeat(auto-fill,minmax(230px,1fr));">
+    ${doDia.length===0 ? '<div class="empty">Nenhuma reunião nesse dia</div>' : doDia.map(reuniaoCard).join('')}
+  </div>`;
+}
+
+function reunioesSemanal(rows, dateStr){
+  const todayStr = hojeAgendaISO();
+  const diaDaSemana = new Date(dateStr+'T00:00:00').getDay();
+  const inicioSemana = addDaysISO(dateStr, -diaDaSemana);
+  const header = WEEKDAY_LABELS.map(w=>`<div class="cal-weekday-header">${w}</div>`).join('');
+  const cells = Array.from({length:7}, (_,i)=>{
+    const ds = addDaysISO(inicioSemana, i);
+    const doDia = rows.filter(r=>r.data===ds).sort((a,b)=>a.hora.localeCompare(b.hora));
+    const dd = new Date(ds+'T00:00:00');
+    const label = dd.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
+    const isToday = ds===todayStr;
+    return `<div class="cal-day-cell${isToday?' today':''}">
+      <div class="cal-day-num${isToday?' today':''}" data-daypick="${ds}" data-target="reunioes">${label}</div>
+      ${doDia.length===0 ? `<span style="color:var(--text-faint);font-size:11px;">Sem reunião</span>` : doDia.map(reuniaoChip).join('')}
+    </div>`;
+  }).join('');
+  return `<div class="cal-grid" style="margin-bottom:6px;">${header}</div><div class="cal-grid cal-grid-semanal">${cells}</div>`;
+}
+
+function reunioesMensal(rows, dateStr){
+  const todayStr = hojeAgendaISO();
+  const ref = new Date(dateStr+'T00:00:00');
+  const year = ref.getFullYear(), month = ref.getMonth();
+  const startWeekday = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const prevDate = dateToISO(new Date(year, month-1, 1));
+  const nextDate = dateToISO(new Date(year, month+1, 1));
+  let cells = '';
+  for(let i=0;i<startWeekday;i++){
+    cells += `<div class="cal-day-cell empty-cell"></div>`;
+  }
+  for(let day=1; day<=daysInMonth; day++){
+    const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const doDia = rows.filter(r=>r.data===ds).sort((a,b)=>a.hora.localeCompare(b.hora));
+    const isToday = ds===todayStr;
+    cells += `<div class="cal-day-cell${isToday?' today':''}">
+      <div class="cal-day-num${isToday?' today':''}" data-daypick="${ds}" data-target="reunioes">${day}</div>
+      ${doDia.map(reuniaoChip).join('')}
+    </div>`;
+  }
+  const trailing = (7 - ((startWeekday+daysInMonth) % 7)) % 7;
+  for(let i=0;i<trailing;i++){
+    cells += `<div class="cal-day-cell empty-cell"></div>`;
+  }
   return `
-  <div class="section-title">Reuniões</div>
-  <div style="display:flex;justify-content:flex-end;margin-bottom:14px;"><button class="btn btn-brand" id="btnNovaReuniao">+ Nova reunião</button></div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+    <button class="btn" data-monthnav="${prevDate}" data-target="reunioes">‹ Mês anterior</button>
+    <div class="section-title" style="margin:0;">${MONTH_NAMES[month]} ${year}</div>
+    <button class="btn" data-monthnav="${nextDate}" data-target="reunioes">Próximo mês ›</button>
+  </div>
+  <div class="cal-grid" style="margin-bottom:6px;">${WEEKDAY_LABELS.map(w=>`<div class="cal-weekday-header">${w}</div>`).join('')}</div>
+  <div class="cal-grid">${cells}</div>`;
+}
+
+function supReunioes(myAnalistas){
+  const rows = DB.reunioes.filter(r=>r.supervisorId===session.userId);
+  const dateStr = uiState.reunioesDate;
+  const view = uiState.reunioesView;
+  return `
+  <div class="page-head">
+    <div>
+      <h1 class="page-title" style="font-size:22px;">Reuniões</h1>
+      <div class="page-desc">Visão ${view==='diaria'?'diária':view==='semanal'?'semanal':'mensal'} — clique num evento pra editar</div>
+    </div>
+    <div class="toggle-group" data-scope="reunioes">
+      <button data-view="diaria" class="${view==='diaria'?'active':''}">Diária</button>
+      <button data-view="semanal" class="${view==='semanal'?'active':''}">Semanal</button>
+      <button data-view="mensal" class="${view==='mensal'?'active':''}">Mensal</button>
+    </div>
+  </div>
+  <div class="filter-row" style="align-items:center;margin-bottom:16px;">
+    <input type="date" id="reunioesDatePick" value="${dateStr}" class="mono" style="background:var(--bg-2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;">
+    <button class="btn btn-brand" id="btnNovaReuniao" style="margin-left:auto;">+ Nova reunião</button>
+  </div>
   <div class="card" style="margin-bottom:22px;">
-  <table><thead><tr><th>Título</th><th>Tipo</th><th>Data</th><th>Hora</th><th>Participantes</th><th>Link</th><th></th></tr></thead><tbody>
-  ${rows.map(r=>`<tr><td>${escapeHtml(r.titulo)}</td><td>${r.tipo==='grupo'?'Grupo':'Individual'}</td><td class="mono">${r.data}</td><td class="mono">${r.hora}</td>
-  <td>${r.tipo==='grupo' ? (r.analistaIds.length===0?'Toda a equipe':r.analistaIds.map(id=>userById(id)?.name).join(', ')) : (userById(r.analistaIds[0])?.name||'—')}</td>
-  <td>${r.link ? `<a class="btn" href="${escapeHtml(normalizeUrl(r.link))}" target="_blank" rel="noopener noreferrer">Abrir link</a>` : '—'}</td>
-  <td style="text-align:right;white-space:nowrap;">
-    <button class="btn" data-editar-reuniao="${r.id}">Editar</button>
-    <button class="btn btn-danger" data-excluir-reuniao="${r.id}">Excluir</button>
-  </td></tr>`).join('') || '<tr><td colspan="7" class="empty">Nenhuma reunião agendada</td></tr>'}
-  </tbody></table></div>`;
+    ${view==='diaria' ? reunioesDiaria(rows, dateStr) : view==='semanal' ? reunioesSemanal(rows, dateStr) : reunioesMensal(rows, dateStr)}
+  </div>`;
 }
 
 

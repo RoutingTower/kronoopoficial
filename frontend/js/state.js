@@ -42,6 +42,7 @@ let uiState = {
   ocorrenciasFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), analista: 'all', operacao: 'all', avaliacaoMax: '' },
   suplenciasFiltro:{ operacao:'', horario:'', suplente:'all', cobrindo:'all', inicio:'', fim:'' },
   progAnalista:'all', progDate: hojeAgendaISO(), progView:'diaria',
+  reunioesDate: hojeAgendaISO(), reunioesView:'mensal',
   sugerir: null, inboxSelected: null,
   // Linhas de importação em massa (Excel) cujo nome de analista não bateu
   // com ninguém da equipe — { tipo:'basemestra'|'suplencias', items:[...] }.

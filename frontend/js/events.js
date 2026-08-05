@@ -120,16 +120,24 @@ function bindMainEvents(){
   main.querySelectorAll('.toggle-group[data-scope="sup"] [data-view]').forEach(el=>{
     el.addEventListener('click', ()=>{ uiState.progView = el.dataset.view; renderMain(); });
   });
+  main.querySelectorAll('.toggle-group[data-scope="reunioes"] [data-view]').forEach(el=>{
+    el.addEventListener('click', ()=>{ uiState.reunioesView = el.dataset.view; renderMain(); });
+  });
   const datePick = document.getElementById('analistaDatePick');
   if(datePick) datePick.addEventListener('change', ()=>{ uiState.analistaDate = datePick.value; renderMain(); });
+  const reunioesDatePick = document.getElementById('reunioesDatePick');
+  if(reunioesDatePick) reunioesDatePick.addEventListener('change', ()=>{ uiState.reunioesDate = reunioesDatePick.value; renderMain(); });
   main.querySelectorAll('[data-opfiltro]').forEach(sel=>{
     sel.addEventListener('change', ()=>{ uiState.analistaOpFiltro = sel.value; renderMain(); });
   });
 
+  // data-target diferencia qual calendário está sendo navegado — sem ele,
+  // cai no comportamento antigo (Programação do analista/supervisor).
   main.querySelectorAll('[data-daypick]').forEach(cell=>{
     cell.addEventListener('click', ()=>{
       const ds = cell.dataset.daypick;
-      if(session.role==='analista'){ uiState.analistaDate = ds; uiState.analistaView = 'diaria'; }
+      if(cell.dataset.target==='reunioes'){ uiState.reunioesDate = ds; uiState.reunioesView = 'diaria'; }
+      else if(session.role==='analista'){ uiState.analistaDate = ds; uiState.analistaView = 'diaria'; }
       else { uiState.progDate = ds; uiState.progView = 'diaria'; }
       renderMain();
     });
@@ -137,7 +145,8 @@ function bindMainEvents(){
   main.querySelectorAll('[data-monthnav]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const ds = btn.dataset.monthnav;
-      if(session.role==='analista'){ uiState.analistaDate = ds; }
+      if(btn.dataset.target==='reunioes'){ uiState.reunioesDate = ds; }
+      else if(session.role==='analista'){ uiState.analistaDate = ds; }
       else { uiState.progDate = ds; }
       renderMain();
     });
@@ -471,7 +480,7 @@ function bindMainEvents(){
     openModal(`<h3>Nova reunião</h3>
       <div class="field"><label>Tipo</label><select id="fRTipo"><option value="grupo">Grupo</option><option value="individual">Individual</option></select></div>
       <div class="field"><label>Título</label><input id="fRTitulo" placeholder="ex: Alinhamento semanal"></div>
-      <div class="grid-2"><div class="field"><label>Data</label><input type="date" id="fRData" value="${todayISO()}"></div>
+      <div class="grid-2"><div class="field"><label>Data</label><input type="date" id="fRData" value="${uiState.reunioesDate||todayISO()}"></div>
       <div class="field"><label>Hora</label><select id="fRHora">${HOURS.map(h=>`<option>${h}</option>`).join('')}</select></div></div>
       <div class="field" id="fRAnalistaWrap" style="display:none;"><label>Analista</label><select id="fRAnalista">${myAnalistas.map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}</select></div>
       <div class="field"><label>Link (opcional)</label><input id="fRLink" placeholder="https://..."></div>
