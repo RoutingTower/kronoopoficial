@@ -58,6 +58,15 @@ function uid(prefix){ return prefix+'_'+Math.random().toString(36).slice(2,9); }
 
 function hourSortValue(hora){ const h = parseInt(hora.split(':')[0],10); return h < 7 ? h + 24 : h; }
 
+// Texto pra tooltip (title=) com as operações fixas do analista, horário +
+// nome, uma por linha — usado nos chips "Em folga/ausentes" (Métricas) pra
+// dar contexto de quem é a pessoa sem precisar abrir o histórico completo.
+function operacoesFixasTooltip(analistaId){
+  const ops = DB.baseMestra.filter(b=>b.analistaId===analistaId).sort((a,b)=>hourSortValue(a.horaInicio)-hourSortValue(b.horaInicio));
+  if(ops.length===0) return 'Sem operação fixa cadastrada';
+  return ops.map(b=>`${b.horaInicio} - ${b.operacao}`).join('\n');
+}
+
 function rangesOverlap(s1,e1,s2,e2){ return s1 < e2 && s2 < e1; }
 
 

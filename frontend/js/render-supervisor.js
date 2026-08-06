@@ -653,7 +653,7 @@ function metricasBody(selecionados, picker, notaSingular){
   <div class="highlight-card">
     ${periodoCurto ? `
     <div class="section-title">🟡 Em folga / ausentes no período (${emFolga.length})</div>
-    <div class="chip-row">${emFolga.map(c=>`<span class="chip-pessoa">${escapeHtml(c.name)}</span>`).join('')}</div>
+    <div class="chip-row">${emFolga.map(c=>`<span class="chip-pessoa" title="${escapeHtml(operacoesFixasTooltip(c.id))}">${escapeHtml(c.name)}</span>`).join('')}</div>
     ` : `
     <div class="section-title">🟡 ${diasFolgaQtd} folga(s)/férias registrada(s) no período, entre ${idsComFolgaAlgumDia.size} analista(s)</div>
     <div class="help-text" style="margin:0;">Período maior que 2 dias — mostrando só a quantidade. Reduza pra até 2 dias pra ver os nomes.</div>
