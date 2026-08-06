@@ -362,6 +362,16 @@ function renderMain(){
   if(activeNavKey==='dashboard') renderDashboardCharts();
   if(activeNavKey==='status') renderStatusCharts();
   if(activeNavKey==='resultadospr') renderSPRCharts();
+  // Enquadra a coluna do horário atual na visão diária (Programação do
+  // analista/supervisor) sem precisar rolar manualmente — só existe essa
+  // classe quando o turno do dia exibido está rolando agora (ver
+  // renderFlashcardRow, render-analista.js). "Todos os analistas" pode
+  // renderizar mais de uma linha na mesma página, então rola cada uma —
+  // scrollIntoView afeta só o .flash-row (ancestral scrollável mais
+  // próximo) de cada uma, não a página inteira.
+  document.querySelectorAll('.flash-col-agora').forEach(col=>{
+    col.scrollIntoView({inline:'center', block:'nearest'});
+  });
 }
 
 

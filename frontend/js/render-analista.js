@@ -13,7 +13,32 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
   const lembretesDoDia = showLembretes ? getLembretesForAnalista(analistaId).filter(l=>(l.data||todayISO())===dateStr) : [];
   const semHora = lembretesDoDia.filter(l=>!l.hora);
   const semHoraCol = showLembretes ? `<div class="flash-col"><div class="flash-time">Sem hora</div>${semHora.length===0 ? `<div class="flash-card off"><div style="color:var(--text-faint);font-size:12px;">Sem lembrete</div></div>` : semHora.map(lembreteCardHTML).join('')}</div>` : '';
-  return `<div class="flash-row">` + semHoraCol + HOURS.map(hour=>{
+
+  // Linha do tempo estilo Google Agenda: só faz sentido "agora" quando o
+  // turno DESSA data está rolando neste exato momento — turno futuro
+  // (ainda não começou) ou passado (navegando pra um dia anterior) não tem
+  // "agora" pra marcar, então a tira nem aparece.
+  const turnoInicio = slotTimestamp(dateStr, HOURS[0]);
+  const turnoFim = slotTimestamp(dateStr, HOURS[HOURS.length-1]) + 60*60*1000;
+  const agora = Date.now();
+  const turnoAtivo = agora>=turnoInicio && agora<turnoFim;
+  const horaAtual = turnoAtivo ? HOURS.find(h=> agora>=slotTimestamp(dateStr,h) && agora<slotTimestamp(dateStr,h)+60*60*1000) : null;
+  const pctTurno = turnoAtivo ? Math.min(100, Math.max(0, ((agora-turnoInicio)/(turnoFim-turnoInicio))*100)) : 0;
+  const timelineHtml = turnoAtivo ? `
+  <div class="timeline-strip">
+    <div class="timeline-track">
+      <div class="timeline-fill" style="width:${pctTurno}%;"></div>
+      <div class="timeline-now" style="left:${pctTurno}%;" title="Agora: ${new Date(agora).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}"></div>
+    </div>
+    <div class="timeline-labels">${HOURS.map(h=>`<span${h===horaAtual?' class="timeline-label-agora"':''}>${h}</span>`).join('')}</div>
+  </div>` : '';
+
+  return timelineHtml + `<div class="flash-row">` + semHoraCol + HOURS.map(hour=>{
+    const isAgora = hour===horaAtual;
+    // Sem id de propósito: "Todos os analistas" (supProgramacao) renderiza
+    // essa função várias vezes na mesma página, um id fixo duplicaria — o
+    // auto-scroll (ui.js, renderMain) usa a classe e rola cada linha.
+    const colAttrs = `class="flash-col${isAgora?' flash-col-agora':''}"`;
     const items = slots.filter(s=>s.horaInicio===hour);
     // Reunião casa com a coluna pelo prefixo da hora (ex.: "19:20" cai na
     // coluna "19:00") — o horário de início dela é livre de 20 em 20
@@ -21,8 +46,9 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
     // do kanban, que seguem HOURS (hora a hora).
     const rns = reunioes.filter(r=>r.hora.slice(0,2)===hour.slice(0,2));
     const lembretes = lembretesDoDia.filter(l=>l.hora===hour);
+    const horaLabel = `${hour}${isAgora ? ' <span class="timeline-badge-agora">agora</span>' : ''}`;
     if(items.length===0 && rns.length===0 && lembretes.length===0){
-      return `<div class="flash-col"><div class="flash-time">${hour}</div><div class="flash-card off"><div style="color:var(--text-faint);font-size:12px;">Sem operação</div></div></div>`;
+      return `<div ${colAttrs}><div class="flash-time">${horaLabel}</div><div class="flash-card off"><div style="color:var(--text-faint);font-size:12px;">Sem operação</div></div></div>`;
     }
     let cardsHtml = items.map(it=>{
       // status!=='wait' controla a exibição de "Finalizar operação" logo
@@ -52,7 +78,7 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
       ${r.link ? `<div class="flash-actions"><a class="btn btn-brand" href="${escapeHtml(normalizeUrl(r.link))}" target="_blank" rel="noopener noreferrer">Entrar na reunião</a></div>` : ''}
     </div>`).join('');
     cardsHtml += lembretes.map(lembreteCardHTML).join('');
-    return `<div class="flash-col"><div class="flash-time">${hour}</div>${cardsHtml}</div>`;
+    return `<div ${colAttrs}><div class="flash-time">${horaLabel}</div>${cardsHtml}</div>`;
   }).join('') + `</div>`;
 }
 
