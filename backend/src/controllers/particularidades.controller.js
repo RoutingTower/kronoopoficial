@@ -9,10 +9,12 @@ async function listParticularidades(req, res) {
 }
 
 // Uma nota por Operação+Supervisor (upsert) — pensada pra passagem de
-// bastão entre turnos, então "qualquer analista pode ver e editar" (ver
-// pedido original): qualquer um da equipe (analista, o próprio supervisor,
-// ou admin) pode salvar. Sem histórico de versões de propósito — é uma
-// nota viva compartilhada, não um log; quem salvar por último vence.
+// bastão entre turnos. Só edita quem é dono fixo dessa operação (tem uma
+// entrada em base_mestra pra esse analista+operação) ou o supervisor/admin
+// — quem só está cobrindo o hub (suplente avulso ou de ausência) pode ver
+// mas não editar, pra a nota não virar bagunça de gente de passagem. Sem
+// histórico de versões de propósito — é uma nota viva compartilhada, não
+// um log; quem salvar por último vence.
 async function upsertParticularidade(req, res) {
   const { supervisorId, operacao, texto } = req.body;
   if (!supervisorId || !operacao) {
@@ -20,11 +22,13 @@ async function upsertParticularidade(req, res) {
   }
   const caller = await getCaller(req);
   if (!caller) return res.status(403).json({ error: "forbidden" });
-  const souDaEquipe = caller.isAdmin
-    || (caller.role === "supervisor" && caller.id === supervisorId)
-    || (caller.role === "analista" && caller.supervisorId === supervisorId);
-  if (!souDaEquipe) {
-    return res.status(403).json({ error: "forbidden", message: "Você só pode editar particularidades de operações da sua equipe." });
+  let podeEditar = caller.isAdmin || (caller.role === "supervisor" && caller.id === supervisorId);
+  if (!podeEditar && caller.role === "analista" && caller.supervisorId === supervisorId) {
+    const baseMestra = await supabaseService.listAll("baseMestra");
+    podeEditar = baseMestra.some((b) => b.analistaId === caller.id && b.operacao === operacao);
+  }
+  if (!podeEditar) {
+    return res.status(403).json({ error: "forbidden", message: "Só o analista titular dessa operação ou o supervisor podem editar a particularidade." });
   }
 
   const existentes = await supabaseService.listAll(COLLECTION);

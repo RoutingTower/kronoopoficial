@@ -104,7 +104,7 @@ let _loadDBInFlight = null;
 async function loadDB(){
   if(_loadDBInFlight) return _loadDBInFlight;
   _loadDBInFlight = (async ()=>{
-    const [users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente] = await Promise.all([
+    const [users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca] = await Promise.all([
       apiRequest('GET', '/users'),
       apiRequest('GET', '/base-mestra'),
       apiRequest('GET', '/suplencias'),
@@ -118,8 +118,9 @@ async function loadDB(){
       apiRequest('GET', '/feedbacks'),
       apiRequest('GET', '/particularidades'),
       apiRequest('GET', '/particularidade-ciente'),
+      apiRequest('GET', '/reuniao-presenca'),
     ]);
-    DB = { users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente };
+    DB = { users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca };
   })();
   try{ await _loadDBInFlight; }
   finally{ _loadDBInFlight = null; }
@@ -210,6 +211,10 @@ const apiSalvarParticularidade = (data) => apiRequest('POST', '/particularidades
 // Confirmação pessoal de "li a particularidade" numa cobertura específica —
 // ver botão "Ciente" no modal (events.js) e o selo no card (render-analista.js).
 const apiMarcarCiente = (data) => apiRequest('POST', '/particularidade-ciente', data);
+
+// Confirmação de presença numa reunião — sempre em nome de quem chama (ver
+// botão "Confirmar presença" no card de reunião, render-analista.js).
+const apiMarcarPresenca = (reuniaoId) => apiRequest('POST', '/reuniao-presenca', { reuniaoId });
 
 // plantoes
 const apiCreatePlantao = (data) => apiRequest('POST', '/plantoes', data);

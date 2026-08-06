@@ -412,8 +412,19 @@ function reuniaoFaixa(r){
   return r.horaFim ? `${r.hora}–${r.horaFim}` : r.hora;
 }
 
+// Presença é auto-declarada pelo próprio analista, via botão "Confirmar
+// presença" no card dele (render-analista.js) — aqui só mostra o resumo
+// pro supervisor, com os nomes no tooltip.
+function presencaResumo(r){
+  const confirmados = DB.reuniaoPresenca.filter(p=>p.reuniaoId===r.id);
+  if(confirmados.length===0) return '';
+  const nomes = confirmados.map(p=>userById(p.analistaId)?.name).filter(Boolean);
+  return `<div class="flash-meta" style="color:var(--done);" title="${escapeHtml(nomes.join(', '))}">✓ ${confirmados.length} confirmaram presença</div>`;
+}
+
 function reuniaoChip(r){
-  return `<div class="cal-chip cal-chip-reuniao" data-editar-reuniao="${r.id}" style="cursor:pointer;" title="${escapeHtml(r.titulo)} · ${reuniaoFaixa(r)} · ${escapeHtml(reuniaoParticipantesLabel(r))}${r.link?' · com link':''}">📅 ${r.hora} ${escapeHtml(r.titulo)}</div>`;
+  const presentes = DB.reuniaoPresenca.filter(p=>p.reuniaoId===r.id).length;
+  return `<div class="cal-chip cal-chip-reuniao" data-editar-reuniao="${r.id}" style="cursor:pointer;" title="${escapeHtml(r.titulo)} · ${reuniaoFaixa(r)} · ${escapeHtml(reuniaoParticipantesLabel(r))}${r.link?' · com link':''}${presentes?` · ${presentes} confirmaram presença`:''}">📅 ${r.hora} ${escapeHtml(r.titulo)}</div>`;
 }
 
 function reuniaoCard(r){
@@ -421,6 +432,7 @@ function reuniaoCard(r){
     <div class="flash-sigla">📅 ${escapeHtml(r.titulo)}</div>
     <div class="flash-meta">${r.tipo==='grupo'?'Grupo':'Individual'} · ${reuniaoFaixa(r)}</div>
     <div class="flash-meta">${escapeHtml(reuniaoParticipantesLabel(r))}</div>
+    ${presencaResumo(r)}
     <div class="flash-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
       ${r.link ? `<a class="btn btn-brand" href="${escapeHtml(normalizeUrl(r.link))}" target="_blank" rel="noopener noreferrer">Abrir link</a>` : ''}
       <button class="btn" data-editar-reuniao="${r.id}">Editar</button>

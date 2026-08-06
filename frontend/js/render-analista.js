@@ -92,12 +92,22 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
         </div>
       </div>`;
     }).join('');
-    cardsHtml += rns.map(r=>`<div class="flash-card reuniao">
+    cardsHtml += rns.map(r=>{
+      // Confirmar presença é sempre em nome de quem está vendo a própria
+      // agenda — no "Programação Analista" do supervisor (analistaId !==
+      // session.userId) o botão não aparece, só o link.
+      const souEu = analistaId===session?.userId;
+      const presente = souEu && DB.reuniaoPresenca.some(p=>p.reuniaoId===r.id && p.analistaId===session.userId);
+      return `<div class="flash-card reuniao">
       <div class="flash-sigla">📅 Reunião</div>
       <div class="flash-meta">${escapeHtml(r.titulo)}</div>
       <div class="flash-meta">${r.tipo==='grupo'?'Grupo':'Individual'} · ${r.horaFim?`${r.hora}–${r.horaFim}`:r.hora}</div>
-      ${r.link ? `<div class="flash-actions"><a class="btn btn-brand" href="${escapeHtml(normalizeUrl(r.link))}" target="_blank" rel="noopener noreferrer">Entrar na reunião</a></div>` : ''}
-    </div>`).join('');
+      ${r.link ? `<div class="flash-actions" style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a class="btn btn-brand" href="${escapeHtml(normalizeUrl(r.link))}" target="_blank" rel="noopener noreferrer">Entrar na reunião</a>
+        ${souEu ? (presente ? `<span class="btn" style="color:var(--done);border-color:var(--done);cursor:default;">✓ Presença confirmada</span>` : `<button class="btn" data-marcar-presenca="${r.id}">Confirmar presença</button>`) : ''}
+      </div>` : ''}
+    </div>`;
+    }).join('');
     cardsHtml += lembretes.map(lembreteCardHTML).join('');
     return `<div ${colAttrs}><div class="flash-time">${horaLabel}</div>${cardsHtml}</div>`;
   }).join('') + `</div></div>`;

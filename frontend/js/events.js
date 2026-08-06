@@ -255,6 +255,10 @@ function bindMainEvents(){
       const souEuCobrindo = isCobertura && session.userId === coberturaAnalistaId;
       const cienteRegistro = isCobertura ? DB.particularidadeCiente.find(c=>c.analistaId===coberturaAnalistaId && c.operacao===operacao && c.data===coberturaData) : null;
       const existente = DB.particularidades.find(p=>p.supervisorId===supervisorId && p.operacao===operacao);
+      // Só o titular fixo dessa operação (o card não é cobertura) ou o
+      // supervisor podem editar — quem só está cobrindo o hub (suplente)
+      // vê a nota, mas não mexe nela (ver upsertParticularidade, backend).
+      const podeEditar = session.role==='supervisor' || (!isCobertura && session.userId===coberturaAnalistaId);
       modalLocked = true;
       openModalLarge(`
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
@@ -269,14 +273,16 @@ function bindMainEvents(){
         </div>` : ''}
         <div class="field" style="margin-top:14px;">
           <label>Particularidades da operação</label>
-          <textarea id="particularidadeTexto" rows="14" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;" placeholder="Ex.: acessos, contatos, procedimentos específicos, cuidados na passagem de turno...">${escapeHtml(existente?.texto||'')}</textarea>
+          <textarea id="particularidadeTexto" rows="14" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;" placeholder="Ex.: acessos, contatos, procedimentos específicos, cuidados na passagem de turno..."${podeEditar?'':' disabled'}>${escapeHtml(existente?.texto||'')}</textarea>
+          ${podeEditar ? '' : '<div class="help-text" style="margin-top:4px;">Só o analista titular dessa operação ou o supervisor podem editar.</div>'}
         </div>
         <div style="display:flex;justify-content:${(souEuCobrindo && !jaCiente) ? 'space-between' : 'flex-end'};align-items:center;margin-top:14px;gap:8px;">
           ${(souEuCobrindo && !jaCiente) ? `<button class="btn" id="btnCienteParticularidade">✓ Estou ciente</button>` : ''}
-          <button class="btn btn-brand" id="btnSalvarParticularidade">Salvar</button>
+          ${podeEditar ? `<button class="btn btn-brand" id="btnSalvarParticularidade">Salvar</button>` : ''}
         </div>`);
       document.getElementById('btnFecharParticularidade').onclick = closeModal;
-      document.getElementById('btnSalvarParticularidade').onclick = async ()=>{
+      const btnSalvarParticularidade = document.getElementById('btnSalvarParticularidade');
+      if(btnSalvarParticularidade) btnSalvarParticularidade.onclick = async ()=>{
         const btnSalvar = document.getElementById('btnSalvarParticularidade');
         const texto = document.getElementById('particularidadeTexto').value;
         btnSalvar.disabled = true;
@@ -298,6 +304,20 @@ function bindMainEvents(){
           renderMain();
         }catch(e){ alert('Não foi possível confirmar: '+e.message); btnCiente.disabled = false; }
       };
+    });
+  });
+
+  // Confirmar presença numa reunião — sempre em nome de quem clica (o
+  // backend já força analistaId=caller, ver reuniaoPresenca.controller.js).
+  main.querySelectorAll('[data-marcar-presenca]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const reuniaoId = btn.dataset.marcarPresenca;
+      btn.disabled = true;
+      try{
+        const novo = await apiMarcarPresenca(reuniaoId);
+        DB.reuniaoPresenca.push(novo);
+        renderMain();
+      }catch(e){ alert('Não foi possível confirmar presença: '+e.message); btn.disabled = false; }
     });
   });
 

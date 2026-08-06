@@ -16,6 +16,7 @@ const sprsRoutes = require("./sprs.routes");
 const notificacoesRoutes = require("./notificacoes.routes");
 const particularidadesRoutes = require("./particularidades.routes");
 const particularidadeCienteRoutes = require("./particularidadeCiente.routes");
+const reuniaoPresencaRoutes = require("./reuniaoPresenca.routes");
 
 const router = Router();
 
@@ -43,5 +44,6 @@ router.use("/sprs", sprsRoutes);
 router.use("/notificacoes", notificacoesRoutes);
 router.use("/particularidades", particularidadesRoutes);
 router.use("/particularidade-ciente", particularidadeCienteRoutes);
+router.use("/reuniao-presenca", reuniaoPresencaRoutes);
 
 module.exports = router;

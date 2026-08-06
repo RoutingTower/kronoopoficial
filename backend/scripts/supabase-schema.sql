@@ -179,6 +179,17 @@ create table reunioes (
 );
 create index idx_reunioes_supervisor on reunioes(supervisor_id);
 
+-- Confirmação de presença numa reunião — sempre o próprio analista
+-- marcando em nome dele (ver reuniaoPresenca.controller.js), pra sinalizar
+-- pro supervisor quem realmente participou. Um registro por reunião+pessoa.
+create table reuniao_presenca (
+  id           uuid primary key default gen_random_uuid(),
+  reuniao_id   uuid not null references reunioes(id) on delete cascade,
+  analista_id  uuid not null references users(id),
+  ts           bigint not null
+);
+create unique index idx_reuniao_presenca_unico on reuniao_presenca(reuniao_id, analista_id);
+
 create table sprs (
   id             uuid primary key default gen_random_uuid(),
   supervisor_id  uuid not null references users(id),
