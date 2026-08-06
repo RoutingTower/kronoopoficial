@@ -70,6 +70,12 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
       const status = computeStatus(hour, dateStr, analistaId, it.operacao, it.isOff);
       const raiox = DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===it.horaInicio && r.data===dateStr);
       const spr = getSPR(supervisorId, it.operacao, it.ciclo);
+      // "Ciente" da particularidade é por analista+operação+data (uma
+      // cobertura específica), não pela nota em si (que é compartilhada) —
+      // ver particularidade_ciente no schema. Mostrado mesmo pra quem só
+      // está olhando (ex.: supervisor na Programação Analista), mas só quem
+      // está cobrindo consegue de fato confirmar (ver events.js).
+      const ciente = it.isCobertura && DB.particularidadeCiente.some(c=>c.analistaId===analistaId && c.operacao===it.operacao && c.data===dateStr);
       return `<div class="flash-card flash-card-${categoriaOperacao(it)}${status==='atraso'?' flash-card-atraso':''}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
           <span class="flash-sigla">${it.operacao}</span>${statusPill(status, true)}
@@ -82,7 +88,7 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
             <button class="btn btn-brand" data-finalizar-op="${it.operacao}" data-hora="${it.horaInicio}" data-data="${dateStr}" data-ciclo="${it.ciclo}" data-spr-meta="${spr!=null?spr:''}">Finalizar operação</button>
           </div>`) : ''}
         <div class="flash-actions" style="margin-top:8px;">
-          <button class="btn btn-particularidade" data-particularidade-op="${escapeHtml(it.operacao)}" data-particularidade-sup="${supervisorId||''}">⚙️ Ver Particularidade</button>
+          <button class="btn btn-particularidade" data-particularidade-op="${escapeHtml(it.operacao)}" data-particularidade-sup="${supervisorId||''}" data-particularidade-cobertura="${it.isCobertura?'1':'0'}" data-particularidade-analista="${analistaId}" data-particularidade-data="${dateStr}" data-ciente="${ciente?'1':'0'}">⚙️ Ver Particularidade${(it.isCobertura && !ciente) ? '<span class="badge-alerta-ciente" title="Ainda sem confirmação de ciência"></span>' : ''}</button>
         </div>
       </div>`;
     }).join('');

@@ -104,7 +104,7 @@ let _loadDBInFlight = null;
 async function loadDB(){
   if(_loadDBInFlight) return _loadDBInFlight;
   _loadDBInFlight = (async ()=>{
-    const [users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades] = await Promise.all([
+    const [users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente] = await Promise.all([
       apiRequest('GET', '/users'),
       apiRequest('GET', '/base-mestra'),
       apiRequest('GET', '/suplencias'),
@@ -117,8 +117,9 @@ async function loadDB(){
       apiRequest('GET', '/lembretes'),
       apiRequest('GET', '/feedbacks'),
       apiRequest('GET', '/particularidades'),
+      apiRequest('GET', '/particularidade-ciente'),
     ]);
-    DB = { users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades };
+    DB = { users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente };
   })();
   try{ await _loadDBInFlight; }
   finally{ _loadDBInFlight = null; }
@@ -205,6 +206,10 @@ const apiDeleteReuniao = (id) => apiRequest('DELETE', `/reunioes/${id}`);
 // registro existente por (supervisorId, operacao) e atualiza, ou cria se
 // for a primeira vez — por isso não tem apiUpdate/apiDelete, só esse POST.
 const apiSalvarParticularidade = (data) => apiRequest('POST', '/particularidades', data);
+
+// Confirmação pessoal de "li a particularidade" numa cobertura específica —
+// ver botão "Ciente" no modal (events.js) e o selo no card (render-analista.js).
+const apiMarcarCiente = (data) => apiRequest('POST', '/particularidade-ciente', data);
 
 // plantoes
 const apiCreatePlantao = (data) => apiRequest('POST', '/plantoes', data);

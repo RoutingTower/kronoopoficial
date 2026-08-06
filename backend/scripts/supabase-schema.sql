@@ -111,6 +111,20 @@ create table particularidades (
 );
 create unique index idx_particularidades_sup_op on particularidades(supervisor_id, operacao);
 
+-- Confirmação pessoal de "li a particularidade" numa cobertura específica
+-- (analista+operação+data) — diferente da nota em si (particularidades,
+-- acima), que é compartilhada: aqui é por pessoa e por instância de
+-- cobertura, pra saber quem confirmou ciência de qual turno. Só o próprio
+-- analista registra em nome dele (ver particularidadeCiente.controller.js).
+create table particularidade_ciente (
+  id           uuid primary key default gen_random_uuid(),
+  analista_id  uuid not null references users(id),
+  operacao     text not null,
+  data         date not null,
+  ts           bigint not null
+);
+create unique index idx_particularidade_ciente_unico on particularidade_ciente(analista_id, operacao, data);
+
 create table raio_x (
   id            uuid primary key default gen_random_uuid(),
   -- nullable pelo mesmo motivo de base_mestra.analista_id acima.

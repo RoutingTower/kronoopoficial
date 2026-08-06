@@ -300,6 +300,7 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .flash-col-agora::before{content:'';position:absolute;top:-6px;left:-7px;right:-7px;bottom:-2px;border:1.5px dashed var(--brand);border-radius:12px;pointer-events:none;opacity:0.55;}
 .flash-col-agora .flash-time{color:var(--brand);font-weight:700;}
 .timeline-badge-agora{font-size:9px;background:var(--brand);color:var(--brand-ink);padding:1px 6px;border-radius:20px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;vertical-align:middle;margin-left:4px;}
+.badge-alerta-ciente{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--alert);margin-left:6px;vertical-align:middle;box-shadow:0 0 0 2px rgba(217,54,46,0.25);}
 /* Fica dentro do mesmo .flash-outer que rola horizontalmente junto com
    .flash-row (por isso os dois sempre ficam alinhados) — largura e offset
    calculados em px no JS (renderFlashcardRow) pra baterem exatamente com

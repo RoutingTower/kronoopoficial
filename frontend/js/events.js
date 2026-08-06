@@ -248,6 +248,12 @@ function bindMainEvents(){
     btn.addEventListener('click', ()=>{
       const operacao = btn.dataset.particularidadeOp;
       const supervisorId = btn.dataset.particularidadeSup;
+      const isCobertura = btn.dataset.particularidadeCobertura === '1';
+      const coberturaAnalistaId = btn.dataset.particularidadeAnalista;
+      const coberturaData = btn.dataset.particularidadeData;
+      const jaCiente = btn.dataset.ciente === '1';
+      const souEuCobrindo = isCobertura && session.userId === coberturaAnalistaId;
+      const cienteRegistro = isCobertura ? DB.particularidadeCiente.find(c=>c.analistaId===coberturaAnalistaId && c.operacao===operacao && c.data===coberturaData) : null;
       const existente = DB.particularidades.find(p=>p.supervisorId===supervisorId && p.operacao===operacao);
       modalLocked = true;
       openModal(`
@@ -258,11 +264,15 @@ function bindMainEvents(){
         <div class="help-text" style="margin-top:6px;">
           ${existente ? `Última atualização: ${new Date(existente.atualizadoEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})} por ${escapeHtml(existente.atualizadoPor)}` : 'Nenhuma atualização registrada ainda — seja o primeiro a preencher.'}
         </div>
+        ${isCobertura ? `<div class="help-text" style="margin-top:6px;${jaCiente?'color:var(--done);':'color:var(--alert);'}">
+          ${jaCiente ? `✓ Ciência confirmada em ${new Date(cienteRegistro.ts).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})} por ${escapeHtml(userById(coberturaAnalistaId)?.name||'—')}` : '⚠ Cobertura ainda sem confirmação de ciência.'}
+        </div>` : ''}
         <div class="field" style="margin-top:14px;">
           <label>Particularidades da operação</label>
           <textarea id="particularidadeTexto" rows="8" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;" placeholder="Ex.: acessos, contatos, procedimentos específicos, cuidados na passagem de turno...">${escapeHtml(existente?.texto||'')}</textarea>
         </div>
-        <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+        <div style="display:flex;justify-content:${(souEuCobrindo && !jaCiente) ? 'space-between' : 'flex-end'};align-items:center;margin-top:14px;gap:8px;">
+          ${(souEuCobrindo && !jaCiente) ? `<button class="btn" id="btnCienteParticularidade">✓ Estou ciente</button>` : ''}
           <button class="btn btn-brand" id="btnSalvarParticularidade">Salvar</button>
         </div>`);
       document.getElementById('btnFecharParticularidade').onclick = closeModal;
@@ -277,6 +287,16 @@ function bindMainEvents(){
           closeModal();
           renderMain();
         }catch(e){ alert('Não foi possível salvar: '+e.message); btnSalvar.disabled = false; }
+      };
+      const btnCiente = document.getElementById('btnCienteParticularidade');
+      if(btnCiente) btnCiente.onclick = async ()=>{
+        btnCiente.disabled = true;
+        try{
+          const novo = await apiMarcarCiente({ analistaId: coberturaAnalistaId, operacao, data: coberturaData });
+          DB.particularidadeCiente.push(novo);
+          closeModal();
+          renderMain();
+        }catch(e){ alert('Não foi possível confirmar: '+e.message); btnCiente.disabled = false; }
       };
     });
   });

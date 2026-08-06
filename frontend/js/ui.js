@@ -349,6 +349,11 @@ function openMenuConfigModal(){
 }
 
 
+// Cobertura "ao vivo" sem confirmação de ciência já auto-aberta nesta
+// sessão (chave "operação|data") — ver fim de renderMain(), evita reabrir
+// a Particularidade sozinha a cada render depois da primeira vez.
+let _particularidadeAutoAbertas = new Set();
+
 function renderMain(){
   const main = document.getElementById('mainArea');
   if(activeNavKey==='configuracoes') main.innerHTML = renderConfiguracoes();
@@ -372,6 +377,18 @@ function renderMain(){
   document.querySelectorAll('.flash-col-agora').forEach(col=>{
     col.scrollIntoView({inline:'center', block:'nearest'});
   });
+  // Cobertura "ao vivo" (coluna da hora atual) que o próprio analista ainda
+  // não confirmou ciência: abre a Particularidade sozinha, uma vez só por
+  // instância (operação+data) por sessão — pra não ficar reabrindo a cada
+  // render depois que a pessoa já fechou ou já confirmou.
+  const btnCoberturaAgora = document.querySelector('.flash-col-agora [data-particularidade-cobertura="1"][data-ciente="0"]');
+  if(btnCoberturaAgora && btnCoberturaAgora.dataset.particularidadeAnalista===session?.userId){
+    const chave = btnCoberturaAgora.dataset.particularidadeOp+'|'+btnCoberturaAgora.dataset.particularidadeData;
+    if(!_particularidadeAutoAbertas.has(chave)){
+      _particularidadeAutoAbertas.add(chave);
+      btnCoberturaAgora.click();
+    }
+  }
 }
 
 
