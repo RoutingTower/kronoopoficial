@@ -880,20 +880,6 @@ function sprResultadoBody(selecionados, picker){
   const metaMedioGeral = totalOps ? comMeta.reduce((s,r)=>s+r.sprMeta,0)/totalOps : 0;
   const deltaMedioGeral = totalOps ? comMeta.reduce((s,r)=>s+(r.sprRoteirizado-r.sprMeta),0)/totalOps : 0;
 
-  // Distribuição de delta (Lançado − REF) — substitui o gráfico binário de
-  // rosca por uma visão de onde a maioria das operações está caindo.
-  const buckets = [
-    { label:'≥ +10', min:10, max:Infinity, count:0 },
-    { label:'0 a +9,9', min:0, max:10, count:0 },
-    { label:'-9,9 a -0,1', min:-10, max:0, count:0 },
-    { label:'≤ -10', min:-Infinity, max:-10, count:0 },
-  ];
-  comMeta.forEach(r=>{
-    const delta = r.sprRoteirizado - r.sprMeta;
-    const b = buckets.find(x=> delta>=x.min && delta<x.max);
-    if(b) b.count++;
-  });
-
   // Detalhamento por Operação (hub) + Analista que roteirizou — uma linha
   // por combinação, agrupada/ordenada por operação. As médias (SPR
   // cadastrado/lançado/delta) cobrem o caso de o mesmo par operação+analista
@@ -972,9 +958,12 @@ function sprResultadoBody(selecionados, picker){
     roteirizadoMedio: d.total ? d.roteirizadoSoma/d.total : 0,
     metaMedio: d.total ? d.metaSoma/d.total : 0,
   })).sort((a,b)=>b.data.localeCompare(a.data));
+  // Mesma agregação, ordem cronológica (mais antigo primeiro) — alimenta os
+  // dois gráficos "por dia" abaixo, que leem da esquerda pra direita.
+  const porDiaAsc = [...porDia].reverse().map(d=>({...d, label:formatarDataCurta(d.data)}));
 
   sprChartData = {
-    distribuicaoDelta: buckets.map(b=>({label:b.label, count:b.count})),
+    porDiaAsc,
     porHub,
     ofensoresHub: [...porHub].sort((a,b)=>a.deltaMedio-b.deltaMedio).slice(0,10).reverse(),
     semanas,
@@ -1010,9 +999,9 @@ function sprResultadoBody(selecionados, picker){
     <div class="chip-row">${ofensoresTop5.map(o=>`<span class="chip-pessoa">${escapeHtml(o.operacao)} — ${o.deltaMedio>=0?'+':''}${o.deltaMedio.toFixed(1)}</span>`).join('')}</div>
   </div>` : ''}
   <div class="grid-2" style="margin-bottom:20px;align-items:start;">
-    <div class="chart-card"><div class="section-title">Distribuição de delta (Lançado − REF)</div><canvas id="chartSprStatus"></canvas></div>
+    <div class="chart-card"><div class="section-title">SPR Lançado por dia (com tendência)</div><canvas id="chartSprStatus"></canvas></div>
     <div class="chart-card"><div class="section-title">Linha do tempo — média de SPR por semana (seg. a dom.)</div><canvas id="chartSprSemanas"></canvas></div>
-    <div class="chart-card"><div class="section-title">Média de SPR por hub (lançado x REF)</div><canvas id="chartSprMedia"></canvas></div>
+    <div class="chart-card"><div class="section-title">SPR Lançado x REF por dia</div><canvas id="chartSprMedia"></canvas></div>
     <div class="chart-card"><div class="section-title">Maiores ofensores (hubs, por delta médio)</div><canvas id="chartSprOfensores"></canvas></div>
   </div>
   <div class="card" style="margin-bottom:20px;">
@@ -1058,16 +1047,20 @@ function renderSPRCharts(){
   const textColor = isDark ? '#9A9DA6' : '#767676';
   const gridColor = isDark ? '#2E3138' : '#E8E8E8';
 
-  // Distribuição de delta (Lançado − REF) — substitui a rosca binária de
-  // bateu/não bateu por uma visão de onde a maioria das operações cai.
+  // SPR Lançado por dia — barra + linha de tendência sobre a MESMA série
+  // (só lançado, sem REF), pra ver de cara se tá subindo ou descendo dia a
+  // dia, sem misturar com o comparativo de meta (isso já fica no gráfico
+  // ao lado, por dia, e no de por hub).
   sprChartInstances.status = new Chart(elStatus, {
     type:'bar',
-    data:{ labels: sprChartData.distribuicaoDelta.map(b=>b.label),
-      datasets:[{ data: sprChartData.distribuicaoDelta.map(b=>b.count),
-        backgroundColor:['#2FAE60','#7FB069','#EE4D2D','#D9362E'], borderRadius:4 }] },
-    options:{ plugins:{ legend:{ display:false } }, scales:{
-      x:{ ticks:{ color:textColor }, grid:{ display:false } },
-      y:{ ticks:{ color:textColor, precision:0 }, grid:{ color:gridColor } } } }
+    data:{ labels: sprChartData.porDiaAsc.map(d=>d.label),
+      datasets:[
+        { type:'bar', label:'SPR Lançado', data: sprChartData.porDiaAsc.map(d=>Number(d.roteirizadoMedio.toFixed(1))), backgroundColor:'#2F80ED', borderRadius:4, order:2 },
+        { type:'line', label:'Tendência', data: sprChartData.porDiaAsc.map(d=>Number(d.roteirizadoMedio.toFixed(1))), borderColor:'#EE4D2D', backgroundColor:'transparent', borderWidth:2, tension:0.3, pointRadius:3, pointBackgroundColor:'#EE4D2D', fill:false, order:1 },
+      ] },
+    options:{ plugins:{ legend:{ position:'bottom', labels:{ color:textColor } } }, scales:{
+      x:{ ticks:{ color:textColor, autoSkip:true, maxRotation:60 }, grid:{ display:false } },
+      y:{ ticks:{ color:textColor }, grid:{ color:gridColor } } } }
   });
 
   // Linha do tempo semanal — média de SPR lançado x REF por semana (segunda
@@ -1087,19 +1080,20 @@ function renderSPRCharts(){
     });
   }
 
-  // Média de SPR por hub — lançado (real) x meta (cadastrado), lado a
-  // lado, pra ver de cara onde o real está descolando do alvo.
+  // SPR Lançado x REF por dia — lado a lado, pra ver de cara em qual dia o
+  // real descolou mais do alvo (granularidade diária; o comparativo por
+  // hub fica no gráfico de ofensores + tabela de detalhamento).
   const elMedia = document.getElementById('chartSprMedia');
   if(elMedia){
     sprChartInstances.media = new Chart(elMedia, {
       type:'bar',
-      data:{ labels: sprChartData.porHub.map(h=>h.operacao),
+      data:{ labels: sprChartData.porDiaAsc.map(d=>d.label),
         datasets:[
-          { label:'SPR Lançado', data: sprChartData.porHub.map(h=>h.roteirizadoMedio), backgroundColor:'#2F80ED', borderRadius:4 },
-          { label:'SPR REF', data: sprChartData.porHub.map(h=>h.metaMedio), backgroundColor:'#A8A8A8', borderRadius:4 },
+          { label:'SPR Lançado', data: sprChartData.porDiaAsc.map(d=>Number(d.roteirizadoMedio.toFixed(1))), backgroundColor:'#2F80ED', borderRadius:4 },
+          { label:'SPR REF', data: sprChartData.porDiaAsc.map(d=>Number(d.metaMedio.toFixed(1))), backgroundColor:'#A8A8A8', borderRadius:4 },
         ] },
       options:{ plugins:{ legend:{ position:'bottom', labels:{ color:textColor } } }, scales:{
-        x:{ ticks:{ color:textColor, autoSkip:false, maxRotation:60, minRotation:0 }, grid:{ display:false } },
+        x:{ ticks:{ color:textColor, autoSkip:true, maxRotation:60, minRotation:0 }, grid:{ display:false } },
         y:{ ticks:{ color:textColor }, grid:{ color:gridColor } } } }
     });
   }
