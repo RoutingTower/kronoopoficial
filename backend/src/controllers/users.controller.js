@@ -110,7 +110,13 @@ async function updateUser(req, res) {
   if (req.body.password !== undefined) {
     await supabaseService.getAuth().updateUser(req.params.id, { password: req.body.password });
   }
-  const updated = await supabaseService.update(COLLECTION, req.params.id, patch);
+  // patch pode ficar vazio (ex.: reset de senha manda só "password", que
+  // vive no Auth, não na tabela) — um update sem colunas pra mudar não afeta
+  // nenhuma linha, e o .single() de supabaseService.update() explode com
+  // "0 rows" (PGRST116). Nesse caso não tem o que persistir na tabela.
+  const updated = Object.keys(patch).length > 0
+    ? await supabaseService.update(COLLECTION, req.params.id, patch)
+    : existing;
   res.json(updated);
 }
 
