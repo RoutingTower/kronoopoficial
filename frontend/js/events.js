@@ -273,7 +273,16 @@ function bindMainEvents(){
         </div>` : ''}
         <div class="field" style="margin-top:14px;">
           <label>Particularidades da operação</label>
-          <textarea id="particularidadeTexto" rows="14" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;" placeholder="Ex.: acessos, contatos, procedimentos específicos, cuidados na passagem de turno..."${podeEditar?'':' disabled'}>${escapeHtml(existente?.texto||'')}</textarea>
+          ${podeEditar ? `<div class="rte-toolbar">
+            <button type="button" class="rte-btn" data-rte-cmd="bold" title="Negrito"><b>B</b></button>
+            <button type="button" class="rte-btn" data-rte-cmd="italic" title="Itálico"><i>I</i></button>
+            <button type="button" class="rte-btn" data-rte-cmd="underline" title="Sublinhado"><u>S</u></button>
+            <span class="rte-sep"></span>
+            <button type="button" class="rte-btn" data-rte-cmd="justifyLeft" title="Alinhar à esquerda">≡«</button>
+            <button type="button" class="rte-btn" data-rte-cmd="justifyCenter" title="Centralizar">≡</button>
+            <button type="button" class="rte-btn" data-rte-cmd="justifyRight" title="Alinhar à direita">»≡</button>
+          </div>` : ''}
+          <div id="particularidadeTexto" class="rte-editable" contenteditable="${podeEditar?'true':'false'}" data-placeholder="Ex.: acessos, contatos, procedimentos específicos, cuidados na passagem de turno...">${existente?.texto||''}</div>
           ${podeEditar ? '' : '<div class="help-text" style="margin-top:4px;">Só o analista titular dessa operação ou o supervisor podem editar.</div>'}
         </div>
         <div style="display:flex;justify-content:${(souEuCobrindo && !jaCiente) ? 'space-between' : 'flex-end'};align-items:center;margin-top:14px;gap:8px;">
@@ -281,10 +290,21 @@ function bindMainEvents(){
           ${podeEditar ? `<button class="btn btn-brand" id="btnSalvarParticularidade">Salvar</button>` : ''}
         </div>`);
       document.getElementById('btnFecharParticularidade').onclick = closeModal;
+      const editorParticularidade = document.getElementById('particularidadeTexto');
+      // mousedown+preventDefault (não click) pra não perder a seleção de
+      // texto no editor antes do execCommand rodar — clicar num botão tira
+      // o foco do contenteditable por padrão.
+      document.querySelectorAll('.rte-btn').forEach(rteBtn=>{
+        rteBtn.addEventListener('mousedown', e=>{
+          e.preventDefault();
+          document.execCommand(rteBtn.dataset.rteCmd, false, null);
+          editorParticularidade.focus();
+        });
+      });
       const btnSalvarParticularidade = document.getElementById('btnSalvarParticularidade');
       if(btnSalvarParticularidade) btnSalvarParticularidade.onclick = async ()=>{
         const btnSalvar = document.getElementById('btnSalvarParticularidade');
-        const texto = document.getElementById('particularidadeTexto').value;
+        const texto = editorParticularidade.innerHTML;
         btnSalvar.disabled = true;
         try{
           const salvo = await apiSalvarParticularidade({ supervisorId, operacao, texto });
