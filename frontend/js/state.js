@@ -63,7 +63,7 @@ let uiState = {
   progAnalista:'all', progDate: hojeAgendaISO(), progView:'diaria',
   reunioesDate: hojeAgendaISO(), reunioesView:'mensal',
   domingosMes: todayISO(),
-  particularidadesFiltro: '',
+  particularidadesFiltro: { operacao: '', analista: 'all' },
   sugerir: null, inboxSelected: null,
   // Linhas de importação em massa (Excel) cujo nome de analista não bateu
   // com ninguém da equipe — { tipo:'basemestra'|'suplencias', items:[...] }.

@@ -1232,11 +1232,11 @@ function bindMainEvents(){
   });
 
   main.querySelectorAll('[data-particularidadesfiltro]').forEach(inp=>{
-    inp.addEventListener('change', ()=>{ uiState.particularidadesFiltro = inp.value; renderMain(); });
+    inp.addEventListener('change', ()=>{ uiState.particularidadesFiltro[inp.dataset.particularidadesfiltro] = inp.value; renderMain(); });
   });
   const btnExportParticularidades = document.getElementById('btnExportParticularidades');
   if(btnExportParticularidades) btnExportParticularidades.addEventListener('click', ()=>{
-    exportarRelatorioExcel('particularidades-auditoria.xlsx', ['Operação','Conteúdo','Atualizado por','Atualizado em'], particularidadesAuditoriaExportRows);
+    exportarRelatorioExcel('particularidades-auditoria.xlsx', ['Operação','Titular','Conteúdo','Atualizado por','Atualizado em'], particularidadesAuditoriaExportRows);
   });
 
   const btnExcluirTodasSuplencias = document.getElementById('btnExcluirTodasSuplencias');

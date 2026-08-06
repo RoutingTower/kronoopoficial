@@ -13,7 +13,7 @@ function renderSupervisor(){
   else if(activeNavKey==='grade') content = supGrade(myAnalistas);
   else if(activeNavKey==='domingos') content = supControleDomingos(myAnalistas);
   else if(activeNavKey==='reunioes') content = supReunioes(myAnalistas) + supPlantao();
-  else if(activeNavKey==='particularidades') content = supParticularidadesAuditoria();
+  else if(activeNavKey==='particularidades') content = supParticularidadesAuditoria(myAnalistas);
   else if(activeNavKey==='metricas') content = supMetricas(myAnalistas);
   else if(activeNavKey==='transmissao') content = supTransmissao(myAnalistas);
   else if(activeNavKey==='ocorrencias') content = supOcorrencias(myAnalistas);
@@ -412,21 +412,38 @@ function supControleDomingos(myAnalistas){
 // como supervisor, sempre pode editar por ali (ver upsertParticularidade,
 // backend), então essa tela também serve pra corrigir/complementar.
 let particularidadesAuditoriaExportRows = [];
-function supParticularidadesAuditoria(){
-  const f = uiState.particularidadesFiltro || '';
+function supParticularidadesAuditoria(myAnalistas){
+  const f = uiState.particularidadesFiltro;
+
+  // Uma operação pode ter mais de um titular (histórico de reatribuição —
+  // ver conversa sobre o Breno/Wanderley) — junta todos os analistas da
+  // equipe que hoje têm essa operação na base mestra.
+  const titularesPorOperacao = new Map();
+  DB.baseMestra.filter(b=>myAnalistas.some(a=>a.id===b.analistaId)).forEach(b=>{
+    if(!titularesPorOperacao.has(b.operacao)) titularesPorOperacao.set(b.operacao, new Set());
+    titularesPorOperacao.get(b.operacao).add(b.analistaId);
+  });
+  const nomesTitulares = op => [...(titularesPorOperacao.get(op)||[])].map(id=>userById(id)?.name).filter(Boolean).join(', ');
+
   const rows = DB.particularidades
     .filter(p=>p.supervisorId===session.userId)
-    .filter(p=>!f || p.operacao.toLowerCase().includes(f.toLowerCase()))
+    .filter(p=>!f.operacao || p.operacao.toLowerCase().includes(f.operacao.toLowerCase()))
+    .filter(p=> f.analista==='all' || (titularesPorOperacao.get(p.operacao)||new Set()).has(f.analista))
     .sort((a,b)=>b.atualizadoEm-a.atualizadoEm);
 
   particularidadesAuditoriaExportRows = rows.map(p=>[
-    p.operacao, stripHtmlPreview(p.texto, 300), p.atualizadoPor,
+    p.operacao, nomesTitulares(p.operacao)||'—', stripHtmlPreview(p.texto, 300), p.atualizadoPor,
     new Date(p.atualizadoEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}),
   ]);
 
+  const temFiltro = f.operacao || f.analista!=='all';
   return `
   <div class="filter-row">
-    <input placeholder="Filtrar por operação..." data-particularidadesfiltro value="${escapeHtml(f)}">
+    <input placeholder="Filtrar por operação..." data-particularidadesfiltro="operacao" value="${escapeHtml(f.operacao)}">
+    <select data-particularidadesfiltro="analista">
+      <option value="all">Analista: todos</option>
+      ${myAnalistas.map(a=>`<option value="${a.id}" ${f.analista===a.id?'selected':''}>${escapeHtml(a.name)}</option>`).join('')}
+    </select>
     <button class="btn" id="btnExportParticularidades">⬇ Exportar Excel</button>
   </div>
   <div class="grid-2" style="margin-bottom:18px;">
@@ -434,14 +451,15 @@ function supParticularidadesAuditoria(){
     <div class="stat-card"><div class="stat-num">${rows[0] ? new Date(rows[0].atualizadoEm).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '—'}</div><div class="stat-label">${rows[0] ? `Atualização mais recente — ${escapeHtml(rows[0].operacao)}` : 'Nenhuma atualização registrada'}</div></div>
   </div>
   <div class="card">
-  <table><thead><tr><th>Operação</th><th>Conteúdo</th><th>Última atualização</th><th>Por</th><th></th></tr></thead><tbody>
+  <table><thead><tr><th>Operação</th><th>Titular</th><th>Conteúdo</th><th>Última atualização</th><th>Por</th><th></th></tr></thead><tbody>
   ${rows.map(p=>`<tr>
     <td>${escapeHtml(p.operacao)}</td>
+    <td>${escapeHtml(nomesTitulares(p.operacao)||'—')}</td>
     <td style="max-width:340px;color:var(--text-muted);">${escapeHtml(stripHtmlPreview(p.texto, 140)) || '<span style="color:var(--text-faint);">vazio</span>'}</td>
     <td class="mono" style="white-space:nowrap;">${new Date(p.atualizadoEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</td>
     <td>${escapeHtml(p.atualizadoPor)}</td>
     <td style="text-align:right;"><button class="btn" data-particularidade-op="${escapeHtml(p.operacao)}" data-particularidade-sup="${p.supervisorId}">Ver / Editar</button></td>
-  </tr>`).join('') || `<tr><td colspan="5" class="empty">Nenhuma particularidade preenchida ainda${f?' pra esse filtro':''}</td></tr>`}
+  </tr>`).join('') || `<tr><td colspan="6" class="empty">Nenhuma particularidade preenchida ainda${temFiltro?' pra esse filtro':''}</td></tr>`}
   </tbody></table></div>`;
 }
 
