@@ -432,25 +432,11 @@ function openModal(html){
   document.getElementById('modalBg').style.display='flex';
 }
 
-// Variante encostada no canto inferior esquerdo da área de conteúdo (não do
-// viewport — por isso o cálculo em px a partir de #mainArea, senão tampa a
-// sidebar), com o fundo quase transparente (ver .modal-bg-corner,
-// style.css). Usada pelo modal de Particularidade (events.js) pra sentar no
-// espaço livre abaixo do kanban, sem tampar os cards nem a sidebar.
-function openModalSide(html){
-  const bg = document.getElementById('modalBg');
-  bg.classList.add('modal-bg-corner');
+// Variante maior (ver .modal-lg, style.css), centralizada como qualquer
+// modal padrão — usada pelo modal de Particularidade (events.js).
+function openModalLarge(html){
+  document.getElementById('modalBody').classList.add('modal-lg');
   openModal(html);
-  const modalEl = document.getElementById('modalBody');
-  const mainEl = document.getElementById('mainArea');
-  if(mainEl && modalEl){
-    const r = mainEl.getBoundingClientRect();
-    modalEl.style.position = 'fixed';
-    modalEl.style.left = Math.max(12, r.left) + 'px';
-    modalEl.style.bottom = '16px';
-    modalEl.style.top = 'auto';
-    modalEl.style.margin = '0';
-  }
 }
 
 // Trava o fechamento por clique fora (ver main.js) — usado pelo modal de
@@ -460,15 +446,8 @@ let modalLocked = false;
 
 function closeModal(){
   modalLocked = false;
-  const bg = document.getElementById('modalBg');
-  bg.classList.remove('modal-bg-corner');
-  bg.style.display='none';
-  const modalEl = document.getElementById('modalBody');
-  modalEl.style.position = '';
-  modalEl.style.left = '';
-  modalEl.style.bottom = '';
-  modalEl.style.top = '';
-  modalEl.style.margin = '';
+  document.getElementById('modalBody').classList.remove('modal-lg');
+  document.getElementById('modalBg').style.display='none';
 }
 
 // Barra de progresso pros imports em massa (Excel) — cada linha vira uma

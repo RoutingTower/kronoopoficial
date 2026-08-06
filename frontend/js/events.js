@@ -256,7 +256,7 @@ function bindMainEvents(){
       const cienteRegistro = isCobertura ? DB.particularidadeCiente.find(c=>c.analistaId===coberturaAnalistaId && c.operacao===operacao && c.data===coberturaData) : null;
       const existente = DB.particularidades.find(p=>p.supervisorId===supervisorId && p.operacao===operacao);
       modalLocked = true;
-      openModalSide(`
+      openModalLarge(`
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
           <h3 style="margin:0;">⚙️ Particularidades — ${escapeHtml(operacao)}</h3>
           <button id="btnFecharParticularidade" title="Fechar" style="background:none;border:none;color:var(--text-muted);font-size:24px;line-height:1;cursor:pointer;padding:0;">×</button>
@@ -269,7 +269,7 @@ function bindMainEvents(){
         </div>` : ''}
         <div class="field" style="margin-top:14px;">
           <label>Particularidades da operação</label>
-          <textarea id="particularidadeTexto" rows="8" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;" placeholder="Ex.: acessos, contatos, procedimentos específicos, cuidados na passagem de turno...">${escapeHtml(existente?.texto||'')}</textarea>
+          <textarea id="particularidadeTexto" rows="14" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;" placeholder="Ex.: acessos, contatos, procedimentos específicos, cuidados na passagem de turno...">${escapeHtml(existente?.texto||'')}</textarea>
         </div>
         <div style="display:flex;justify-content:${(souEuCobrindo && !jaCiente) ? 'space-between' : 'flex-end'};align-items:center;margin-top:14px;gap:8px;">
           ${(souEuCobrindo && !jaCiente) ? `<button class="btn" id="btnCienteParticularidade">✓ Estou ciente</button>` : ''}

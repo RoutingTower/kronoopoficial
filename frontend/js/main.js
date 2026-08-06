@@ -118,3 +118,20 @@ KronoAuth.onAuthStateChanged(async (user)=>{
     btn.textContent = btnLabel;
   }
 });
+
+// Atualização automática do DB em memória a cada 2h — sem isso, uma aba
+// que fica aberta o turno inteiro só vê o que existia no momento do login
+// (loadDB só roda ali, ver onAuthStateChanged acima), ficando cega a
+// mudanças feitas por outra pessoa. Mesmo efeito do botão "Atualizar dados
+// agora" (Configurações), só que sozinho. Silenciosa em caso de falha —
+// só loga e tenta de novo no próximo ciclo, sem interromper quem tiver
+// usando a tela.
+setInterval(async ()=>{
+  if(!session) return;
+  try{
+    await loadDB();
+    renderMain();
+  }catch(e){
+    console.error('KronoOP: falha na atualização automática periódica.', e);
+  }
+}, 2*60*60*1000);
