@@ -261,6 +261,10 @@ function buildNav(){
     const item = e.target.closest('.nav-item'); if(!item) return;
     activeNavKey = item.dataset.k;
     el.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.k===activeNavKey));
+    // "Programação Analista" guarda o último analista escolhido no filtro
+    // (uiState.progAnalista) — sem isso, entrar na aba de novo continuava
+    // preso na pessoa vista da última vez, em vez de partir de "Todos".
+    if(activeNavKey==='programacao') uiState.progAnalista = 'all';
     renderMain();
     // Troca de aba sempre volta pro topo — sem isso, quem clicava numa
     // aba estando rolado pra baixo (ex.: Programação Analista) continuava
