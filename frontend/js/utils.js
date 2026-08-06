@@ -264,23 +264,24 @@ function getDaySlots(analistaId, dateStr){
 
   const all = [...slots, ...adhoc, ...coberturaAusencias, ...coberturaAdhoc];
 
-  // Base mestra às vezes tem entrada duplicada pra mesma operação (sobra de
-  // importação em massa repetida) — quando isso acontece, só UMA das
-  // cópias tem a ausência/cobertura vinculada (ela vira "com tag": Folga do
-  // titular ou Cobrindo X); a(s) outra(s) cópia(s) aparecem como operação
-  // normal, duplicando o card à toa. Já que a versão com tag é a que
-  // reflete o que realmente está acontecendo, descarta a(s) sem tag quando
-  // há uma com tag pra mesma operação — de propósito só pelo NOME da
-  // operação, sem horário nem ciclo na chave: um hub pode passar pra outro
-  // analista que roteiriza em outro horário pra caber na agenda dele
-  // (achado real: card do Breno não sumia porque a cobertura tinha horário
-  // diferente do titular), e cobertura avulsa às vezes é lançada com o
-  // ciclo digitado diferente do cadastro fixo original (achado real: card
-  // do Wanderley não sumia porque a fixa dele tem ciclo "PM1" e a cobertura
-  // avulsa do mesmo hub foi lançada como "AM"). Nome da operação é o único
-  // dado que não varia entre as duas pontas.
-  const comTag = new Set(all.filter(s=>s.isOff||s.isCobertura).map(s=>s.operacao));
-  const deduped = all.filter(s=> s.isOff || s.isCobertura || !comTag.has(s.operacao));
+  // Base mestra às vezes tem entrada duplicada pra mesma operação/ciclo
+  // (sobra de importação em massa repetida) — quando isso acontece, só UMA
+  // das cópias tem a ausência/cobertura vinculada (ela vira "com tag":
+  // Folga do titular ou Cobrindo X); a(s) outra(s) cópia(s) aparecem como
+  // operação normal, duplicando o card à toa. Já que a versão com tag é a
+  // que reflete o que realmente está acontecendo, descarta a(s) sem tag
+  // quando há uma com tag pro mesmo par operação+ciclo — de propósito SEM
+  // o horário na chave: um hub pode passar pra outro analista que roteiriza
+  // em outro horário pra caber na agenda dele, e mesmo assim é a MESMA
+  // operação sendo coberta (achado real: card do Breno não sumia porque a
+  // cobertura tinha horário diferente do titular). Ciclo ENTRA na chave de
+  // propósito (não usar só o nome): evita suprimir o card errado quando a
+  // mesma operação roda em ciclos genuinamente diferentes no cadastro fixo.
+  // Cadastro de operação fixa e de cobertura avulsa precisam usar o MESMO
+  // ciclo pra essa dedupe funcionar — se o card ficar duplicado, o motivo
+  // costuma ser ciclo divergente entre as duas pontas, não bug de código.
+  const comTag = new Set(all.filter(s=>s.isOff||s.isCobertura).map(s=>s.operacao+'|'+s.ciclo));
+  const deduped = all.filter(s=> s.isOff || s.isCobertura || !comTag.has(s.operacao+'|'+s.ciclo));
 
   return deduped.sort((a,b)=> hourSortValue(a.horaInicio)-hourSortValue(b.horaInicio));
 }
