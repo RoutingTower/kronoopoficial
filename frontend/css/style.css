@@ -292,19 +292,23 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .modal-bg{position:fixed;inset:0;background:rgba(20,20,20,0.5);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;}
 .modal{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:24px;max-width:460px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,0.2);}
 .modal h3{margin:0 0 16px;font-size:19px;}
-.flash-row{display:flex;gap:14px;overflow-x:auto;padding-bottom:8px;}
+.flash-outer{overflow-x:auto;padding-bottom:8px;}
+.flash-row{display:flex;gap:14px;}
 .flash-col{min-width:220px;}
 .flash-time{font-family:'JetBrains Mono',monospace;color:var(--text-faint);font-size:11px;margin-bottom:6px;}
 .flash-col-agora{position:relative;}
 .flash-col-agora::before{content:'';position:absolute;top:-6px;left:-7px;right:-7px;bottom:-2px;border:1.5px dashed var(--brand);border-radius:12px;pointer-events:none;opacity:0.55;}
 .flash-col-agora .flash-time{color:var(--brand);font-weight:700;}
 .timeline-badge-agora{font-size:9px;background:var(--brand);color:var(--brand-ink);padding:1px 6px;border-radius:20px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;vertical-align:middle;margin-left:4px;}
-.timeline-strip{margin-bottom:14px;}
-.timeline-track{position:relative;height:6px;border-radius:4px;background:var(--bg-2);}
-.timeline-fill{position:absolute;top:0;left:0;height:100%;border-radius:4px;background:linear-gradient(135deg,var(--brand),var(--brand-2));transition:width 1s linear;}
-.timeline-now{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;background:var(--brand);border:2px solid var(--panel);transform:translate(-50%,-50%);box-shadow:0 0 0 3px rgba(238,77,45,0.25);transition:left 1s linear;}
-.timeline-labels{display:flex;justify-content:space-between;margin-top:4px;font-size:10px;color:var(--text-faint);font-family:'JetBrains Mono',monospace;}
-.timeline-label-agora{color:var(--brand);font-weight:700;}
+/* Fica dentro do mesmo .flash-outer que rola horizontalmente junto com
+   .flash-row (por isso os dois sempre ficam alinhados) — largura e offset
+   calculados em px no JS (renderFlashcardRow) pra baterem exatamente com
+   min-width/gap de .flash-col acima, não em % (que desalinha, já que as
+   colunas não dividem o espaço igualmente). */
+.timeline-overlay-wrap{position:relative;height:14px;margin-bottom:8px;}
+.timeline-track{position:absolute;top:4px;left:0;right:0;height:6px;border-radius:4px;background:var(--bg-2);}
+.timeline-fill{position:absolute;top:0;left:0;height:100%;border-radius:4px;background:linear-gradient(135deg,var(--brand),var(--brand-2));}
+.timeline-now{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;background:var(--brand);border:2px solid var(--panel);transform:translate(-50%,-50%);box-shadow:0 0 0 3px rgba(238,77,45,0.25);}
 .flash-card{background:var(--panel);border:1px solid var(--border);border-radius:11px;padding:13px 14px;margin-bottom:10px;box-shadow:0 2px 8px rgba(20,20,20,0.05);}
 .flash-card:hover{box-shadow:0 8px 20px rgba(20,20,20,0.09);transform:translateY(-1px);}
 .flash-card.off{border-style:dashed;box-shadow:none;}

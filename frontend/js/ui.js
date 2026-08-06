@@ -367,7 +367,7 @@ function renderMain(){
   // classe quando o turno do dia exibido está rolando agora (ver
   // renderFlashcardRow, render-analista.js). "Todos os analistas" pode
   // renderizar mais de uma linha na mesma página, então rola cada uma —
-  // scrollIntoView afeta só o .flash-row (ancestral scrollável mais
+  // scrollIntoView afeta só o .flash-outer (ancestral scrollável mais
   // próximo) de cada uma, não a página inteira.
   document.querySelectorAll('.flash-col-agora').forEach(col=>{
     col.scrollIntoView({inline:'center', block:'nearest'});

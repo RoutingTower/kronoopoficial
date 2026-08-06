@@ -23,17 +23,29 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
   const agora = Date.now();
   const turnoAtivo = agora>=turnoInicio && agora<turnoFim;
   const horaAtual = turnoAtivo ? HOURS.find(h=> agora>=slotTimestamp(dateStr,h) && agora<slotTimestamp(dateStr,h)+60*60*1000) : null;
-  const pctTurno = turnoAtivo ? Math.min(100, Math.max(0, ((agora-turnoInicio)/(turnoFim-turnoInicio))*100)) : 0;
+
+  // A tira vive dentro do MESMO .flash-outer que rola junto com .flash-row
+  // — por isso o offset é calculado em px batendo com min-width/gap de
+  // .flash-col no CSS (220px + 14px), não em % do container (que desalinha
+  // com "Sem hora" no meio e o scroll independente que existia antes).
+  const FLASH_COL_W = 220, FLASH_GAP = 14, FLASH_STEP = FLASH_COL_W + FLASH_GAP;
+  const semHoraOffsetPx = showLembretes ? FLASH_STEP : 0;
+  const trackWidthPx = HOURS.length*FLASH_COL_W + (HOURS.length-1)*FLASH_GAP;
+  let dotOffsetPx = 0;
+  if(turnoAtivo){
+    const idx = HOURS.indexOf(horaAtual);
+    const fracNaHora = Math.min(1, Math.max(0, (agora - slotTimestamp(dateStr,horaAtual)) / (60*60*1000)));
+    dotOffsetPx = idx*FLASH_STEP + fracNaHora*FLASH_COL_W;
+  }
   const timelineHtml = turnoAtivo ? `
-  <div class="timeline-strip">
+  <div class="timeline-overlay-wrap" style="margin-left:${semHoraOffsetPx}px;width:${trackWidthPx}px;">
     <div class="timeline-track">
-      <div class="timeline-fill" style="width:${pctTurno}%;"></div>
-      <div class="timeline-now" style="left:${pctTurno}%;" title="Agora: ${new Date(agora).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}"></div>
+      <div class="timeline-fill" style="width:${dotOffsetPx}px;"></div>
+      <div class="timeline-now" style="left:${dotOffsetPx}px;" title="Agora: ${new Date(agora).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}"></div>
     </div>
-    <div class="timeline-labels">${HOURS.map(h=>`<span${h===horaAtual?' class="timeline-label-agora"':''}>${h}</span>`).join('')}</div>
   </div>` : '';
 
-  return timelineHtml + `<div class="flash-row">` + semHoraCol + HOURS.map(hour=>{
+  return `<div class="flash-outer">` + timelineHtml + `<div class="flash-row">` + semHoraCol + HOURS.map(hour=>{
     const isAgora = hour===horaAtual;
     // Sem id de propósito: "Todos os analistas" (supProgramacao) renderiza
     // essa função várias vezes na mesma página, um id fixo duplicaria — o
@@ -79,7 +91,7 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
     </div>`).join('');
     cardsHtml += lembretes.map(lembreteCardHTML).join('');
     return `<div ${colAttrs}><div class="flash-time">${horaLabel}</div>${cardsHtml}</div>`;
-  }).join('') + `</div>`;
+  }).join('') + `</div></div>`;
 }
 
 
