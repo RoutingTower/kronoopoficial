@@ -256,7 +256,7 @@ function bindMainEvents(){
       const cienteRegistro = isCobertura ? DB.particularidadeCiente.find(c=>c.analistaId===coberturaAnalistaId && c.operacao===operacao && c.data===coberturaData) : null;
       const existente = DB.particularidades.find(p=>p.supervisorId===supervisorId && p.operacao===operacao);
       modalLocked = true;
-      openModal(`
+      openModalSide(`
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
           <h3 style="margin:0;">⚙️ Particularidades — ${escapeHtml(operacao)}</h3>
           <button id="btnFecharParticularidade" title="Fechar" style="background:none;border:none;color:var(--text-muted);font-size:24px;line-height:1;cursor:pointer;padding:0;">×</button>

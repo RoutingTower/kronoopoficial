@@ -432,12 +432,25 @@ function openModal(html){
   document.getElementById('modalBg').style.display='flex';
 }
 
+// Variante encostada na lateral esquerda, com o fundo quase transparente
+// (ver .modal-bg-left, style.css) — usada pelo modal de Particularidade
+// (events.js) pra não tampar a Programação atrás enquanto o analista
+// confere o card ao mesmo tempo.
+function openModalSide(html){
+  document.getElementById('modalBg').classList.add('modal-bg-left');
+  openModal(html);
+}
+
 // Trava o fechamento por clique fora (ver main.js) — usado pelo modal de
 // Particularidade da operação (events.js), que só pode fechar pelo "X"
 // explícito, pra não perder texto digitado por engano.
 let modalLocked = false;
 
-function closeModal(){ modalLocked = false; document.getElementById('modalBg').style.display='none'; }
+function closeModal(){
+  modalLocked = false;
+  document.getElementById('modalBg').classList.remove('modal-bg-left');
+  document.getElementById('modalBg').style.display='none';
+}
 
 // Barra de progresso pros imports em massa (Excel) — cada linha vira uma
 // chamada de API sequencial (events.js), então dá pra medir e mostrar
