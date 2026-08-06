@@ -309,6 +309,17 @@ function plantaoBannerFor(analistaId, dateStr){
   return `<div class="banner">🔔 Seu supervisor <b>${sup?.name||''}</b> está ausente nesta data. Plantão: <b>${pl.coberturaNome}</b> (${pl.coberturaRole}).</div>`;
 }
 
+// Lembrete de passagem de bastão: aparece quando o analista folga AMANHÃ
+// (relativo a hoje de verdade — hojeAgendaISO — não à data navegada no
+// calendário, pra não sumir só porque ele foi olhar outro mês). Mesmo
+// critério de "Folgando" usado no resto do app (isFolgaDSR: dia todo
+// coberto por outra pessoa, sem operação própria sobrando, sem plantão).
+function passagemBastaoBannerFor(analistaId){
+  const amanha = addDaysISO(hojeAgendaISO(), 1);
+  if(!isFolgaDSR(analistaId, amanha)) return '';
+  return `<div class="banner">🔄 Você folga amanhã (<b>${formatarDataCurta(amanha)}</b>) — faça a <b>passagem de bastão</b> das suas operações de hoje antes de sair, combinando com quem cobre.</div>`;
+}
+
 
 function userSupKey(userId){ const u=userById(userId); return u.supervisorId; }
 

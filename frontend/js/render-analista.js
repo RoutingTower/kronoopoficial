@@ -234,6 +234,7 @@ function renderAnalista(){
 
   return `
   ${plantaoBannerFor(session.userId, dateStr)}
+  ${passagemBastaoBannerFor(session.userId)}
   <div class="page-head">
     <div>
       <h1 class="page-title">Programação</h1>
