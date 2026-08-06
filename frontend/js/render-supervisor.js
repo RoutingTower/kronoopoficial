@@ -349,11 +349,12 @@ function exportarGrade(){
 }
 
 
-// "Trabalhou o domingo" = teve pelo menos uma operação própria (fixa) ou
-// cobertura nesse dia (categoriaOperacao, utils.js) — folga não conta.
-// Só entram domingos que já passaram (mesmo critério do coberturaHeatmap,
-// render-coordenador.js): domingo futuro ainda é só escala planejada, não
-// trabalho de fato realizado.
+// "Escalado no domingo" = tem pelo menos uma operação própria (fixa) ou
+// cobertura na agenda desse dia (categoriaOperacao, utils.js) — folga não
+// conta. Considera TODOS os domingos do mês, já realizados ou ainda por
+// vir: o critério é estar na escala (ver getDaySlots), não se o dia já
+// passou — assim o supervisor acompanha quem já tem domingo previsto na
+// agenda, não só quem já trabalhou de fato.
 let domingosExportRows = [];
 function supControleDomingos(myAnalistas){
   const ref = new Date((uiState.domingosMes||todayISO())+'T00:00:00');
@@ -368,16 +369,15 @@ function supControleDomingos(myAnalistas){
     const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     if(isDomingo(ds)) domingosDoMes.push(ds);
   }
-  const domingosPassados = domingosDoMes.filter(ds=>ds<=hojeStr);
 
   const ranking = myAnalistas.map(a=>{
-    const datas = domingosPassados.filter(ds=>
+    const datas = domingosDoMes.filter(ds=>
       getDaySlots(a.id, ds).some(s=>{ const cat = categoriaOperacao(s); return cat==='fixa' || cat==='cobertura'; })
     );
     return { analista:a, datas, total:datas.length };
   }).filter(p=>p.total>0).sort((a,b)=>b.total-a.total);
 
-  domingosExportRows = ranking.flatMap(p=>p.datas.map(ds=>[p.analista.name, ds]));
+  domingosExportRows = ranking.flatMap(p=>p.datas.map(ds=>[p.analista.name, ds, ds<=hojeStr?'Realizado':'Agendado']));
 
   return `
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
@@ -386,17 +386,17 @@ function supControleDomingos(myAnalistas){
     <button class="btn" data-monthnav="${nextDate}" data-target="domingos">Próximo mês ›</button>
   </div>
   <div class="grid-3" style="margin-bottom:18px;">
-    <div class="stat-card"><div class="stat-num">${domingosPassados.length}</div><div class="stat-label">Domingos já passados no mês</div></div>
-    <div class="stat-card"><div class="stat-num">${ranking.length}</div><div class="stat-label">Analistas que trabalharam algum domingo</div></div>
-    <div class="stat-card"><div class="stat-num">${ranking[0]?.total ?? 0}</div><div class="stat-label">${ranking[0] ? `Máximo: ${escapeHtml(ranking[0].analista.name)}` : 'Sem domingos trabalhados'}</div></div>
+    <div class="stat-card"><div class="stat-num">${domingosDoMes.length}</div><div class="stat-label">Domingos no mês</div></div>
+    <div class="stat-card"><div class="stat-num">${ranking.length}</div><div class="stat-label">Analistas escalados em algum domingo</div></div>
+    <div class="stat-card"><div class="stat-num">${ranking[0]?.total ?? 0}</div><div class="stat-label">${ranking[0] ? `Máximo: ${escapeHtml(ranking[0].analista.name)}` : 'Sem domingos escalados'}</div></div>
   </div>
   <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
     <button class="btn" id="btnExportDomingos">⬇ Exportar Excel</button>
   </div>
   <div class="card">
-  <table><thead><tr><th>#</th><th>Analista</th><th>Domingos trabalhados</th><th>Datas</th></tr></thead><tbody>
-  ${ranking.map((p,i)=>`<tr><td class="mono">${i+1}º</td><td style="cursor:pointer;" data-analista-timeline="${p.analista.id}" title="Ver histórico">${escapeHtml(p.analista.name)}</td><td class="mono">${p.total}</td><td>${p.datas.map(formatarDataCurta).join(', ')}</td></tr>`).join('')
-  || `<tr><td colspan="4" class="empty">Nenhum domingo trabalhado ${domingosPassados.length===0?'ainda neste mês':'no mês selecionado'}</td></tr>`}
+  <table><thead><tr><th>#</th><th>Analista</th><th>Domingos escalados</th><th>Datas</th></tr></thead><tbody>
+  ${ranking.map((p,i)=>`<tr><td class="mono">${i+1}º</td><td style="cursor:pointer;" data-analista-timeline="${p.analista.id}" title="Ver histórico">${escapeHtml(p.analista.name)}</td><td class="mono">${p.total}</td><td>${p.datas.map(ds=>`${formatarDataCurta(ds)}${ds>hojeStr?' <span style="color:var(--text-faint);">(agendado)</span>':''}`).join(', ')}</td></tr>`).join('')
+  || `<tr><td colspan="4" class="empty">Nenhum domingo escalado no mês selecionado</td></tr>`}
   </tbody></table></div>`;
 }
 

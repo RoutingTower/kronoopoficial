@@ -472,7 +472,7 @@ function bindMainEvents(){
   if(btnExportGrade) btnExportGrade.addEventListener('click', exportarGrade);
   const btnExportDomingos = document.getElementById('btnExportDomingos');
   if(btnExportDomingos) btnExportDomingos.addEventListener('click', ()=>{
-    exportarRelatorioExcel(`controle-domingos_${uiState.domingosMes.slice(0,7)}.xlsx`, ['Analista','Data'], domingosExportRows);
+    exportarRelatorioExcel(`controle-domingos_${uiState.domingosMes.slice(0,7)}.xlsx`, ['Analista','Data','Status'], domingosExportRows);
   });
   const btnExportOcorrencias = document.getElementById('btnExportOcorrencias');
   if(btnExportOcorrencias) btnExportOcorrencias.addEventListener('click', exportarOcorrencias);
