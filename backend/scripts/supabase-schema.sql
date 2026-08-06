@@ -95,6 +95,22 @@ create table plantoes (
 );
 create index idx_plantoes_supervisor on plantoes(supervisor_ausente_id);
 
+-- Nota de "particularidades" por Operação — uma por Operação+Supervisor,
+-- editável por qualquer analista da equipe. Pensada pra passagem de bastão
+-- entre turnos ("Ver Particularidade" no card da operação, ver
+-- render-analista.js). Sem histórico de versões de propósito: é uma nota
+-- viva compartilhada, não um log — atualizado_por/atualizado_em só guardam
+-- a ÚLTIMA edição.
+create table particularidades (
+  id              uuid primary key default gen_random_uuid(),
+  supervisor_id   uuid not null references users(id),
+  operacao        text not null,
+  texto           text not null default '',
+  atualizado_por  text not null default '',
+  atualizado_em   bigint not null default 0
+);
+create unique index idx_particularidades_sup_op on particularidades(supervisor_id, operacao);
+
 create table raio_x (
   id            uuid primary key default gen_random_uuid(),
   -- nullable pelo mesmo motivo de base_mestra.analista_id acima.

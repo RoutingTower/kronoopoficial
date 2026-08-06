@@ -415,7 +415,12 @@ function openModal(html){
   document.getElementById('modalBg').style.display='flex';
 }
 
-function closeModal(){ document.getElementById('modalBg').style.display='none'; }
+// Trava o fechamento por clique fora (ver main.js) — usado pelo modal de
+// Particularidade da operação (events.js), que só pode fechar pelo "X"
+// explícito, pra não perder texto digitado por engano.
+let modalLocked = false;
+
+function closeModal(){ modalLocked = false; document.getElementById('modalBg').style.display='none'; }
 
 // Barra de progresso pros imports em massa (Excel) — cada linha vira uma
 // chamada de API sequencial (events.js), então dá pra medir e mostrar

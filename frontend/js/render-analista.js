@@ -81,6 +81,9 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
         ${!it.isOff && analistaId===session?.userId && status!=='wait' ? (raiox ? `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}${raiox.semRoteirizacao ? ' · Sem roteirização' : raiox.sprRoteirizado!=null ? ` · SPR lançado ${escapeHtml(String(raiox.sprRoteirizado))}` : ''}</div>` : `<div class="flash-actions">
             <button class="btn btn-brand" data-finalizar-op="${it.operacao}" data-hora="${it.horaInicio}" data-data="${dateStr}" data-ciclo="${it.ciclo}" data-spr-meta="${spr!=null?spr:''}">Finalizar operação</button>
           </div>`) : ''}
+        <div class="flash-actions" style="margin-top:8px;">
+          <button class="btn btn-particularidade" data-particularidade-op="${escapeHtml(it.operacao)}" data-particularidade-sup="${supervisorId||''}">⚙️ Ver Particularidade</button>
+        </div>
       </div>`;
     }).join('');
     cardsHtml += rns.map(r=>`<div class="flash-card reuniao">

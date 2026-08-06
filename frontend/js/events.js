@@ -240,6 +240,47 @@ function bindMainEvents(){
     });
   });
 
+  // "Ver Particularidade" — nota compartilhada por Operação+Supervisor (uma
+  // só, upsert), pensada pra passagem de bastão entre turnos. Só fecha pelo
+  // "X" (modalLocked, ver ui.js/main.js) pra não perder texto por engano
+  // clicando fora ou (se um dia existir) apertando Esc.
+  main.querySelectorAll('[data-particularidade-op]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const operacao = btn.dataset.particularidadeOp;
+      const supervisorId = btn.dataset.particularidadeSup;
+      const existente = DB.particularidades.find(p=>p.supervisorId===supervisorId && p.operacao===operacao);
+      modalLocked = true;
+      openModal(`
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+          <h3 style="margin:0;">⚙️ Particularidades — ${escapeHtml(operacao)}</h3>
+          <button id="btnFecharParticularidade" title="Fechar" style="background:none;border:none;color:var(--text-muted);font-size:24px;line-height:1;cursor:pointer;padding:0;">×</button>
+        </div>
+        <div class="help-text" style="margin-top:6px;">
+          ${existente ? `Última atualização: ${new Date(existente.atualizadoEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})} por ${escapeHtml(existente.atualizadoPor)}` : 'Nenhuma atualização registrada ainda — seja o primeiro a preencher.'}
+        </div>
+        <div class="field" style="margin-top:14px;">
+          <label>Particularidades da operação</label>
+          <textarea id="particularidadeTexto" rows="8" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;" placeholder="Ex.: acessos, contatos, procedimentos específicos, cuidados na passagem de turno...">${escapeHtml(existente?.texto||'')}</textarea>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+          <button class="btn btn-brand" id="btnSalvarParticularidade">Salvar</button>
+        </div>`);
+      document.getElementById('btnFecharParticularidade').onclick = closeModal;
+      document.getElementById('btnSalvarParticularidade').onclick = async ()=>{
+        const btnSalvar = document.getElementById('btnSalvarParticularidade');
+        const texto = document.getElementById('particularidadeTexto').value;
+        btnSalvar.disabled = true;
+        try{
+          const salvo = await apiSalvarParticularidade({ supervisorId, operacao, texto });
+          const idx = DB.particularidades.findIndex(p=>p.id===salvo.id);
+          if(idx>=0) DB.particularidades[idx] = salvo; else DB.particularidades.push(salvo);
+          closeModal();
+          renderMain();
+        }catch(e){ alert('Não foi possível salvar: '+e.message); btnSalvar.disabled = false; }
+      };
+    });
+  });
+
   const btnNovoAnalista = document.getElementById('btnNovoAnalista');
   if(btnNovoAnalista) btnNovoAnalista.addEventListener('click', ()=>{
     openModal(`<h3>Novo Analista</h3>

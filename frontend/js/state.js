@@ -104,7 +104,7 @@ let _loadDBInFlight = null;
 async function loadDB(){
   if(_loadDBInFlight) return _loadDBInFlight;
   _loadDBInFlight = (async ()=>{
-    const [users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks] = await Promise.all([
+    const [users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades] = await Promise.all([
       apiRequest('GET', '/users'),
       apiRequest('GET', '/base-mestra'),
       apiRequest('GET', '/suplencias'),
@@ -116,8 +116,9 @@ async function loadDB(){
       apiRequest('GET', '/plantoes'),
       apiRequest('GET', '/lembretes'),
       apiRequest('GET', '/feedbacks'),
+      apiRequest('GET', '/particularidades'),
     ]);
-    DB = { users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks };
+    DB = { users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades };
   })();
   try{ await _loadDBInFlight; }
   finally{ _loadDBInFlight = null; }
@@ -198,6 +199,12 @@ const apiDeleteRecado = (id) => apiRequest('DELETE', `/recados/${id}`);
 const apiCreateReuniao = (data) => apiRequest('POST', '/reunioes', data);
 const apiUpdateReuniao = (id, patch) => apiRequest('PATCH', `/reunioes/${id}`, patch);
 const apiDeleteReuniao = (id) => apiRequest('DELETE', `/reunioes/${id}`);
+
+// particularidades — uma nota por Operação+Supervisor (ver "Ver
+// Particularidade" no card, render-analista.js). Upsert: o backend acha o
+// registro existente por (supervisorId, operacao) e atualiza, ou cria se
+// for a primeira vez — por isso não tem apiUpdate/apiDelete, só esse POST.
+const apiSalvarParticularidade = (data) => apiRequest('POST', '/particularidades', data);
 
 // plantoes
 const apiCreatePlantao = (data) => apiRequest('POST', '/plantoes', data);

@@ -1,7 +1,7 @@
 /* Bootstrap da aplicação: listeners fixos + carga inicial dos dados. */
 
 document.getElementById('logoutBtn').addEventListener('click', exitApp);
-document.getElementById('modalBg').addEventListener('click', e=>{ if(e.target.id==='modalBg') closeModal(); });
+document.getElementById('modalBg').addEventListener('click', e=>{ if(e.target.id==='modalBg' && !modalLocked) closeModal(); });
 document.getElementById('btnPersonalizarMenu').addEventListener('click', openMenuConfigModal);
 document.getElementById('btnNotificacoes').addEventListener('click', abrirNotificacoes);
 
