@@ -291,12 +291,16 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .toggle-group button.active{background:var(--brand);color:var(--brand-ink);}
 .modal-bg{position:fixed;inset:0;background:rgba(20,20,20,0.5);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;}
 .modal{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:24px;max-width:460px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,0.2);}
-/* Variante "de lado" (ver openModalSide, ui.js) — usada pelo modal de
+/* Variante "de canto" (ver openModalSide, ui.js) — usada pelo modal de
    Particularidade pra não tampar a Programação atrás enquanto o analista
    confere o card ao mesmo tempo. Backdrop bem mais claro de propósito: o
-   objetivo aqui é NÃO esconder o resto da tela, só destacar a caixa. */
-.modal-bg.modal-bg-left{justify-content:flex-start;background:rgba(20,20,20,0.12);}
-.modal-bg.modal-bg-left .modal{margin-left:4px;box-shadow:0 12px 40px rgba(0,0,0,0.35);}
+   objetivo aqui é NÃO esconder o resto da tela, só destacar a caixa. A
+   caixa em si vira position:fixed (inline style, calculado em JS a partir
+   do #mainArea) pra encostar no canto inferior esquerdo da ÁREA DE
+   CONTEÚDO, não do viewport inteiro — senão tampa a sidebar. Por isso
+   align-items/justify-content aqui não fazem diferença pra ela.*/
+.modal-bg.modal-bg-corner{background:rgba(20,20,20,0.12);}
+.modal-bg.modal-bg-corner .modal{box-shadow:0 12px 40px rgba(0,0,0,0.35);}
 .modal h3{margin:0 0 16px;font-size:19px;}
 .flash-outer{overflow-x:auto;padding-bottom:8px;}
 .flash-row{display:flex;gap:14px;}

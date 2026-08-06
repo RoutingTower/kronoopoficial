@@ -432,13 +432,25 @@ function openModal(html){
   document.getElementById('modalBg').style.display='flex';
 }
 
-// Variante encostada na lateral esquerda, com o fundo quase transparente
-// (ver .modal-bg-left, style.css) — usada pelo modal de Particularidade
-// (events.js) pra não tampar a Programação atrás enquanto o analista
-// confere o card ao mesmo tempo.
+// Variante encostada no canto inferior esquerdo da área de conteúdo (não do
+// viewport — por isso o cálculo em px a partir de #mainArea, senão tampa a
+// sidebar), com o fundo quase transparente (ver .modal-bg-corner,
+// style.css). Usada pelo modal de Particularidade (events.js) pra sentar no
+// espaço livre abaixo do kanban, sem tampar os cards nem a sidebar.
 function openModalSide(html){
-  document.getElementById('modalBg').classList.add('modal-bg-left');
+  const bg = document.getElementById('modalBg');
+  bg.classList.add('modal-bg-corner');
   openModal(html);
+  const modalEl = document.getElementById('modalBody');
+  const mainEl = document.getElementById('mainArea');
+  if(mainEl && modalEl){
+    const r = mainEl.getBoundingClientRect();
+    modalEl.style.position = 'fixed';
+    modalEl.style.left = Math.max(12, r.left) + 'px';
+    modalEl.style.bottom = '16px';
+    modalEl.style.top = 'auto';
+    modalEl.style.margin = '0';
+  }
 }
 
 // Trava o fechamento por clique fora (ver main.js) — usado pelo modal de
@@ -448,8 +460,15 @@ let modalLocked = false;
 
 function closeModal(){
   modalLocked = false;
-  document.getElementById('modalBg').classList.remove('modal-bg-left');
-  document.getElementById('modalBg').style.display='none';
+  const bg = document.getElementById('modalBg');
+  bg.classList.remove('modal-bg-corner');
+  bg.style.display='none';
+  const modalEl = document.getElementById('modalBody');
+  modalEl.style.position = '';
+  modalEl.style.left = '';
+  modalEl.style.bottom = '';
+  modalEl.style.top = '';
+  modalEl.style.margin = '';
 }
 
 // Barra de progresso pros imports em massa (Excel) — cada linha vira uma
