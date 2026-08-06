@@ -262,6 +262,10 @@ function buildNav(){
     activeNavKey = item.dataset.k;
     el.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.k===activeNavKey));
     renderMain();
+    // Troca de aba sempre volta pro topo — sem isso, quem clicava numa
+    // aba estando rolado pra baixo (ex.: Programação Analista) continuava
+    // vendo o meio da tela nova, sem contexto do que era.
+    window.scrollTo(0, 0);
   };
   updateNavBadges();
 }
