@@ -847,19 +847,23 @@ function sprResultadoBody(selecionados, picker){
   // Linha do tempo semanal (segunda a domingo) usa SEMPRE o período
   // inteiro (início/fim), mesmo com uma semana específica selecionada no
   // filtro abaixo — senão a linha do tempo colapsaria pra 1 ponto só toda
-  // vez que alguém filtrasse por semana.
+  // vez que alguém filtrasse por semana. Mostra a MÉDIA de SPR (lançado x
+  // REF) por semana, não mais % na meta — foco no valor absoluto.
   const semanasDisponiveis = [...new Set(doPeriodoAmplo.map(r=>weekStartISO(r.data)))].sort();
   const porSemana = {};
   doPeriodoAmplo.filter(r=>r.sprMeta!=null).forEach(r=>{
     const ws = weekStartISO(r.data);
-    if(!porSemana[ws]) porSemana[ws] = { total:0, bateram:0 };
-    porSemana[ws].total++;
-    if(bateuMetaSPR(r)) porSemana[ws].bateram++;
+    if(!porSemana[ws]) porSemana[ws] = { total:0, roteirizadoSoma:0, metaSoma:0 };
+    const d = porSemana[ws];
+    d.total++;
+    d.roteirizadoSoma += r.sprRoteirizado;
+    d.metaSoma += r.sprMeta;
   });
   const semanas = Object.entries(porSemana).map(([ws,d])=>({
     semana: ws,
     label: `${formatarDataCurta(ws)}–${formatarDataCurta(addDaysISO(ws,6))}`,
-    pct: d.total ? Math.round((d.bateram/d.total)*100) : 0,
+    roteirizadoMedio: d.total ? d.roteirizadoSoma/d.total : 0,
+    metaMedio: d.total ? d.metaSoma/d.total : 0,
   })).sort((a,b)=>a.semana.localeCompare(b.semana));
 
   // Filtro de semana específica (opcional) — só restringe o resto da
@@ -868,57 +872,111 @@ function sprResultadoBody(selecionados, picker){
 
   const comMeta = doPeriodo.filter(r=>r.sprMeta!=null);
   const semMeta = doPeriodo.length - comMeta.length;
-  const bateram = comMeta.filter(bateuMetaSPR);
-  const abaixo = comMeta.filter(r=>!bateuMetaSPR(r));
+
+  // KPIs consolidados — a meta agora é o valor ABSOLUTO (média de SPR
+  // lançado x REF e o delta entre eles), não a taxa de quem bateu ou não.
+  const totalOps = comMeta.length;
+  const roteirizadoMedioGeral = totalOps ? comMeta.reduce((s,r)=>s+r.sprRoteirizado,0)/totalOps : 0;
+  const metaMedioGeral = totalOps ? comMeta.reduce((s,r)=>s+r.sprMeta,0)/totalOps : 0;
+  const deltaMedioGeral = totalOps ? comMeta.reduce((s,r)=>s+(r.sprRoteirizado-r.sprMeta),0)/totalOps : 0;
+
+  // Distribuição de delta (Lançado − REF) — substitui o gráfico binário de
+  // rosca por uma visão de onde a maioria das operações está caindo.
+  const buckets = [
+    { label:'≥ +10', min:10, max:Infinity, count:0 },
+    { label:'0 a +9,9', min:0, max:10, count:0 },
+    { label:'-9,9 a -0,1', min:-10, max:0, count:0 },
+    { label:'≤ -10', min:-Infinity, max:-10, count:0 },
+  ];
+  comMeta.forEach(r=>{
+    const delta = r.sprRoteirizado - r.sprMeta;
+    const b = buckets.find(x=> delta>=x.min && delta<x.max);
+    if(b) b.count++;
+  });
 
   // Detalhamento por Operação (hub) + Analista que roteirizou — uma linha
   // por combinação, agrupada/ordenada por operação. As médias (SPR
-  // cadastrado/lançado) cobrem o caso de o mesmo par operação+analista ter
-  // mais de uma finalização no período.
+  // cadastrado/lançado/delta) cobrem o caso de o mesmo par operação+analista
+  // ter mais de uma finalização no período.
   const porOperacaoAnalista = {};
   comMeta.forEach(r=>{
     const nome = userById(r.analistaId)?.name || '—';
     const chave = r.operacao+'||'+nome;
-    if(!porOperacaoAnalista[chave]) porOperacaoAnalista[chave] = { operacao:r.operacao, nome, analistaId:r.analistaId, total:0, bateram:0, deltaSoma:0, roteirizadoSoma:0, metaSoma:0 };
+    if(!porOperacaoAnalista[chave]) porOperacaoAnalista[chave] = { operacao:r.operacao, nome, analistaId:r.analistaId, total:0, deltaSoma:0, roteirizadoSoma:0, metaSoma:0 };
     const d = porOperacaoAnalista[chave];
     d.total++;
-    if(bateuMetaSPR(r)) d.bateram++;
     d.deltaSoma += (r.sprRoteirizado - r.sprMeta);
     d.roteirizadoSoma += r.sprRoteirizado;
     d.metaSoma += r.sprMeta;
   });
   const detalhe = Object.values(porOperacaoAnalista).map(d=>({
-    operacao:d.operacao, nome:d.nome, analistaId:d.analistaId, total:d.total, bateram:d.bateram, abaixo:d.total-d.bateram,
-    pct: d.total ? Math.round((d.bateram/d.total)*100) : 0,
+    operacao:d.operacao, nome:d.nome, analistaId:d.analistaId, total:d.total,
     deltaMedio: d.total ? d.deltaSoma/d.total : 0,
     roteirizadoMedio: d.total ? d.roteirizadoSoma/d.total : 0,
     metaMedio: d.total ? d.metaSoma/d.total : 0,
   })).sort((a,b)=> a.operacao.localeCompare(b.operacao) || a.nome.localeCompare(b.nome));
 
-  // Agregado por Operação (todos os analistas juntos) — alimenta os 3
+  // Agregado por Operação (todos os analistas juntos) — alimenta os
   // gráficos por hub abaixo.
   const porOperacao = {};
   comMeta.forEach(r=>{
-    if(!porOperacao[r.operacao]) porOperacao[r.operacao] = { total:0, bateram:0, roteirizadoSoma:0, metaSoma:0 };
+    if(!porOperacao[r.operacao]) porOperacao[r.operacao] = { total:0, deltaSoma:0, roteirizadoSoma:0, metaSoma:0 };
     const d = porOperacao[r.operacao];
     d.total++;
-    if(bateuMetaSPR(r)) d.bateram++;
+    d.deltaSoma += (r.sprRoteirizado - r.sprMeta);
     d.roteirizadoSoma += r.sprRoteirizado;
     d.metaSoma += r.sprMeta;
   });
   const porHub = Object.entries(porOperacao).map(([operacao,d])=>({
-    operacao, total:d.total, bateram:d.bateram,
-    pct: d.total ? Math.round((d.bateram/d.total)*100) : 0,
+    operacao, total:d.total,
+    deltaMedio: d.total ? d.deltaSoma/d.total : 0,
     roteirizadoMedio: d.total ? d.roteirizadoSoma/d.total : 0,
     metaMedio: d.total ? d.metaSoma/d.total : 0,
   })).sort((a,b)=>a.operacao.localeCompare(b.operacao));
 
-  const ofensoresHub = [...porHub].sort((a,b)=>a.pct-b.pct).slice(0,5);
+  // "Ofensor" agora é quem tem o pior delta médio (mais negativo), não
+  // quem bate menos a meta em %.
+  const ofensoresTop5 = [...porHub].sort((a,b)=>a.deltaMedio-b.deltaMedio).slice(0,5);
+
+  // Média por Analista (agregado, cruzando todas as operações dele no
+  // período) e Média por Dia (consolidado, todas as operações do dia).
+  const porAnalistaAgg = {};
+  comMeta.forEach(r=>{
+    const nome = userById(r.analistaId)?.name || '—';
+    if(!porAnalistaAgg[r.analistaId]) porAnalistaAgg[r.analistaId] = { nome, analistaId:r.analistaId, total:0, deltaSoma:0, roteirizadoSoma:0, metaSoma:0 };
+    const d = porAnalistaAgg[r.analistaId];
+    d.total++;
+    d.deltaSoma += (r.sprRoteirizado - r.sprMeta);
+    d.roteirizadoSoma += r.sprRoteirizado;
+    d.metaSoma += r.sprMeta;
+  });
+  const porAnalista = Object.values(porAnalistaAgg).map(d=>({
+    nome:d.nome, analistaId:d.analistaId, total:d.total,
+    deltaMedio: d.total ? d.deltaSoma/d.total : 0,
+    roteirizadoMedio: d.total ? d.roteirizadoSoma/d.total : 0,
+    metaMedio: d.total ? d.metaSoma/d.total : 0,
+  })).sort((a,b)=>a.deltaMedio-b.deltaMedio);
+
+  const porDiaAgg = {};
+  comMeta.forEach(r=>{
+    if(!porDiaAgg[r.data]) porDiaAgg[r.data] = { total:0, deltaSoma:0, roteirizadoSoma:0, metaSoma:0 };
+    const d = porDiaAgg[r.data];
+    d.total++;
+    d.deltaSoma += (r.sprRoteirizado - r.sprMeta);
+    d.roteirizadoSoma += r.sprRoteirizado;
+    d.metaSoma += r.sprMeta;
+  });
+  const porDia = Object.entries(porDiaAgg).map(([data,d])=>({
+    data, total:d.total,
+    deltaMedio: d.total ? d.deltaSoma/d.total : 0,
+    roteirizadoMedio: d.total ? d.roteirizadoSoma/d.total : 0,
+    metaMedio: d.total ? d.metaSoma/d.total : 0,
+  })).sort((a,b)=>b.data.localeCompare(a.data));
 
   sprChartData = {
-    status: { bateram: bateram.length, abaixo: abaixo.length, semMeta },
+    distribuicaoDelta: buckets.map(b=>({label:b.label, count:b.count})),
     porHub,
-    ofensoresHub: [...porHub].sort((a,b)=>a.pct-b.pct).slice(0,10).reverse(),
+    ofensoresHub: [...porHub].sort((a,b)=>a.deltaMedio-b.deltaMedio).slice(0,10).reverse(),
     semanas,
   };
   sprExportRows = comMeta;
@@ -943,32 +1001,48 @@ function sprResultadoBody(selecionados, picker){
     <button class="btn" id="btnExportSPR">⬇ Exportar Excel</button>
   </div>
   <div class="grid-3" style="margin-bottom:16px;">
-    <div class="stat-card"><div class="stat-num" style="color:var(--done);">${bateram.length}</div><div class="stat-label">Bateram a meta</div></div>
-    <div class="stat-card"><div class="stat-num" style="color:var(--alert);">${abaixo.length}</div><div class="stat-label">Abaixo da meta</div></div>
-    <div class="stat-card"><div class="stat-num">${comMeta.length ? Math.round((bateram.length/comMeta.length)*100) : 0}%</div><div class="stat-label">Taxa de meta batida</div></div>
+    <div class="stat-card"><div class="stat-num">${roteirizadoMedioGeral.toFixed(1)}</div><div class="stat-label">Média SPR Lançado <span style="color:var(--text-faint);">(REF ${metaMedioGeral.toFixed(1)})</span></div></div>
+    <div class="stat-card"><div class="stat-num" style="color:${deltaMedioGeral>=0?'var(--done)':'var(--alert)'};">${deltaMedioGeral>=0?'+':''}${deltaMedioGeral.toFixed(1)}</div><div class="stat-label">Delta médio consolidado</div></div>
+    <div class="stat-card"><div class="stat-num">${totalOps}</div><div class="stat-label">Operações analisadas</div></div>
   </div>
-  ${ofensoresHub.length>0 ? `<div class="highlight-card" style="margin-bottom:16px;border-color:var(--alert);">
-    <div class="section-title">🚨 Hubs em destaque (mais abaixo da meta)</div>
-    <div class="chip-row">${ofensoresHub.map(o=>`<span class="chip-pessoa">${escapeHtml(o.operacao)} — ${o.pct}% na meta</span>`).join('')}</div>
+  ${ofensoresTop5.length>0 ? `<div class="highlight-card" style="margin-bottom:16px;border-color:var(--alert);">
+    <div class="section-title">🚨 Hubs em destaque (maior delta negativo)</div>
+    <div class="chip-row">${ofensoresTop5.map(o=>`<span class="chip-pessoa">${escapeHtml(o.operacao)} — ${o.deltaMedio>=0?'+':''}${o.deltaMedio.toFixed(1)}</span>`).join('')}</div>
   </div>` : ''}
   <div class="grid-2" style="margin-bottom:20px;align-items:start;">
-    <div class="chart-card"><div class="section-title">Resultado geral</div><canvas id="chartSprStatus"></canvas></div>
-    <div class="chart-card"><div class="section-title">Linha do tempo — % na meta por semana (seg. a dom.)</div><canvas id="chartSprSemanas"></canvas></div>
+    <div class="chart-card"><div class="section-title">Distribuição de delta (Lançado − REF)</div><canvas id="chartSprStatus"></canvas></div>
+    <div class="chart-card"><div class="section-title">Linha do tempo — média de SPR por semana (seg. a dom.)</div><canvas id="chartSprSemanas"></canvas></div>
     <div class="chart-card"><div class="section-title">Média de SPR por hub (lançado x REF)</div><canvas id="chartSprMedia"></canvas></div>
-    <div class="chart-card"><div class="section-title">Maiores ofensores (hubs)</div><canvas id="chartSprOfensores"></canvas></div>
+    <div class="chart-card"><div class="section-title">Maiores ofensores (hubs, por delta médio)</div><canvas id="chartSprOfensores"></canvas></div>
   </div>
-  <div class="card">
+  <div class="card" style="margin-bottom:20px;">
   <div class="section-title">Detalhamento por operação</div>
-  <table><thead><tr><th>Operação</th><th>Analista</th><th>SPR REF</th><th>SPR Lançado</th><th>% meta</th><th>Delta médio</th></tr></thead><tbody>
-  ${detalhe.map(d=>`<tr><td>${escapeHtml(d.operacao)}</td><td style="cursor:pointer;" data-analista-timeline="${d.analistaId}" title="Ver histórico">${escapeHtml(d.nome)}</td><td class="mono">${d.metaMedio.toFixed(1)}</td><td class="mono">${d.roteirizadoMedio.toFixed(1)}</td><td class="mono">${d.pct}%</td><td class="mono" style="color:${d.deltaMedio>=0?'var(--done)':'var(--alert)'};">${d.deltaMedio>=0?'+':''}${d.deltaMedio.toFixed(1)}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">Sem finalizações com meta cadastrada no período</td></tr>'}
+  <table><thead><tr><th>Operação</th><th>Analista</th><th>SPR REF</th><th>SPR Lançado</th><th>Delta médio</th></tr></thead><tbody>
+  ${detalhe.map(d=>`<tr><td>${escapeHtml(d.operacao)}</td><td style="cursor:pointer;" data-analista-timeline="${d.analistaId}" title="Ver histórico">${escapeHtml(d.nome)}</td><td class="mono">${d.metaMedio.toFixed(1)}</td><td class="mono">${d.roteirizadoMedio.toFixed(1)}</td><td class="mono" style="color:${d.deltaMedio>=0?'var(--done)':'var(--alert)'};">${d.deltaMedio>=0?'+':''}${d.deltaMedio.toFixed(1)}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">Sem finalizações com meta cadastrada no período</td></tr>'}
   </tbody></table>
   ${semMeta>0 ? `<div class="help-text" style="margin-top:10px;">${semMeta} finalização(ões) no período sem meta SPR cadastrada pra operação/ciclo — não entram nesse cálculo.</div>` : ''}
+  </div>
+  <div class="grid-2" style="align-items:start;">
+  <div class="card">
+  <div class="section-title">Média por analista</div>
+  <table><thead><tr><th>Analista</th><th>Qtd</th><th>SPR REF</th><th>SPR Lançado</th><th>Delta médio</th></tr></thead><tbody>
+  ${porAnalista.map(a=>`<tr><td style="cursor:pointer;" data-analista-timeline="${a.analistaId}" title="Ver histórico">${escapeHtml(a.nome)}</td><td class="mono">${a.total}</td><td class="mono">${a.metaMedio.toFixed(1)}</td><td class="mono">${a.roteirizadoMedio.toFixed(1)}</td><td class="mono" style="color:${a.deltaMedio>=0?'var(--done)':'var(--alert)'};">${a.deltaMedio>=0?'+':''}${a.deltaMedio.toFixed(1)}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">Sem dados no período</td></tr>'}
+  </tbody></table>
+  </div>
+  <div class="card">
+  <div class="section-title">Média por dia (consolidado)</div>
+  <div style="max-height:320px;overflow-y:auto;">
+  <table><thead><tr><th>Data</th><th>Qtd</th><th>SPR REF</th><th>SPR Lançado</th><th>Delta médio</th></tr></thead><tbody>
+  ${porDia.map(d=>`<tr><td class="mono">${formatarDataCurta(d.data)}</td><td class="mono">${d.total}</td><td class="mono">${d.metaMedio.toFixed(1)}</td><td class="mono">${d.roteirizadoMedio.toFixed(1)}</td><td class="mono" style="color:${d.deltaMedio>=0?'var(--done)':'var(--alert)'};">${d.deltaMedio>=0?'+':''}${d.deltaMedio.toFixed(1)}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">Sem dados no período</td></tr>'}
+  </tbody></table>
+  </div>
+  </div>
   </div>`;
 }
 
 function exportarSPR(){
-  const linhas = sprExportRows.map(r=>[userById(r.analistaId)?.name||'—', r.operacao, r.data, r.hora, r.sprRoteirizado, r.sprMeta, bateuMetaSPR(r)?'Sim':'Não']);
-  exportarRelatorioExcel(`resultado-spr_${uiState.sprFiltro.inicio}_a_${uiState.sprFiltro.fim}.xlsx`, ['Analista','Operação','Data','Hora','SPR Lançado','SPR REF','Bateu a meta'], linhas);
+  const linhas = sprExportRows.map(r=>[userById(r.analistaId)?.name||'—', r.operacao, r.data, r.hora, r.sprRoteirizado, r.sprMeta, (r.sprRoteirizado-r.sprMeta).toFixed(1)]);
+  exportarRelatorioExcel(`resultado-spr_${uiState.sprFiltro.inicio}_a_${uiState.sprFiltro.fim}.xlsx`, ['Analista','Operação','Data','Hora','SPR Lançado','SPR REF','Delta'], linhas);
 }
 
 // Mesmo padrão de renderMetricasCharts() — destrói as instâncias antigas e
@@ -984,25 +1058,32 @@ function renderSPRCharts(){
   const textColor = isDark ? '#9A9DA6' : '#767676';
   const gridColor = isDark ? '#2E3138' : '#E8E8E8';
 
+  // Distribuição de delta (Lançado − REF) — substitui a rosca binária de
+  // bateu/não bateu por uma visão de onde a maioria das operações cai.
   sprChartInstances.status = new Chart(elStatus, {
-    type:'doughnut',
-    data:{ labels:['Bateram a meta','Abaixo da meta','Sem meta cadastrada'],
-      datasets:[{ data:[sprChartData.status.bateram, sprChartData.status.abaixo, sprChartData.status.semDados||sprChartData.status.semMeta],
-        backgroundColor:['#2FAE60','#EE4D2D','#A8A8A8'] }] },
-    options:{ plugins:{ legend:{ position:'bottom', labels:{ color:textColor } } } }
+    type:'bar',
+    data:{ labels: sprChartData.distribuicaoDelta.map(b=>b.label),
+      datasets:[{ data: sprChartData.distribuicaoDelta.map(b=>b.count),
+        backgroundColor:['#2FAE60','#7FB069','#EE4D2D','#D9362E'], borderRadius:4 }] },
+    options:{ plugins:{ legend:{ display:false } }, scales:{
+      x:{ ticks:{ color:textColor }, grid:{ display:false } },
+      y:{ ticks:{ color:textColor, precision:0 }, grid:{ color:gridColor } } } }
   });
 
-  // Linha do tempo semanal — % na meta por semana (segunda a domingo),
-  // sempre no período inteiro (início/fim), independente do filtro de
-  // semana específica (ver sprResultadoBody).
+  // Linha do tempo semanal — média de SPR lançado x REF por semana (segunda
+  // a domingo), sempre no período inteiro (início/fim), independente do
+  // filtro de semana específica (ver sprResultadoBody).
   const elSemanas = document.getElementById('chartSprSemanas');
   if(elSemanas){
     sprChartInstances.semanas = new Chart(elSemanas, {
       type:'line',
-      data:{ labels: sprChartData.semanas.map(s=>s.label), datasets:[{ label:'% na meta', data: sprChartData.semanas.map(s=>s.pct), borderColor:'#2F80ED', backgroundColor:'rgba(47,128,237,0.15)', fill:true, tension:0.3 }] },
-      options:{ plugins:{ legend:{ display:false } }, scales:{
+      data:{ labels: sprChartData.semanas.map(s=>s.label), datasets:[
+        { label:'SPR Lançado', data: sprChartData.semanas.map(s=>Number(s.roteirizadoMedio.toFixed(1))), borderColor:'#2F80ED', backgroundColor:'rgba(47,128,237,0.15)', fill:true, tension:0.3 },
+        { label:'SPR REF', data: sprChartData.semanas.map(s=>Number(s.metaMedio.toFixed(1))), borderColor:'#A8A8A8', backgroundColor:'rgba(168,168,168,0.12)', fill:true, tension:0.3 },
+      ] },
+      options:{ plugins:{ legend:{ position:'bottom', labels:{ color:textColor } } }, scales:{
         x:{ ticks:{ color:textColor }, grid:{ display:false } },
-        y:{ min:0, max:100, ticks:{ color:textColor }, grid:{ color:gridColor } } } }
+        y:{ ticks:{ color:textColor }, grid:{ color:gridColor } } } }
     });
   }
 
@@ -1023,13 +1104,15 @@ function renderSPRCharts(){
     });
   }
 
+  // Maiores ofensores — agora por delta médio (mais negativo primeiro), não
+  // por % na meta.
   const elOf = document.getElementById('chartSprOfensores');
   if(elOf){
     sprChartInstances.ofensores = new Chart(elOf, {
       type:'bar',
-      data:{ labels: sprChartData.ofensoresHub.map(h=>h.operacao), datasets:[{ label:'% na meta', data: sprChartData.ofensoresHub.map(h=>h.pct), backgroundColor:'#EE4D2D', borderRadius:4 }] },
+      data:{ labels: sprChartData.ofensoresHub.map(h=>h.operacao), datasets:[{ label:'Delta médio', data: sprChartData.ofensoresHub.map(h=>Number(h.deltaMedio.toFixed(1))), backgroundColor:'#EE4D2D', borderRadius:4 }] },
       options:{ plugins:{ legend:{ display:false } }, indexAxis:'y', scales:{
-        x:{ min:0, max:100, ticks:{ color:textColor }, grid:{ color:gridColor } },
+        x:{ ticks:{ color:textColor }, grid:{ color:gridColor } },
         y:{ ticks:{ color:textColor, autoSkip:false } } } }
     });
   }
