@@ -132,7 +132,7 @@ async function loadDB(){
 // parado, e o primeiro acesso do dia recusa conexão por alguns segundos
 // enquanto o container sobe (ver docs/COMO-PUBLICAR.md → "Nota sobre o
 // plano gratuito"). Sem isso, esse primeiro acesso falhava direto.
-async function apiRequest(method, path, body, _attempt){
+async function apiRequest(method, path, body, _attempt, _refreshed){
   const attempt = _attempt || 0;
   let res;
   try{
@@ -144,9 +144,20 @@ async function apiRequest(method, path, body, _attempt){
   }catch(networkErr){
     if(attempt >= 6) throw networkErr; // ~30s tentando — cobre o cold-start documentado (30-50s)
     await new Promise(r=>setTimeout(r, 5000));
-    return apiRequest(method, path, body, attempt+1);
+    return apiRequest(method, path, body, attempt+1, _refreshed);
+  }
+  // 401 pode ser só o access_token vencido numa aba aberta há muito tempo
+  // (ex.: virada da madrugada) — tenta renovar a sessão UMA vez e refaz a
+  // chamada antes de desistir, pra não perder o que a pessoa preencheu num
+  // modal (ex.: Raio-X) por causa de um token vencido evitável.
+  if(res.status === 401 && !_refreshed){
+    const renovou = await KronoAuth.refreshSession();
+    if(renovou) return apiRequest(method, path, body, attempt, true);
   }
   if(!res.ok){
+    if(res.status === 401){
+      throw new Error('Sua sessão expirou. Atualize a página (F5) e faça login de novo antes de tentar de novo.');
+    }
     const parsed = await res.json().catch(()=>({}));
     throw new Error(parsed.message || `${method} ${path} -> ${res.status}`);
   }

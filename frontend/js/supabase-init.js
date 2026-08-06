@@ -25,6 +25,16 @@ const KronoAuth = {
     const { data } = await _sbClient.auth.getSession();
     return data.session ? data.session.access_token : null;
   },
+  // Tenta renovar a sessão usando o refresh_token guardado — usado quando
+  // uma chamada à API volta 401 (ver apiRequest, state.js): a aba pode ter
+  // ficado aberta tempo o bastante pro access_token expirar sem que
+  // getSession() tenha renovado sozinho a tempo. Retorna true se conseguiu
+  // uma sessão nova, false se o refresh_token também já não vale mais
+  // (nesse caso só resta logar de novo).
+  async refreshSession(){
+    const { data, error } = await _sbClient.auth.refreshSession();
+    return !error && !!data.session;
+  },
   // Confirma a senha atual antes de trocar e-mail/senha (tela de
   // Configurações) — mesmo papel que tinha no Firebase: reautenticar é o
   // gate de segurança, não uma troca de fato (essa continua indo pelo
