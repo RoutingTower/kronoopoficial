@@ -1,11 +1,11 @@
 // Sanitizador estreito, feito sob medida pro editor de Particularidade
-// (negrito/itálico/sublinhado/alinhamento — ver frontend/js/events.js,
-// document.execCommand). NÃO é um sanitizador de HTML genérico: só existe
-// pra fechar a brecha de stored XSS de quem burlar o toolbar e mandar HTML
-// arbitrário direto pro POST /api/particularidades (ex.: <script>,
-// onerror=, href="javascript:..."). Continua sendo a única defesa real —
-// o toolbar do frontend nunca é a fonte da verdade de segurança.
-const ALLOWED_TAGS = new Set(["b", "strong", "i", "em", "u", "div", "span", "br", "p"]);
+// (negrito/itálico/sublinhado/alinhamento/link — ver frontend/js/events.js,
+// document.execCommand + linkify em utils.js). NÃO é um sanitizador de HTML
+// genérico: só existe pra fechar a brecha de stored XSS de quem burlar o
+// toolbar e mandar HTML arbitrário direto pro POST /api/particularidades
+// (ex.: <script>, onerror=, href="javascript:..."). Continua sendo a única
+// defesa real — o frontend nunca é a fonte da verdade de segurança.
+const ALLOWED_TAGS = new Set(["b", "strong", "i", "em", "u", "div", "span", "br", "p", "a"]);
 
 function sanitizeParticularidadeHtml(html) {
   if (!html) return "";
@@ -16,12 +16,13 @@ function sanitizeParticularidadeHtml(html) {
     .replace(/<(script|style|iframe|object|embed)[^>]*>[\s\S]*?<\/\1>/gi, "")
     .replace(/<(script|style|iframe|object|embed)[^>]*\/?>/gi, "");
 
-  // Reescreve tag por tag: só passa as permitidas, e nelas só reconstrói o
-  // atributo style com text-align (único que o toolbar de alinhamento
-  // produz) — a partir do VALOR capturado, nunca copiando a string style
-  // original. Qualquer outro atributo (onerror, href, src...) é descartado
-  // porque nunca é copiado; qualquer tag fora da lista vira texto puro (a
-  // tag some, o conteúdo textual entre ela fica).
+  // Reescreve tag por tag: só passa as permitidas, e nelas só reconstrói os
+  // atributos que a gente reconhece (style com text-align, href em <a> com
+  // esquema seguro) — sempre a partir do VALOR capturado, nunca copiando a
+  // string de atributos original. Qualquer outro atributo (onerror, src,
+  // href="javascript:..."...) é descartado porque nunca é copiado; qualquer
+  // tag fora da lista vira texto puro (a tag some, o conteúdo textual
+  // entre ela fica).
   out = out.replace(/<\/?([a-zA-Z0-9]+)([^>]*)>/g, (match, tagRaw, attrs) => {
     const tag = tagRaw.toLowerCase();
     if (!ALLOWED_TAGS.has(tag)) return "";
@@ -31,7 +32,16 @@ function sanitizeParticularidadeHtml(html) {
     const styleMatch = attrs.match(/style\s*=\s*"([^"]*)"/i) || attrs.match(/style\s*=\s*'([^']*)'/i);
     const alignMatch = styleMatch && styleMatch[1].match(/text-align\s*:\s*(left|center|right|justify)/i);
     const styleAttr = alignMatch ? ` style="text-align:${alignMatch[1].toLowerCase()}"` : "";
-    return `<${tag}${styleAttr}>`;
+    let extraAttrs = "";
+    if (tag === "a") {
+      const hrefMatch = attrs.match(/href\s*=\s*"([^"]*)"/i) || attrs.match(/href\s*=\s*'([^']*)'/i);
+      const href = hrefMatch ? hrefMatch[1].trim() : "";
+      // Só http(s)/mailto — nunca javascript:, data: etc.
+      if (/^(https?:|mailto:)/i.test(href)) {
+        extraAttrs = ` href="${href.replace(/"/g, "&quot;")}" target="_blank" rel="noopener noreferrer"`;
+      }
+    }
+    return `<${tag}${styleAttr}${extraAttrs}>`;
   });
 
   return out;

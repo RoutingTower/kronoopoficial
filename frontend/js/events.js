@@ -301,9 +301,21 @@ function bindMainEvents(){
           editorParticularidade.focus();
         });
       });
+      // Colar de fontes externas (Word/Google Docs/e-mail) traz cor/fonte
+      // junto do negrito/alinhamento — mantém só o que a barrinha também
+      // produz (limparHtmlColado, utils.js) e já deixa URL solta como link.
+      editorParticularidade.addEventListener('paste', e=>{
+        e.preventDefault();
+        const cd = e.clipboardData || window.clipboardData;
+        const html = cd.getData('text/html');
+        const limpo = html ? limparHtmlColado(html) : escapeHtml(cd.getData('text/plain')).replace(/\n/g, '<br>');
+        document.execCommand('insertHTML', false, limpo);
+        linkify(editorParticularidade);
+      });
       const btnSalvarParticularidade = document.getElementById('btnSalvarParticularidade');
       if(btnSalvarParticularidade) btnSalvarParticularidade.onclick = async ()=>{
         const btnSalvar = document.getElementById('btnSalvarParticularidade');
+        linkify(editorParticularidade);
         const texto = editorParticularidade.innerHTML;
         btnSalvar.disabled = true;
         try{

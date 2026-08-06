@@ -342,6 +342,71 @@ function normalizeUrl(url){
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
 }
 
+// Limpa HTML colado (Word/Google Docs/e-mail) no editor de Particularidade
+// (events.js): mantém só negrito/itálico/sublinhado/alinhamento e links,
+// descarta cor/fonte/tamanho e qualquer outra coisa que o fonte externo
+// tenha trazido junto — espelha o whitelist do backend (sanitizeHtml.js),
+// só que rodando no DOM real do navegador em vez de regex.
+function limparHtmlColado(html){
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  const permitidas = new Set(['B','STRONG','I','EM','U','DIV','SPAN','P','BR','A']);
+  function limpar(node){
+    [...node.childNodes].forEach(child=>{
+      if(child.nodeType!==1) return;
+      if(!permitidas.has(child.tagName)){
+        while(child.firstChild) node.insertBefore(child.firstChild, child);
+        node.removeChild(child);
+        return;
+      }
+      const align = child.style && child.style.textAlign;
+      const href = child.tagName==='A' ? child.getAttribute('href') : null;
+      [...child.attributes].forEach(attr=>child.removeAttribute(attr.name));
+      if(align) child.style.textAlign = align;
+      if(href && /^(https?:|mailto:)/i.test(href)){
+        child.setAttribute('href', href);
+        child.setAttribute('target', '_blank');
+        child.setAttribute('rel', 'noopener noreferrer');
+      }
+      limpar(child);
+    });
+  }
+  limpar(tmp);
+  return tmp.innerHTML;
+}
+
+// Troca URL "solta" (texto puro, ainda não dentro de um <a>) por link
+// clicável de verdade, direto no DOM — só mexe em nós de TEXTO, nunca em
+// tags já existentes (evita duplicar link dentro de link). Usado ao colar
+// e ao salvar a Particularidade (events.js).
+const URL_REGEX = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi;
+function linkify(container){
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+    acceptNode: n => (n.parentElement && n.parentElement.closest('a')) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
+  });
+  const alvos = [];
+  let n;
+  while((n = walker.nextNode())){ URL_REGEX.lastIndex = 0; if(URL_REGEX.test(n.nodeValue)) alvos.push(n); }
+  alvos.forEach(node=>{
+    const frag = document.createDocumentFragment();
+    let lastIndex = 0;
+    URL_REGEX.lastIndex = 0;
+    node.nodeValue.replace(URL_REGEX, (match, _g, offset)=>{
+      frag.appendChild(document.createTextNode(node.nodeValue.slice(lastIndex, offset)));
+      const a = document.createElement('a');
+      a.href = normalizeUrl(match);
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = match;
+      frag.appendChild(a);
+      lastIndex = offset + match.length;
+      return match;
+    });
+    frag.appendChild(document.createTextNode(node.nodeValue.slice(lastIndex)));
+    node.parentNode.replaceChild(frag, node);
+  });
+}
+
 
 function candidatosParaSlot(myAnalistas, titularId, bm, dataStr){
   const s1 = hourSortValue(bm.horaInicio), e1 = hourSortValue(bm.horaFim);

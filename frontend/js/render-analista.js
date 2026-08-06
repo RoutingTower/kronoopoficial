@@ -102,9 +102,9 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
       <div class="flash-sigla">📅 Reunião</div>
       <div class="flash-meta">${escapeHtml(r.titulo)}</div>
       <div class="flash-meta">${r.tipo==='grupo'?'Grupo':'Individual'} · ${r.horaFim?`${r.hora}–${r.horaFim}`:r.hora}</div>
-      ${r.link ? `<div class="flash-actions" style="display:flex;gap:8px;flex-wrap:wrap;">
+      ${r.link ? `<div class="flash-actions" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
         <a class="btn btn-brand" href="${escapeHtml(normalizeUrl(r.link))}" target="_blank" rel="noopener noreferrer">Entrar na reunião</a>
-        ${souEu ? (presente ? `<span class="btn" style="color:var(--done);border-color:var(--done);cursor:default;">✓ Presença confirmada</span>` : `<button class="btn" data-marcar-presenca="${r.id}">Confirmar presença</button>`) : ''}
+        ${souEu ? (presente ? `<span class="btn btn-brand" style="cursor:default;opacity:0.75;">✓ Check-in</span>` : `<button class="btn btn-brand" data-marcar-presenca="${r.id}">Check-in</button>`) : ''}
       </div>` : ''}
     </div>`;
     }).join('');
