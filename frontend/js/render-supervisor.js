@@ -350,11 +350,12 @@ function exportarGrade(){
 
 
 // "Escalado no domingo" = tem pelo menos uma operação própria (fixa) ou
-// cobertura na agenda desse dia (categoriaOperacao, utils.js) — folga não
-// conta. Considera TODOS os domingos do mês, já realizados ou ainda por
-// vir: o critério é estar na escala (ver getDaySlots), não se o dia já
-// passou — assim o supervisor acompanha quem já tem domingo previsto na
-// agenda, não só quem já trabalhou de fato.
+// cobertura na agenda desse dia (categoriaOperacao, utils.js), OU está de
+// plantão nesse domingo (analistaEmPlantao, utils.js) — folga não conta.
+// Considera TODOS os domingos do mês, já realizados ou ainda por vir: o
+// critério é estar na escala (ver getDaySlots), não se o dia já passou —
+// assim o supervisor acompanha quem já tem domingo previsto na agenda, não
+// só quem já trabalhou de fato.
 let domingosExportRows = [];
 function supControleDomingos(myAnalistas){
   const ref = new Date((uiState.domingosMes||todayISO())+'T00:00:00');
@@ -371,13 +372,15 @@ function supControleDomingos(myAnalistas){
   }
 
   const ranking = myAnalistas.map(a=>{
-    const datas = domingosDoMes.filter(ds=>
-      getDaySlots(a.id, ds).some(s=>{ const cat = categoriaOperacao(s); return cat==='fixa' || cat==='cobertura'; })
-    );
-    return { analista:a, datas, total:datas.length };
+    const detalhes = domingosDoMes.map(ds=>{
+      const temOperacao = getDaySlots(a.id, ds).some(s=>{ const cat = categoriaOperacao(s); return cat==='fixa' || cat==='cobertura'; });
+      const plantao = !temOperacao && analistaEmPlantao(a.id, ds);
+      return (temOperacao || plantao) ? { ds, plantao } : null;
+    }).filter(Boolean);
+    return { analista:a, detalhes, total:detalhes.length };
   }).filter(p=>p.total>0).sort((a,b)=>b.total-a.total);
 
-  domingosExportRows = ranking.flatMap(p=>p.datas.map(ds=>[p.analista.name, ds, ds<=hojeStr?'Realizado':'Agendado']));
+  domingosExportRows = ranking.flatMap(p=>p.detalhes.map(d=>[p.analista.name, d.ds, d.ds<=hojeStr?'Realizado':'Agendado', d.plantao?'Plantão':'Operação']));
 
   return `
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
@@ -395,7 +398,7 @@ function supControleDomingos(myAnalistas){
   </div>
   <div class="card">
   <table><thead><tr><th>#</th><th>Analista</th><th>Domingos escalados</th><th>Datas</th></tr></thead><tbody>
-  ${ranking.map((p,i)=>`<tr><td class="mono">${i+1}º</td><td style="cursor:pointer;" data-analista-timeline="${p.analista.id}" title="Ver histórico">${escapeHtml(p.analista.name)}</td><td class="mono">${p.total}</td><td>${p.datas.map(ds=>`${formatarDataCurta(ds)}${ds>hojeStr?' <span style="color:var(--text-faint);">(agendado)</span>':''}`).join(', ')}</td></tr>`).join('')
+  ${ranking.map((p,i)=>`<tr><td class="mono">${i+1}º</td><td style="cursor:pointer;" data-analista-timeline="${p.analista.id}" title="Ver histórico">${escapeHtml(p.analista.name)}</td><td class="mono">${p.total}</td><td>${p.detalhes.map(d=>`${formatarDataCurta(d.ds)}${d.ds>hojeStr?' <span style="color:var(--text-faint);">(agendado)</span>':''}${d.plantao?' <span style="color:var(--text-faint);">(plantão)</span>':''}`).join(', ')}</td></tr>`).join('')
   || `<tr><td colspan="4" class="empty">Nenhum domingo escalado no mês selecionado</td></tr>`}
   </tbody></table></div>`;
 }
