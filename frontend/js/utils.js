@@ -332,6 +332,17 @@ function timeAgo(ts){
 
 function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+// Prévia em texto puro do conteúdo (HTML) da Particularidade — usado na
+// aba de auditoria do supervisor (render-supervisor.js), onde mostrar o
+// HTML renderizado numa célula de tabela ficaria estranho (negrito/
+// alinhamento cortado no meio). Corta em maxLen com reticências.
+function stripHtmlPreview(html, maxLen){
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html || '';
+  const texto = (tmp.textContent || '').replace(/\s+/g, ' ').trim();
+  return texto.length > maxLen ? texto.slice(0, maxLen) + '…' : texto;
+}
+
 // Link de reunião sem "http(s)://" (ex: "meet.google.com/xxx") vira um
 // caminho relativo da própria página em vez de um link externo — o
 // navegador monta a URL como "kronoopoficial/meet.google.com/xxx". Aplicado

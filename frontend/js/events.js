@@ -1231,6 +1231,14 @@ function bindMainEvents(){
     });
   });
 
+  main.querySelectorAll('[data-particularidadesfiltro]').forEach(inp=>{
+    inp.addEventListener('change', ()=>{ uiState.particularidadesFiltro = inp.value; renderMain(); });
+  });
+  const btnExportParticularidades = document.getElementById('btnExportParticularidades');
+  if(btnExportParticularidades) btnExportParticularidades.addEventListener('click', ()=>{
+    exportarRelatorioExcel('particularidades-auditoria.xlsx', ['Operação','Conteúdo','Atualizado por','Atualizado em'], particularidadesAuditoriaExportRows);
+  });
+
   const btnExcluirTodasSuplencias = document.getElementById('btnExcluirTodasSuplencias');
   if(btnExcluirTodasSuplencias) btnExcluirTodasSuplencias.addEventListener('click', async ()=>{
     const ids = Array.from(main.querySelectorAll('[data-excluir-suplencia]')).map(b=>b.dataset.excluirSuplencia);

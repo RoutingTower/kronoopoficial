@@ -13,6 +13,7 @@ function renderSupervisor(){
   else if(activeNavKey==='grade') content = supGrade(myAnalistas);
   else if(activeNavKey==='domingos') content = supControleDomingos(myAnalistas);
   else if(activeNavKey==='reunioes') content = supReunioes(myAnalistas) + supPlantao();
+  else if(activeNavKey==='particularidades') content = supParticularidadesAuditoria();
   else if(activeNavKey==='metricas') content = supMetricas(myAnalistas);
   else if(activeNavKey==='transmissao') content = supTransmissao(myAnalistas);
   else if(activeNavKey==='ocorrencias') content = supOcorrencias(myAnalistas);
@@ -400,6 +401,47 @@ function supControleDomingos(myAnalistas){
   <table><thead><tr><th>#</th><th>Analista</th><th>Domingos escalados</th><th>Datas</th></tr></thead><tbody>
   ${ranking.map((p,i)=>`<tr><td class="mono">${i+1}º</td><td style="cursor:pointer;" data-analista-timeline="${p.analista.id}" title="Ver histórico">${escapeHtml(p.analista.name)}</td><td class="mono">${p.total}</td><td>${p.detalhes.map(d=>`${formatarDataCurta(d.ds)}${d.ds>hojeStr?' <span style="color:var(--text-faint);">(agendado)</span>':''}${d.plantao?' <span style="color:var(--text-faint);">(plantão)</span>':''}`).join(', ')}</td></tr>`).join('')
   || `<tr><td colspan="4" class="empty">Nenhum domingo escalado no mês selecionado</td></tr>`}
+  </tbody></table></div>`;
+}
+
+
+// Auditoria de Particularidades: todo hub da equipe que já teve alguma nota
+// preenchida, com conteúdo (prévia em texto puro — ver stripHtmlPreview,
+// utils.js), quem editou por último e quando. Clicar na linha abre o mesmo
+// modal "Ver Particularidade" (data-particularidade-op, ver events.js) —
+// como supervisor, sempre pode editar por ali (ver upsertParticularidade,
+// backend), então essa tela também serve pra corrigir/complementar.
+let particularidadesAuditoriaExportRows = [];
+function supParticularidadesAuditoria(){
+  const f = uiState.particularidadesFiltro || '';
+  const rows = DB.particularidades
+    .filter(p=>p.supervisorId===session.userId)
+    .filter(p=>!f || p.operacao.toLowerCase().includes(f.toLowerCase()))
+    .sort((a,b)=>b.atualizadoEm-a.atualizadoEm);
+
+  particularidadesAuditoriaExportRows = rows.map(p=>[
+    p.operacao, stripHtmlPreview(p.texto, 300), p.atualizadoPor,
+    new Date(p.atualizadoEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}),
+  ]);
+
+  return `
+  <div class="filter-row">
+    <input placeholder="Filtrar por operação..." data-particularidadesfiltro value="${escapeHtml(f)}">
+    <button class="btn" id="btnExportParticularidades">⬇ Exportar Excel</button>
+  </div>
+  <div class="grid-2" style="margin-bottom:18px;">
+    <div class="stat-card"><div class="stat-num">${rows.length}</div><div class="stat-label">Hubs com particularidade preenchida</div></div>
+    <div class="stat-card"><div class="stat-num">${rows[0] ? new Date(rows[0].atualizadoEm).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '—'}</div><div class="stat-label">${rows[0] ? `Atualização mais recente — ${escapeHtml(rows[0].operacao)}` : 'Nenhuma atualização registrada'}</div></div>
+  </div>
+  <div class="card">
+  <table><thead><tr><th>Operação</th><th>Conteúdo</th><th>Última atualização</th><th>Por</th><th></th></tr></thead><tbody>
+  ${rows.map(p=>`<tr>
+    <td>${escapeHtml(p.operacao)}</td>
+    <td style="max-width:340px;color:var(--text-muted);">${escapeHtml(stripHtmlPreview(p.texto, 140)) || '<span style="color:var(--text-faint);">vazio</span>'}</td>
+    <td class="mono" style="white-space:nowrap;">${new Date(p.atualizadoEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</td>
+    <td>${escapeHtml(p.atualizadoPor)}</td>
+    <td style="text-align:right;"><button class="btn" data-particularidade-op="${escapeHtml(p.operacao)}" data-particularidade-sup="${p.supervisorId}">Ver / Editar</button></td>
+  </tr>`).join('') || `<tr><td colspan="5" class="empty">Nenhuma particularidade preenchida ainda${f?' pra esse filtro':''}</td></tr>`}
   </tbody></table></div>`;
 }
 
