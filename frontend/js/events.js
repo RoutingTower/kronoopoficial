@@ -146,6 +146,7 @@ function bindMainEvents(){
     btn.addEventListener('click', ()=>{
       const ds = btn.dataset.monthnav;
       if(btn.dataset.target==='reunioes'){ uiState.reunioesDate = ds; }
+      else if(btn.dataset.target==='domingos'){ uiState.domingosMes = ds; }
       else if(session.role==='analista'){ uiState.analistaDate = ds; }
       else { uiState.progDate = ds; }
       renderMain();
@@ -428,6 +429,10 @@ function bindMainEvents(){
   // (render-supervisor.js: supGrade, supOcorrencias).
   const btnExportGrade = document.getElementById('btnExportGrade');
   if(btnExportGrade) btnExportGrade.addEventListener('click', exportarGrade);
+  const btnExportDomingos = document.getElementById('btnExportDomingos');
+  if(btnExportDomingos) btnExportDomingos.addEventListener('click', ()=>{
+    exportarRelatorioExcel(`controle-domingos_${uiState.domingosMes.slice(0,7)}.xlsx`, ['Analista','Data'], domingosExportRows);
+  });
   const btnExportOcorrencias = document.getElementById('btnExportOcorrencias');
   if(btnExportOcorrencias) btnExportOcorrencias.addEventListener('click', exportarOcorrencias);
   const btnExportSPR = document.getElementById('btnExportSPR');

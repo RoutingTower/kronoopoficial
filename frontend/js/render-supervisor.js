@@ -11,6 +11,7 @@ function renderSupervisor(){
   else if(activeNavKey==='suplencias') content = renderImportPendentesBanner('suplencias', myAnalistas) + supSugerirSuplente(myAnalistas) + supSuplencias(myAnalistas);
   else if(activeNavKey==='programacao') content = supProgramacao(myAnalistas);
   else if(activeNavKey==='grade') content = supGrade(myAnalistas);
+  else if(activeNavKey==='domingos') content = supControleDomingos(myAnalistas);
   else if(activeNavKey==='reunioes') content = supReunioes(myAnalistas) + supPlantao();
   else if(activeNavKey==='metricas') content = supMetricas(myAnalistas);
   else if(activeNavKey==='transmissao') content = supTransmissao(myAnalistas);
@@ -345,6 +346,58 @@ let gradeExportRows = [];
 function exportarGrade(){
   const linhas = gradeExportRows.map(r=>[r.hora, r.analista, r.op, r.nome, r.isCobertura?'Suplente':'Titular', {wait:'A Iniciar',live:'Em Andamento',done:'Finalizada',atraso:'Pendente Raio-X'}[r.status]||r.status]);
   exportarRelatorioExcel(`grade-do-dia_${uiState.gradeFilters.data||hojeAgendaISO()}.xlsx`, ['Hora Início','Analista','Operação','Responsável','Tipo','Status'], linhas);
+}
+
+
+// "Trabalhou o domingo" = teve pelo menos uma operação própria (fixa) ou
+// cobertura nesse dia (categoriaOperacao, utils.js) — folga não conta.
+// Só entram domingos que já passaram (mesmo critério do coberturaHeatmap,
+// render-coordenador.js): domingo futuro ainda é só escala planejada, não
+// trabalho de fato realizado.
+let domingosExportRows = [];
+function supControleDomingos(myAnalistas){
+  const ref = new Date((uiState.domingosMes||todayISO())+'T00:00:00');
+  const year = ref.getFullYear(), month = ref.getMonth();
+  const prevDate = dateToISO(new Date(year, month-1, 1));
+  const nextDate = dateToISO(new Date(year, month+1, 1));
+  const hojeStr = todayISO();
+
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const domingosDoMes = [];
+  for(let day=1; day<=daysInMonth; day++){
+    const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    if(isDomingo(ds)) domingosDoMes.push(ds);
+  }
+  const domingosPassados = domingosDoMes.filter(ds=>ds<=hojeStr);
+
+  const ranking = myAnalistas.map(a=>{
+    const datas = domingosPassados.filter(ds=>
+      getDaySlots(a.id, ds).some(s=>{ const cat = categoriaOperacao(s); return cat==='fixa' || cat==='cobertura'; })
+    );
+    return { analista:a, datas, total:datas.length };
+  }).filter(p=>p.total>0).sort((a,b)=>b.total-a.total);
+
+  domingosExportRows = ranking.flatMap(p=>p.datas.map(ds=>[p.analista.name, ds]));
+
+  return `
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <button class="btn" data-monthnav="${prevDate}" data-target="domingos">‹ Mês anterior</button>
+    <div class="section-title" style="margin:0;">${MONTH_NAMES[month]} ${year}</div>
+    <button class="btn" data-monthnav="${nextDate}" data-target="domingos">Próximo mês ›</button>
+  </div>
+  <div class="grid-3" style="margin-bottom:18px;">
+    <div class="stat-card"><div class="stat-num">${domingosPassados.length}</div><div class="stat-label">Domingos já passados no mês</div></div>
+    <div class="stat-card"><div class="stat-num">${ranking.length}</div><div class="stat-label">Analistas que trabalharam algum domingo</div></div>
+    <div class="stat-card"><div class="stat-num">${ranking[0]?.total ?? 0}</div><div class="stat-label">${ranking[0] ? `Máximo: ${escapeHtml(ranking[0].analista.name)}` : 'Sem domingos trabalhados'}</div></div>
+  </div>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+    <button class="btn" id="btnExportDomingos">⬇ Exportar Excel</button>
+  </div>
+  <div class="card">
+  <table><thead><tr><th>#</th><th>Analista</th><th>Domingos trabalhados</th><th>Datas</th></tr></thead><tbody>
+  ${ranking.map((p,i)=>`<tr><td class="mono">${i+1}º</td><td style="cursor:pointer;" data-analista-timeline="${p.analista.id}" title="Ver histórico">${escapeHtml(p.analista.name)}</td><td class="mono">${p.total}</td><td>${p.datas.map(formatarDataCurta).join(', ')}</td></tr>`).join('')
+  || `<tr><td colspan="4" class="empty">Nenhum domingo trabalhado ${domingosPassados.length===0?'ainda neste mês':'no mês selecionado'}</td></tr>`}
+  </tbody></table></div>`;
 }
 
 
