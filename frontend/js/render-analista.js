@@ -142,7 +142,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
   const domingo = isDomingo(dateStr);
 
   const linhas = [];
-  let folgaCount = 0;
+  const folgaNomes = [];
   lista.forEach(a=>{
     const slotsOriginais = filtrarSlotsAgenda(a.id, dateStr);
     let slots = slotsOriginais;
@@ -152,7 +152,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
       // Só conta como "de folga" quem tem operação fixa de verdade coberta
       // hoje (categoriaOperacao 'folga') — quem simplesmente não tem nada
       // agendado (sem baseMestra pra essa data) não entra nessa contagem.
-      if(slotsOriginais.some(s=>categoriaOperacao(s)==='folga')) folgaCount++;
+      if(slotsOriginais.some(s=>categoriaOperacao(s)==='folga')) folgaNomes.push(a.name);
       return;
     }
     linhas.push({ analista:a, slots });
@@ -213,7 +213,10 @@ function renderProgramacaoIntegrada(lista, dateStr){
       `<span class="pill ${cls}${filtro===key?' active':''}${filtro && filtro!==key?' inactive':''}" data-status-filtro="${key}">${emoji} ${label}</span>`
     ).join('')}
     ${filtro ? `<button class="btn" id="btnLimparStatusFiltro">Limpar</button>` : ''}
-    ${folgaCount>0 ? `<span class="pill pill-off" title="Analistas com operação fixa coberta hoje, fora da grade">🌙 ${folgaCount} de folga</span>` : ''}
+    <span class="pill pill-done pill-info" title="Analistas com operação hoje">🟢 ${linhas.length} ativos</span>
+    ${folgaNomes.length>0 ? `<span class="pill pill-off pill-info pill-folga-info">🌙 ${folgaNomes.length} de folga
+      <span class="folga-tip"><b>De folga hoje</b><br>${folgaNomes.slice(0,2).map(escapeHtml).join('<br>')}${folgaNomes.length>2 ? `<br><span style="opacity:.7;">+${folgaNomes.length-2} outro${folgaNomes.length-2>1?'s':''}</span>` : ''}</span>
+    </span>` : ''}
   </div>`;
 
   return `${legendHtml}<div class="prog-card-outer">
