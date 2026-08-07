@@ -142,12 +142,19 @@ function renderProgramacaoIntegrada(lista, dateStr){
   const domingo = isDomingo(dateStr);
 
   const linhas = [];
-  const ocultos = [];
+  let folgaCount = 0;
   lista.forEach(a=>{
-    let slots = filtrarSlotsAgenda(a.id, dateStr);
+    const slotsOriginais = filtrarSlotsAgenda(a.id, dateStr);
+    let slots = slotsOriginais;
     if(domingo) slots = slots.filter(s=>categoriaOperacao(s)!=='folga');
     const trabalha = slots.some(s=>categoriaOperacao(s)!=='folga');
-    if(!trabalha){ ocultos.push(a.name); return; }
+    if(!trabalha){
+      // Só conta como "de folga" quem tem operação fixa de verdade coberta
+      // hoje (categoriaOperacao 'folga') — quem simplesmente não tem nada
+      // agendado (sem baseMestra pra essa data) não entra nessa contagem.
+      if(slotsOriginais.some(s=>categoriaOperacao(s)==='folga')) folgaCount++;
+      return;
+    }
     linhas.push({ analista:a, slots });
   });
 
@@ -196,10 +203,8 @@ function renderProgramacaoIntegrada(lista, dateStr){
     return label + cellsHtml;
   }).join('');
 
-  const ocultosNota = ocultos.length ? `<div class="prog-hidden-note">🌙 ${escapeHtml(ocultos.join(', '))} — sem operação agendada neste dia, oculto${ocultos.length>1?'s':''} da grade.</div>` : '';
-
   if(linhas.length===0){
-    return `<div class="empty">Nenhum analista com operação neste dia</div>${ocultosNota}`;
+    return `<div class="empty">Nenhum analista com operação neste dia</div>`;
   }
 
   const legendHtml = `<div class="status-legend">
@@ -208,6 +213,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
       `<span class="pill ${cls}${filtro===key?' active':''}${filtro && filtro!==key?' inactive':''}" data-status-filtro="${key}">${emoji} ${label}</span>`
     ).join('')}
     ${filtro ? `<button class="btn" id="btnLimparStatusFiltro">Limpar</button>` : ''}
+    ${folgaCount>0 ? `<span class="pill pill-off" title="Analistas com operação fixa coberta hoje, fora da grade">🌙 ${folgaCount} de folga</span>` : ''}
   </div>`;
 
   return `${legendHtml}<div class="prog-card-outer">
@@ -217,7 +223,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
       ${rowsHtml}
       ${guideHtml}
     </div>
-  </div>${ocultosNota}`;
+  </div>`;
 }
 
 
