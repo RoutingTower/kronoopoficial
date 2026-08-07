@@ -401,6 +401,7 @@ function renderRecadosAnalista(){
   const sel = my.find(m=>m.id===uiState.inboxSelected);
   const naoLidas = my.filter(r=>!(r.lidoPor||[]).includes(session.userId)).length;
   return `
+  ${naoLidas>0 ? `<div class="banner">🔒 As outras abas ficam bloqueadas até você confirmar a leitura de ${naoLidas===1?'este recado':`todos os ${naoLidas} recados pendentes`}.</div>` : ''}
   <div class="page-head"><div><h1 class="page-title">Caixa de Entrada</h1><div class="page-desc">${naoLidas>0?`${naoLidas} mensagem(ns) não lida(s) · `:''}Mensagens recebidas do seu supervisor ou coordenador</div></div></div>
   <div class="card" style="padding:0;overflow:hidden;">
   <div style="display:grid;grid-template-columns:300px 1fr;min-height:460px;">

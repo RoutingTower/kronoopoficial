@@ -206,6 +206,11 @@ input,select,textarea{font-family:inherit;}
 }
 .nav-item.active{background:var(--panel);color:var(--brand);border-color:var(--border);font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,0.05);}
 .nav-item:hover:not(.active){background:rgba(0,0,0,0.035);}
+/* Trava até ler os recados pendentes (analistaTemRecadosPendentes,
+   utils.js) — cursor de bloqueado e sem hover, pra ficar claro que não é
+   só "desabilitado por enquanto sem motivo". */
+.nav-item.nav-item-locked{opacity:0.35;cursor:not-allowed;}
+.nav-item.nav-item-locked:hover{background:none;}
 .nav-icon{flex-shrink:0;font-size:15px;line-height:1;}
 .nav-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .nav-badge{display:none;margin-left:auto;width:8px;height:8px;border-radius:50%;background:var(--alert);flex-shrink:0;animation:nav-badge-blink 1.1s ease-in-out infinite;}

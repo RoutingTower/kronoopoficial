@@ -329,6 +329,14 @@ function recadosParaAnalista(analistaId){
   return DB.recados.filter(r=> r.to==='all' || r.to==='all_ana_'+userSupKey(analistaId) || r.to===analistaId);
 }
 
+// Trava as outras abas do menu do analista até ele confirmar leitura de
+// todo recado pendente (ver renderMain/updateNavBadges, ui.js) — força
+// passar pela Caixa de Entrada antes de mexer em qualquer outra coisa.
+function analistaTemRecadosPendentes(){
+  if(session.role!=='analista') return false;
+  return recadosParaAnalista(session.userId).some(r=>!(r.lidoPor||[]).includes(session.userId));
+}
+
 
 function getLembretesForAnalista(analistaId){
   const me = userById(analistaId);

@@ -259,6 +259,7 @@ function buildNav(){
   el.innerHTML = items.map(it=>`<div class="nav-item ${it.k===activeNavKey?'active':''}" data-k="${it.k}" title="${it.label}"><span class="nav-icon">${it.icon||'•'}</span><span class="nav-label">${it.label}</span><span class="nav-badge" data-badge="${it.k}"></span></div>`).join('');
   el.onclick = e=>{
     const item = e.target.closest('.nav-item'); if(!item) return;
+    if(item.classList.contains('nav-item-locked')) return;
     activeNavKey = item.dataset.k;
     el.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.k===activeNavKey));
     // "Programação Analista" guarda o último analista escolhido no filtro
@@ -279,6 +280,7 @@ function buildNav(){
 // Chamado de novo a cada renderMain() pra ficar em sincronia sem precisar
 // reconstruir o menu inteiro (buildNav) a cada mutação.
 function updateNavBadges(){
+  const nav = document.getElementById('navItems');
   if(session.role==='analista'){
     const badge = document.querySelector('[data-badge="recados"]');
     if(badge){
@@ -286,6 +288,20 @@ function updateNavBadges(){
       badge.classList.toggle('show', naoLidas>0);
     }
   }
+  // Aplica o visual de travado nas outras abas (renderMain já forçou
+  // activeNavKey='recados' se for o caso) e sincroniza qual item está
+  // marcado como .active, já que essa troca pode ter acontecido sozinha.
+  const travado = analistaTemRecadosPendentes();
+  if(nav){
+    nav.querySelectorAll('.nav-item').forEach(n=>{
+      n.classList.toggle('active', n.dataset.k===activeNavKey);
+      const bloqueado = travado && n.dataset.k!=='recados';
+      n.classList.toggle('nav-item-locked', bloqueado);
+      n.title = bloqueado ? 'Leia os recados pendentes na Caixa de Entrada antes de continuar' : n.querySelector('.nav-label')?.textContent || '';
+    });
+  }
+  const btnPersonalizar = document.getElementById('btnPersonalizarMenu');
+  if(btnPersonalizar) btnPersonalizar.style.display = travado ? 'none' : '';
 }
 
 function openMenuConfigModal(){
@@ -364,6 +380,14 @@ let _particularidadeAutoAbertas = new Set();
 
 function renderMain(){
   const main = document.getElementById('mainArea');
+  // Recado pendente trava o analista na Caixa de Entrada, mesmo que
+  // activeNavKey já estivesse em outra aba (ex.: recado novo chegou
+  // enquanto ele navegava) — reavaliado a cada render, então destrava
+  // sozinho assim que o último recado for confirmado (ver
+  // data-confirmar-leitura, events.js).
+  if(session.role==='analista' && activeNavKey!=='recados' && analistaTemRecadosPendentes()){
+    activeNavKey = 'recados';
+  }
   if(activeNavKey==='configuracoes') main.innerHTML = renderConfiguracoes();
   else if(session.role==='analista') main.innerHTML = activeNavKey==='recados' ? renderRecadosAnalista() : activeNavKey==='feedback' ? renderFeedbackAnalista() : activeNavKey==='resultadospr' ? analistaResultadoSPR() : renderAnalista();
   else if(session.role==='supervisor') main.innerHTML = renderSupervisor();
