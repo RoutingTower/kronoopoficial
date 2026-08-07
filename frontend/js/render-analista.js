@@ -120,6 +120,84 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
 }
 
 
+// Visão integrada da Programação Analista do supervisor: todos os analistas
+// da equipe numa única grade (uma régua de horário e uma linha "agora"
+// compartilhadas), em vez de um flash-row inteiro empilhado por analista
+// (cada um repetindo a régua). Analista sem nenhuma operação própria/
+// cobertura no dia (só folga) e sem reunião fica de fora da lista — pedido
+// do supervisor pra não ocupar espaço com quem não tem nada pra acompanhar.
+function renderProgramacaoIntegrada(lista, dateStr){
+  const turnoInicio = slotTimestamp(dateStr, HOURS[0]);
+  const turnoFim = slotTimestamp(dateStr, HOURS[HOURS.length-1]) + 60*60*1000;
+  const agora = Date.now();
+  const turnoAtivo = agora>=turnoInicio && agora<turnoFim;
+  const horaAtual = turnoAtivo ? HOURS.find(h=> agora>=slotTimestamp(dateStr,h) && agora<slotTimestamp(dateStr,h)+60*60*1000) : null;
+  const fracAgora = turnoAtivo ? Math.min(1, Math.max(0, (agora-turnoInicio)/(turnoFim-turnoInicio))) : 0;
+
+  const linhas = [];
+  const ocultos = [];
+  lista.forEach(a=>{
+    const slots = filtrarSlotsAgenda(a.id, dateStr);
+    const reunioes = getReunioesForDate(a.id, dateStr);
+    const trabalha = slots.some(s=>categoriaOperacao(s)!=='folga');
+    if(!trabalha && reunioes.length===0){ ocultos.push(a.name); return; }
+    linhas.push({ analista:a, slots, reunioes });
+  });
+
+  const cardHtml = (it, hour, analistaId)=>{
+    const supervisorId = userById(analistaId)?.supervisorId;
+    const status = computeStatus(hour, dateStr, analistaId, it.operacao, it.isOff);
+    const spr = getSPR(supervisorId, it.operacao, it.ciclo);
+    const ciente = it.isCobertura && DB.particularidadeCiente.some(c=>c.analistaId===analistaId && c.operacao===it.operacao && c.data===dateStr);
+    return `<div class="flash-card flash-card-${categoriaOperacao(it)}${status==='atraso'?' flash-card-atraso':''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4px;">
+        <span class="flash-sigla">${escapeHtml(it.operacao)}</span>${statusPill(status, true)}
+      </div>
+      <div class="flash-meta">${it.ciclo} · ${it.horaInicio}–${it.horaFim}${spr!=null ? ` · REF ${escapeHtml(String(spr))}` : ''}</div>
+      ${it.isOff ? `<div class="flash-cover" title="${it.tipo==='ferias'?'Férias':'Folga'} do titular, cobre: ${escapeHtml(it.responsavelNome)}">${it.tipo==='ferias'?'🏖️':'🌙'} Cobre: ${escapeHtml(it.responsavelNome)}</div>`
+        : it.isCobertura ? `<div class="flash-cover" title="Cobrindo ${escapeHtml(it.responsavelNome)}">🔁 Cobrindo: ${escapeHtml(it.responsavelNome)}</div>` : ''}
+      <div class="flash-actions">
+        <button class="btn btn-particularidade" data-particularidade-op="${escapeHtml(it.operacao)}" data-particularidade-sup="${supervisorId||''}" data-particularidade-cobertura="${it.isCobertura?'1':'0'}" data-particularidade-analista="${analistaId}" data-particularidade-data="${dateStr}" data-ciente="${ciente?'1':'0'}" title="Ver Particularidade">⚙️${(it.isCobertura && !ciente) ? '<span class="badge-alerta-ciente" title="Sem confirmação de ciência"></span>' : ''}</button>
+      </div>
+    </div>`;
+  };
+  const reuniaoHtml = r => `<div class="flash-card reuniao">
+      <div class="flash-sigla">📅 ${escapeHtml(r.titulo)}</div>
+      <div class="flash-meta">${r.tipo==='grupo'?'Grupo':'Individual'} · ${r.horaFim?`${r.hora}–${r.horaFim}`:r.hora}</div>
+      ${r.link ? `<div class="flash-actions"><a class="btn btn-brand" href="${escapeHtml(normalizeUrl(r.link))}" target="_blank" rel="noopener noreferrer">Entrar</a></div>` : ''}
+    </div>`;
+
+  const rulerHtml = HOURS.map(h=>`<div class="prog-tick mono${h===horaAtual?' prog-tick-agora':''}">${h}</div>`).join('');
+  const timelineHtml = turnoAtivo ? `<div class="prog-timeline-wrap"><div class="prog-timeline-track"><div class="prog-timeline-fill" style="width:${fracAgora*100}%;"></div><div class="prog-timeline-now" style="left:${fracAgora*100}%;" title="Agora"></div></div></div>` : '<div class="prog-timeline-wrap"></div>';
+  const guideHtml = turnoAtivo ? `<div class="prog-now-guide" style="left:calc(184px + ${fracAgora*100}%);"></div>` : '';
+
+  const rowsHtml = linhas.map(({analista,slots,reunioes})=>{
+    const cellsHtml = HOURS.map(hour=>{
+      const items = slots.filter(s=>s.horaInicio===hour);
+      const rns = reunioes.filter(r=>r.hora.slice(0,2)===hour.slice(0,2));
+      const conteudo = items.map(it=>cardHtml(it, hour, analista.id)).join('') + rns.map(reuniaoHtml).join('');
+      return `<div class="prog-cell">${conteudo}</div>`;
+    }).join('');
+    return `<div class="prog-row-label"><div class="nm">${escapeHtml(analista.name)}</div></div><div class="prog-row-track">${cellsHtml}</div>`;
+  }).join('');
+
+  const ocultosNota = ocultos.length ? `<div class="prog-hidden-note">🌙 ${escapeHtml(ocultos.join(', '))} — sem operação agendada neste dia, oculto${ocultos.length>1?'s':''} da grade.</div>` : '';
+
+  if(linhas.length===0){
+    return `<div class="empty">Nenhum analista com operação neste dia</div>${ocultosNota}`;
+  }
+
+  return `<div class="prog-card-outer">
+    <div class="prog-grid">
+      <div class="prog-corner">Analista</div>
+      <div class="prog-ruler-wrap"><div class="prog-ruler">${rulerHtml}</div>${timelineHtml}</div>
+      ${rowsHtml}
+      ${guideHtml}
+    </div>
+  </div>${ocultosNota}`;
+}
+
+
 // Data curta (dd/mm) pros cards de "próxima cobertura/folga" — mesmo
 // padrão de toLocaleDateString já usado no calendário (renderAnalistaSemanal).
 function formatarDataCurta(d){

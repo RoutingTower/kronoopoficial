@@ -252,10 +252,7 @@ function supSugerirSuplente(myAnalistas){
 
 function supProgramacao(myAnalistas){
   const list = uiState.progAnalista==='all' ? myAnalistas : myAnalistas.filter(a=>a.id===uiState.progAnalista);
-  const renderFor = a => uiState.progView==='diaria' ? renderFlashcardRow(a.id, uiState.progDate)
-    : uiState.progView==='semanal' ? renderAnalistaSemanal(a.id, uiState.progDate)
-    : renderAnalistaMensal(a.id, uiState.progDate);
-  return `
+  const filtros = `
   <div class="filter-row">
     <select id="progAnalistaSel">
       <option value="all" ${uiState.progAnalista==='all'?'selected':''}>Todos os analistas</option>
@@ -267,9 +264,17 @@ function supProgramacao(myAnalistas){
       <button data-view="semanal" class="${uiState.progView==='semanal'?'active':''}">Semanal</button>
       <button data-view="mensal" class="${uiState.progView==='mensal'?'active':''}">Mensal</button>
     </div>
-  </div>
-  ${ list.map(a=>`<div style="margin-bottom:22px;"><div class="section-title">${a.name}</div>${renderFor(a)}</div>`).join('')
-    || '<div class="empty">Nenhum analista para exibir</div>' }`;
+  </div>`;
+  // Diária ganhou a grade integrada (todos os analistas numa régua só, em
+  // vez de um bloco empilhado por analista) — Semanal/Mensal continuam
+  // reaproveitando a visão do próprio analista, uma por seção.
+  if(uiState.progView==='diaria'){
+    return filtros + renderProgramacaoIntegrada(list, uiState.progDate);
+  }
+  const renderFor = a => uiState.progView==='semanal' ? renderAnalistaSemanal(a.id, uiState.progDate)
+    : renderAnalistaMensal(a.id, uiState.progDate);
+  return filtros + (list.map(a=>`<div style="margin-bottom:22px;"><div class="section-title">${a.name}</div>${renderFor(a)}</div>`).join('')
+    || '<div class="empty">Nenhum analista para exibir</div>');
 }
 
 

@@ -350,6 +350,38 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .flash-meta{color:var(--text-muted);font-size:11.5px;margin-top:3px;}
 .flash-cover{font-size:11px;color:var(--suplente);margin-top:6px;font-weight:600;}
 
+/* Programação Analista do supervisor (visão Diária): grade integrada com
+   todos os analistas da equipe, uma régua de horário e uma linha "agora"
+   compartilhadas (em vez de um flash-row inteiro repetido por analista).
+   Reaproveita as cores/pills do flash-card, só com espaçamento mais
+   compacto pra caber várias linhas na tela sem rolar demais. */
+.prog-card-outer{overflow-x:auto;padding-bottom:8px;}
+.prog-grid{display:grid;grid-template-columns:184px 1fr;position:relative;min-width:1040px;}
+.prog-corner{position:sticky;left:0;top:0;z-index:4;background:var(--panel-2);border-bottom:1px solid var(--border);border-right:1px solid var(--border);display:flex;align-items:center;padding:0 14px;font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);}
+.prog-ruler-wrap{position:sticky;top:0;z-index:3;background:var(--panel-2);border-bottom:1px solid var(--border);}
+.prog-ruler{display:grid;grid-template-columns:repeat(12,1fr);}
+.prog-tick{padding:8px 0 8px 10px;font-size:10.5px;color:var(--text-faint);border-left:1px solid var(--border);}
+.prog-tick:first-child{border-left:none;}
+.prog-tick-agora{color:var(--brand);font-weight:700;}
+.prog-timeline-wrap{position:relative;height:11px;}
+.prog-timeline-track{position:absolute;top:3px;left:0;right:0;height:5px;border-radius:4px;background:var(--bg-2);}
+.prog-timeline-fill{position:absolute;top:0;left:0;height:100%;border-radius:4px;background:linear-gradient(135deg,var(--brand),var(--brand-2));}
+.prog-timeline-now{position:absolute;top:50%;width:10px;height:10px;border-radius:50%;background:var(--brand);border:2px solid var(--panel-2);transform:translate(-50%,-50%);box-shadow:0 0 0 3px rgba(238,77,45,0.22);}
+.prog-now-guide{position:absolute;top:0;bottom:0;width:1px;background:var(--brand);opacity:0.15;z-index:1;pointer-events:none;}
+.prog-row-label{position:sticky;left:0;z-index:2;background:var(--panel);border-right:1px solid var(--border);border-top:1px solid var(--border);padding:8px 14px;display:flex;align-items:center;}
+.prog-row-label .nm{font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.prog-row-track{border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(12,1fr);}
+.prog-cell{border-left:1px solid var(--border);padding:4px;min-height:48px;}
+.prog-cell:first-child{border-left:none;}
+.prog-cell .flash-card{padding:5px 7px;margin-bottom:4px;border-radius:8px;font-size:11px;}
+.prog-cell .flash-card:last-child{margin-bottom:0;}
+.prog-cell .flash-sigla{font-size:11.5px;}
+.prog-cell .flash-meta{font-size:10px;margin-top:2px;}
+.prog-cell .flash-cover{font-size:10px;margin-top:3px;}
+.prog-cell .flash-actions{margin-top:4px;gap:4px;}
+.prog-cell .flash-actions .btn{flex:none;padding:2px 6px;font-size:10.5px;}
+.prog-hidden-note{display:flex;align-items:center;gap:8px;padding:9px 14px;margin-top:10px;border:1px dashed var(--border);border-radius:10px;font-size:11.5px;color:var(--text-faint);}
+
 /* Grid de calendário (semanal/mensal da Programação) — substitui o kanban
    de colunas horizontais por um grid de verdade, com o mês inteiro visível
    sem precisar rolar pros lados; cada célula ainda pode rolar na vertical
