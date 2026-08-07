@@ -98,13 +98,19 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
       // session.userId) o botão não aparece, só o link.
       const souEu = analistaId===session?.userId;
       const presente = souEu && DB.reuniaoPresenca.some(p=>p.reuniaoId===r.id && p.analistaId===session.userId);
+      // Check-in só libera depois do horário de início de verdade (mesma
+      // conta de slotTimestamp usada pro status das operações) — antes
+      // disso mostra o botão desabilitado, pra não dar check-in adiantado.
+      const jaComecou = Date.now() >= slotTimestamp(dateStr, r.hora);
       return `<div class="flash-card reuniao">
       <div class="flash-sigla">📅 Reunião</div>
       <div class="flash-meta">${escapeHtml(r.titulo)}</div>
       <div class="flash-meta">${r.tipo==='grupo'?'Grupo':'Individual'} · ${r.horaFim?`${r.hora}–${r.horaFim}`:r.hora}</div>
       ${r.link ? `<div class="flash-actions" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
         <a class="btn btn-brand" href="${escapeHtml(normalizeUrl(r.link))}" target="_blank" rel="noopener noreferrer">Entrar na reunião</a>
-        ${souEu ? (presente ? `<span class="btn btn-brand" style="cursor:default;opacity:0.75;">✓ Check-in</span>` : `<button class="btn btn-brand" data-marcar-presenca="${r.id}">Check-in</button>`) : ''}
+        ${souEu ? (presente ? `<span class="btn btn-brand" style="cursor:default;opacity:0.75;">✓ Check-in</span>`
+          : jaComecou ? `<button class="btn btn-brand" data-marcar-presenca="${r.id}">Check-in</button>`
+          : `<span class="btn" style="opacity:0.5;cursor:not-allowed;" title="Libera a partir de ${r.hora}">Check-in</span>`) : ''}
       </div>` : ''}
     </div>`;
     }).join('');
