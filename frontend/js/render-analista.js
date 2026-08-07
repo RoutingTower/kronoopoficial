@@ -134,22 +134,34 @@ function renderProgramacaoIntegrada(lista, dateStr){
   const horaAtual = turnoAtivo ? HOURS.find(h=> agora>=slotTimestamp(dateStr,h) && agora<slotTimestamp(dateStr,h)+60*60*1000) : null;
   const fracAgora = turnoAtivo ? Math.min(1, Math.max(0, (agora-turnoInicio)/(turnoFim-turnoInicio))) : 0;
 
+  // Domingo é dia de DSR: o hub fixo de quem está de folga sempre aparece
+  // como "folga" (coberto por outra pessoa) na agenda dele, mas isso não
+  // interessa pro supervisor acompanhar nesse dia — só o que a pessoa vai
+  // efetivamente cobrir (categoria "cobertura"). Nos outros dias da semana
+  // continua mostrando o "folga" normalmente.
+  const domingo = isDomingo(dateStr);
+
   const linhas = [];
   const ocultos = [];
   lista.forEach(a=>{
-    const slots = filtrarSlotsAgenda(a.id, dateStr);
+    let slots = filtrarSlotsAgenda(a.id, dateStr);
+    if(domingo) slots = slots.filter(s=>categoriaOperacao(s)!=='folga');
     const reunioes = getReunioesForDate(a.id, dateStr);
     const trabalha = slots.some(s=>categoriaOperacao(s)!=='folga');
     if(!trabalha && reunioes.length===0){ ocultos.push(a.name); return; }
     linhas.push({ analista:a, slots, reunioes });
   });
 
+  const statusLabels = { wait:['pill-wait','⏳','A Iniciar'], live:['pill-live','🏃','Em Andamento'], done:['pill-done','✅','Finalizada'], atraso:['pill-atraso','🚨','Pendente Raio-X'] };
+  const filtro = uiState.progStatusFiltro;
+
   const cardHtml = (it, hour, analistaId)=>{
     const supervisorId = userById(analistaId)?.supervisorId;
     const status = computeStatus(hour, dateStr, analistaId, it.operacao, it.isOff);
     const spr = getSPR(supervisorId, it.operacao, it.ciclo);
     const ciente = it.isCobertura && DB.particularidadeCiente.some(c=>c.analistaId===analistaId && c.operacao===it.operacao && c.data===dateStr);
-    return `<div class="flash-card flash-card-${categoriaOperacao(it)}${status==='atraso'?' flash-card-atraso':''}">
+    const dim = filtro && filtro!==status;
+    return `<div class="flash-card flash-card-${categoriaOperacao(it)}${status==='atraso'?' flash-card-atraso':''}${dim?' prog-dim':''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4px;">
         <span class="flash-sigla">${escapeHtml(it.operacao)}</span>${statusPill(status, true)}
       </div>
@@ -187,7 +199,15 @@ function renderProgramacaoIntegrada(lista, dateStr){
     return `<div class="empty">Nenhum analista com operação neste dia</div>${ocultosNota}`;
   }
 
-  return `<div class="prog-card-outer">
+  const legendHtml = `<div class="status-legend">
+    <span class="status-legend-label">Destacar por status</span>
+    ${Object.entries(statusLabels).map(([key,[cls,emoji,label]])=>
+      `<span class="pill ${cls}${filtro===key?' active':''}${filtro && filtro!==key?' inactive':''}" data-status-filtro="${key}">${emoji} ${label}</span>`
+    ).join('')}
+    ${filtro ? `<button class="btn" id="btnLimparStatusFiltro">Limpar</button>` : ''}
+  </div>`;
+
+  return `${legendHtml}<div class="prog-card-outer">
     <div class="prog-grid">
       <div class="prog-corner">Analista</div>
       <div class="prog-ruler-wrap"><div class="prog-ruler">${rulerHtml}</div>${timelineHtml}</div>

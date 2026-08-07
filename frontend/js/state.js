@@ -60,7 +60,7 @@ let uiState = {
   envioFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO() },
   ocorrenciasFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), analista: 'all', operacao: 'all', avaliacaoMax: '' },
   suplenciasFiltro:{ operacao:'', horario:'', suplente:'all', cobrindo:'all', inicio:'', fim:'' },
-  progAnalista:'all', progDate: hojeAgendaISO(), progView:'diaria',
+  progAnalista:'all', progDate: hojeAgendaISO(), progView:'diaria', progStatusFiltro: null,
   reunioesDate: hojeAgendaISO(), reunioesView:'mensal',
   domingosMes: todayISO(),
   particularidadesFiltro: { operacao: '', analista: 'all' },

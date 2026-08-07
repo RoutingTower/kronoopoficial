@@ -120,6 +120,18 @@ function bindMainEvents(){
   main.querySelectorAll('.toggle-group[data-scope="sup"] [data-view]').forEach(el=>{
     el.addEventListener('click', ()=>{ uiState.progView = el.dataset.view; renderMain(); });
   });
+  // Legenda de status da grade integrada (Programação Analista do
+  // supervisor) — clicar destaca só aquele status, clicar de novo (ou no
+  // "Limpar") volta a mostrar tudo igual.
+  main.querySelectorAll('[data-status-filtro]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const s = el.dataset.statusFiltro;
+      uiState.progStatusFiltro = uiState.progStatusFiltro===s ? null : s;
+      renderMain();
+    });
+  });
+  const btnLimparStatusFiltro = document.getElementById('btnLimparStatusFiltro');
+  if(btnLimparStatusFiltro) btnLimparStatusFiltro.addEventListener('click', ()=>{ uiState.progStatusFiltro = null; renderMain(); });
   main.querySelectorAll('.toggle-group[data-scope="reunioes"] [data-view]').forEach(el=>{
     el.addEventListener('click', ()=>{ uiState.reunioesView = el.dataset.view; renderMain(); });
   });
