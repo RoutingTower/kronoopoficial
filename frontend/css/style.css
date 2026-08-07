@@ -353,26 +353,26 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 /* Programação Analista do supervisor (visão Diária): grade integrada com
    todos os analistas da equipe, uma régua de horário e uma linha "agora"
    compartilhadas (em vez de um flash-row inteiro repetido por analista).
-   Reaproveita as cores/pills do flash-card, só com espaçamento mais
-   compacto pra caber várias linhas na tela sem rolar demais. */
+   Cabeçalho e todas as linhas são filhos diretos do MESMO grid (13
+   colunas: nome + 12 horas) — assim toda linha usa exatamente as mesmas
+   larguras de coluna, sem depender de cada linha arredondar "1fr" igual
+   (era o que desalinhava as colunas quando cada linha tinha seu próprio
+   grid). Reaproveita as cores/pills do flash-card, só mais compacto. */
 .prog-card-outer{overflow-x:auto;padding-bottom:8px;}
-.prog-grid{display:grid;grid-template-columns:184px 1fr;position:relative;min-width:1040px;}
-.prog-corner{position:sticky;left:0;top:0;z-index:4;background:var(--panel-2);border-bottom:1px solid var(--border);border-right:1px solid var(--border);display:flex;align-items:center;padding:0 14px;font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);}
-.prog-ruler-wrap{position:sticky;top:0;z-index:3;background:var(--panel-2);border-bottom:1px solid var(--border);}
-.prog-ruler{display:grid;grid-template-columns:repeat(12,1fr);}
-.prog-tick{padding:8px 0 8px 10px;font-size:10.5px;color:var(--text-faint);border-left:1px solid var(--border);}
-.prog-tick:first-child{border-left:none;}
+.prog-grid{display:grid;grid-template-columns:184px repeat(12,minmax(96px,1fr));position:relative;min-width:1360px;}
+.prog-corner{position:sticky;top:0;left:0;z-index:5;height:30px;box-sizing:border-box;background:var(--panel-2);border-bottom:1px solid var(--border);border-right:1px solid var(--border);display:flex;align-items:center;padding:0 14px;font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);}
+.prog-tick{position:sticky;top:0;z-index:4;height:30px;box-sizing:border-box;background:var(--panel-2);border-bottom:1px solid var(--border);border-left:1px solid var(--border);padding:8px 0 8px 10px;font-size:10.5px;color:var(--text-faint);}
+.prog-tick:nth-child(2){border-left:none;}
 .prog-tick-agora{color:var(--brand);font-weight:700;}
-.prog-timeline-wrap{position:relative;height:11px;}
-.prog-timeline-track{position:absolute;top:3px;left:0;right:0;height:5px;border-radius:4px;background:var(--bg-2);}
+.prog-timeline-wrap{position:sticky;top:30px;z-index:3;height:11px;box-sizing:border-box;background:var(--panel-2);border-bottom:1px solid var(--border);}
+.prog-timeline-track{position:absolute;top:3px;left:184px;right:0;height:5px;border-radius:4px;background:var(--bg-2);}
 .prog-timeline-fill{position:absolute;top:0;left:0;height:100%;border-radius:4px;background:linear-gradient(135deg,var(--brand),var(--brand-2));}
 .prog-timeline-now{position:absolute;top:50%;width:10px;height:10px;border-radius:50%;background:var(--brand);border:2px solid var(--panel-2);transform:translate(-50%,-50%);box-shadow:0 0 0 3px rgba(238,77,45,0.22);}
-.prog-now-guide{position:absolute;top:0;bottom:0;width:1px;background:var(--brand);opacity:0.15;z-index:1;pointer-events:none;}
-.prog-row-label{position:sticky;left:0;z-index:2;background:var(--panel);border-right:1px solid var(--border);border-top:1px solid var(--border);padding:8px 14px;display:flex;align-items:center;}
+.prog-now-guide{position:absolute;top:41px;bottom:0;width:1px;background:var(--brand);opacity:0.18;z-index:1;pointer-events:none;}
+.prog-row-label{position:sticky;left:0;z-index:2;box-sizing:border-box;background:var(--panel);border-right:1px solid var(--border);border-top:1px solid var(--border);padding:8px 14px;display:flex;align-items:center;}
 .prog-row-label .nm{font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.prog-row-track{border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(12,1fr);}
-.prog-cell{border-left:1px solid var(--border);padding:4px;min-height:40px;display:flex;flex-direction:column;justify-content:center;gap:3px;}
-.prog-cell:first-child{border-left:none;}
+.prog-cell{box-sizing:border-box;border-left:1px solid var(--border);border-top:1px solid var(--border);padding:4px;min-height:40px;display:flex;flex-direction:column;justify-content:center;gap:3px;}
+.prog-cell.prog-cell-agora{background:rgba(238,77,45,0.05);border-left:1.5px dashed var(--brand);border-right:1.5px dashed var(--brand);}
 .prog-cell .flash-card{padding:4px 7px;border-radius:7px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:1px;line-height:1.2;}
 .prog-cell .flash-sigla{font-size:10.8px;}
 .prog-ciclo{font-size:9.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.03em;}

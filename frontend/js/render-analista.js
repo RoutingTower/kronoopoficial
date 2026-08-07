@@ -169,17 +169,30 @@ function renderProgramacaoIntegrada(lista, dateStr){
     </div>`;
   };
 
-  const rulerHtml = HOURS.map(h=>`<div class="prog-tick mono${h===horaAtual?' prog-tick-agora':''}">${h}</div>`).join('');
-  const timelineHtml = turnoAtivo ? `<div class="prog-timeline-wrap"><div class="prog-timeline-track"><div class="prog-timeline-fill" style="width:${fracAgora*100}%;"></div><div class="prog-timeline-now" style="left:${fracAgora*100}%;" title="Agora"></div></div></div>` : '<div class="prog-timeline-wrap"></div>';
-  const guideHtml = turnoAtivo ? `<div class="prog-now-guide" style="left:calc(184px + ${fracAgora*100}%);"></div>` : '';
+  // Régua + linha "agora" — mesma marca registrada da Programação individual
+  // do analista (renderFlashcardRow): barrinha de progresso na régua e a
+  // coluna inteira da hora atual destacada em todas as linhas, não só o
+  // rótulo da régua.
+  //
+  // Grade única: cabeçalho e todas as linhas de analista são filhos diretos
+  // do MESMO grid (não um grid por linha) — é o que garante que as colunas
+  // fiquem exatamente alinhadas de cima a baixo, sem depender de cada linha
+  // arredondar a largura de "1fr" do mesmo jeito.
+  const headHtml = `<div class="prog-corner">Analista</div>` + HOURS.map(h=>
+    `<div class="prog-tick mono${h===horaAtual?' prog-tick-agora':''}">${h}${h===horaAtual?' <span class="timeline-badge-agora">agora</span>':''}</div>`
+  ).join('');
+
+  const timelineHtml = `<div class="prog-timeline-wrap" style="grid-column:1/-1;">${turnoAtivo ? `<div class="prog-timeline-track"><div class="prog-timeline-fill" style="width:${fracAgora*100}%;"></div><div class="prog-timeline-now" style="left:${fracAgora*100}%;" title="Agora"></div></div>` : ''}</div>`;
+  const guideHtml = turnoAtivo ? `<div class="prog-now-guide" style="left:calc(184px + (100% - 184px) * ${fracAgora});"></div>` : '';
 
   const rowsHtml = linhas.map(({analista,slots})=>{
+    const label = `<div class="prog-row-label"><div class="nm">${escapeHtml(analista.name)}</div></div>`;
     const cellsHtml = HOURS.map(hour=>{
       const items = slots.filter(s=>s.horaInicio===hour);
       const conteudo = items.map(it=>cardHtml(it, hour, analista.id)).join('');
-      return `<div class="prog-cell">${conteudo}</div>`;
+      return `<div class="prog-cell${hour===horaAtual?' prog-cell-agora':''}">${conteudo}</div>`;
     }).join('');
-    return `<div class="prog-row-label"><div class="nm">${escapeHtml(analista.name)}</div></div><div class="prog-row-track">${cellsHtml}</div>`;
+    return label + cellsHtml;
   }).join('');
 
   const ocultosNota = ocultos.length ? `<div class="prog-hidden-note">🌙 ${escapeHtml(ocultos.join(', '))} — sem operação agendada neste dia, oculto${ocultos.length>1?'s':''} da grade.</div>` : '';
@@ -198,8 +211,8 @@ function renderProgramacaoIntegrada(lista, dateStr){
 
   return `${legendHtml}<div class="prog-card-outer">
     <div class="prog-grid">
-      <div class="prog-corner">Analista</div>
-      <div class="prog-ruler-wrap"><div class="prog-ruler">${rulerHtml}</div>${timelineHtml}</div>
+      ${headHtml}
+      ${timelineHtml}
       ${rowsHtml}
       ${guideHtml}
     </div>
