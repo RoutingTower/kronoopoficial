@@ -186,7 +186,8 @@ function renderProgramacaoIntegrada(lista, dateStr){
   const guideHtml = turnoAtivo ? `<div class="prog-now-guide" style="left:calc(184px + (100% - 184px) * ${fracAgora});"></div>` : '';
 
   const rowsHtml = linhas.map(({analista,slots})=>{
-    const label = `<div class="prog-row-label"><div class="nm">${escapeHtml(analista.name)}</div></div>`;
+    const qtd = slots.length;
+    const label = `<div class="prog-row-label"><div class="nm">${escapeHtml(analista.name)}</div><div class="prog-row-count">${qtd} operaç${qtd===1?'ão':'ões'}</div></div>`;
     const cellsHtml = HOURS.map(hour=>{
       const items = slots.filter(s=>s.horaInicio===hour);
       const conteudo = items.map(it=>cardHtml(it, hour, analista.id)).join('');
