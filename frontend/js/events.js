@@ -520,11 +520,13 @@ function bindMainEvents(){
     });
   });
 
-  // Resultado SPR (supResultadoSPR/coordResultadoSPR).
+  // Resultado SPR (supResultadoSPR/coordResultadoSPR). Operação virou um
+  // input com <datalist> (pra dar pra pesquisar digitando o nome do hub em
+  // vez de rolar um select gigante) — campo vazio volta pra "todas".
   main.querySelectorAll('[data-sprfiltro]').forEach(inp=>{
     inp.addEventListener('change', ()=>{
       const key = inp.dataset.sprfiltro;
-      uiState.sprFiltro[key] = inp.value;
+      uiState.sprFiltro[key] = (key==='operacao' && inp.value.trim()==='') ? 'all' : inp.value;
       if((key==='inicio'||key==='fim') && uiState.sprFiltro.inicio > uiState.sprFiltro.fim){
         uiState.sprFiltro[key==='inicio'?'fim':'inicio'] = inp.value;
       }

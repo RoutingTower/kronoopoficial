@@ -983,10 +983,10 @@ function sprResultadoBody(selecionados, picker){
     <label style="font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">Fim
       <input type="date" data-sprfiltro="fim" value="${fim}" min="${inicio}">
     </label>
-    <select data-sprfiltro="operacao">
-      <option value="all">Operação: todas</option>
-      ${operacoesDisponiveis.map(op=>`<option value="${op}" ${flt.operacao===op?'selected':''}>${op}</option>`).join('')}
-    </select>
+    <input type="text" list="sprOperacaoList" data-sprfiltro="operacao" placeholder="Operação: todas" value="${flt.operacao!=='all' ? escapeHtml(flt.operacao) : ''}" style="min-width:220px;">
+    <datalist id="sprOperacaoList">
+      ${operacoesDisponiveis.map(op=>`<option value="${escapeHtml(op)}">`).join('')}
+    </datalist>
     <select data-sprfiltro="semana">
       <option value="">Semana: todas (${formatarDataCurta(inicio)} a ${formatarDataCurta(fim)})</option>
       ${semanasDisponiveis.map(ws=>`<option value="${ws}" ${flt.semana===ws?'selected':''}>Semana ${formatarDataCurta(ws)}–${formatarDataCurta(addDaysISO(ws,6))}</option>`).join('')}
