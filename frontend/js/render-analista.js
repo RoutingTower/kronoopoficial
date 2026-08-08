@@ -292,83 +292,6 @@ function statCardContagem(proxima, emoji, label, semLabel){
   return `<div class="stat-card"><div class="stat-num">${proxima.diasFaltando===0?'Hoje':proxima.diasFaltando}</div><div class="stat-label">${emoji} ${label} · ${formatarDataCurta(proxima.data)}${sufixoDias}</div></div>`;
 }
 
-// "Atraso" (ver computeStatus em utils.js) não fica registrado como campo —
-// é sempre calculado em tempo real comparando com o relógio atual, então
-// depois que a operação é finalizada (raio-x existe) o status vira "done"
-// pra sempre, mesmo que tenha sido registrado tarde. Pra medir pontualidade
-// histórica (streak, % no prazo do mês), a gente infere comparando
-// raioX.ts com o horário do slot — mais de 1h depois é a MESMA janela que
-// computeStatus usa pra marcar "atraso" em tempo real.
-function analistaDesempenho(analistaId){
-  const meusRaioX = DB.raioX.filter(r=>r.analistaId===analistaId).sort((a,b)=>b.ts-a.ts);
-  const foiNoPrazo = r => r.ts <= slotTimestamp(r.data, r.hora) + 60*60*1000;
-
-  let streakPontual = 0;
-  for(const r of meusRaioX){
-    if(foiNoPrazo(r)) streakPontual++; else break;
-  }
-
-  const mediaGeral = meusRaioX.length ? meusRaioX.reduce((s,r)=>s+(r.estrelas||0),0)/meusRaioX.length : null;
-
-  const mesAtual = todayISO().slice(0,7);
-  const doMes = meusRaioX.filter(r=>(r.data||'').startsWith(mesAtual));
-  const noPrazoMes = doMes.filter(foiNoPrazo).length;
-
-  // "Realizadas" = já aconteceram (data no passado) — cobertura futura
-  // ainda agendada não conta como feita.
-  const nome = userById(analistaId)?.name;
-  const hojeStr = todayISO();
-  const coberturas = DB.ausencias.filter(a=>a.suplenteId===analistaId && a.data<hojeStr).length
-    + DB.suplencias.filter(s=>s.suplente===nome && s.dataCobertura<hojeStr).length;
-
-  // % de finalizações que bateram a meta SPR (ver bateuMetaSPR em
-  // render-supervisor.js) — só entre as que tinham meta cadastrada, mesmo
-  // critério da tela Resultado SPR.
-  const comMetaSPR = meusRaioX.filter(r=>r.sprMeta!=null);
-  const bateramMetaSPR = comMetaSPR.filter(bateuMetaSPR).length;
-  const pctMetaSPR = comMetaSPR.length ? Math.round((bateramMetaSPR/comMetaSPR.length)*100) : null;
-
-  const badges = [];
-  if(streakPontual>=5) badges.push({emoji:'🎯', label:`${streakPontual} operações seguidas no prazo`});
-  if(mediaGeral!=null && meusRaioX.length>=5 && mediaGeral>=4.5) badges.push({emoji:'⭐', label:'Excelência — média ≥ 4,5'});
-  if(coberturas>=3) badges.push({emoji:'🤝', label:`${coberturas} coberturas realizadas`});
-  if(doMes.length>0 && noPrazoMes===doMes.length) badges.push({emoji:'✅', label:'100% no prazo este mês'});
-  if(pctMetaSPR!=null && comMetaSPR.length>=5 && pctMetaSPR>=80) badges.push({emoji:'📈', label:`${pctMetaSPR}% das operações na meta SPR`});
-
-  return { mediaGeral, totalRaioX: meusRaioX.length, streakPontual, doMes: doMes.length, noPrazoMes, pctMetaSPR, totalComMetaSPR: comMetaSPR.length, badges };
-}
-
-// Progresso pessoal, comparado com o próprio histórico — não é ranking
-// entre colegas de propósito (comparação pública desmotiva quem está atrás).
-function renderGamificacao(analistaId){
-  const d = analistaDesempenho(analistaId);
-  const pct = d.doMes>0 ? Math.round((d.noPrazoMes/d.doMes)*100) : null;
-  return `
-  <div class="card" style="margin-bottom:22px;">
-    <div class="section-title">Meu desempenho</div>
-    <div class="grid-4">
-      <div class="stat-card">
-        <div class="stat-num" style="font-size:20px;">${d.mediaGeral!=null ? starDisplay(Math.round(d.mediaGeral)) : '—'}</div>
-        <div class="stat-label">Avaliação média Raio-X${d.mediaGeral!=null ? ` (${d.mediaGeral.toFixed(1)})` : ' · sem registros ainda'}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-num">${d.streakPontual}</div>
-        <div class="stat-label">🎯 Operações seguidas no prazo</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-num">${pct!=null ? pct+'%' : '—'}</div>
-        <div class="stat-label">No prazo este mês${d.doMes>0 ? ` (${d.noPrazoMes}/${d.doMes})` : ''}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-num">${d.pctMetaSPR!=null ? d.pctMetaSPR+'%' : '—'}</div>
-        <div class="stat-label">📈 Na meta SPR${d.totalComMetaSPR>0 ? ` (${d.totalComMetaSPR} finaliz.)` : ' · sem meta cadastrada ainda'}</div>
-      </div>
-    </div>
-    ${pct!=null ? `<div style="margin-top:14px;height:8px;background:var(--bg-2);border-radius:5px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:var(--brand);"></div></div>` : ''}
-    ${d.badges.length ? `<div class="chip-row" style="margin-top:16px;">${d.badges.map(b=>`<span class="chip-pessoa" title="${escapeHtml(b.label)}">${b.emoji} ${escapeHtml(b.label)}</span>`).join('')}</div>` : ''}
-  </div>`;
-}
-
 function renderAnalista(){
   const dateStr = uiState.analistaDate;
   const todaySlots = getDaySlots(session.userId, dateStr);
@@ -419,7 +342,6 @@ function renderAnalista(){
       <div class="stat-label">⏳ Tempo médio de execução <span style="color:var(--text-faint);">(SLA 1h · 30 dias)</span></div>
     </div>
   </div>
-  ${renderGamificacao(session.userId)}
   <div class="grid-3" style="margin-bottom:22px;">
     <div class="stat-card"><div class="stat-num">${todaySlots.length}</div><div class="stat-label">📋 Operações do dia</div></div>
     ${statCardContagem(proxCobertura, '🔁', 'Próxima cobertura', 'Sem cobertura agendada')}

@@ -863,16 +863,6 @@ function renderMetricasCharts(){
 
 
 // ===== Resultado SPR =====
-// Compara sprRoteirizado (real, informado ao finalizar o Raio-X) com
-// sprMeta (a meta vigente NO MOMENTO da finalização, congelada — ver
-// backend/src/controllers/raioX.controller.js e a tela de finalização em
-// events.js) — assim a meta muda de dono no dia que muda o cadastro de
-// SPR, sem reescrever histórico. Convenção assumida (ninguém confirmou
-// ainda): SPR roteirizado >= meta é "bateu a meta" — se for ao contrário
-// nessa operação (SPR menor = melhor), inverter essa comparação aqui e em
-// sprResultadoBody().
-function bateuMetaSPR(r){ return r.sprRoteirizado >= r.sprMeta; }
-
 let sprChartData = null;
 let sprExportRows = [];
 
