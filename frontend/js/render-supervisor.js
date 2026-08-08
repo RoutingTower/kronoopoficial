@@ -321,7 +321,7 @@ function supGrade(myAnalistas){
   // Uma cobertura gera 2 entradas com o mesmo id em getDaySlots: uma na
   // agenda do titular (operação coberta, sempre "Finalizada" porque ele
   // não precisa fazer nada) e outra na agenda de quem está cobrindo (com
-  // o status real, incluindo Pendente Raio-X). Mantém só a segunda — é a
+  // o status real, incluindo Não Finalizado). Mantém só a segunda — é a
   // que importa pro supervisor acompanhar.
   const porId = new Map();
   rows.forEach(r=>{ if(!porId.has(r.chave) || r.isCobertura) porId.set(r.chave, r); });
@@ -335,7 +335,7 @@ function supGrade(myAnalistas){
     (f.nome==='all' || r.nome===f.nome) &&
     (f.status==='all' || r.status===f.status)
   );
-  const statusLabels = {wait:'A Iniciar', live:'Em Andamento', naoiniciado:'Não Iniciado', done:'Finalizada', atraso:'Pendente Raio-X'};
+  const statusLabels = {wait:'A Iniciar', live:'Em Andamento', naoiniciado:'Não Iniciado', done:'Finalizada', atraso:'Não Finalizado'};
   const select = (key, label, values) => `
     <select data-gradefilter="${key}">
       <option value="all">${label}: todos</option>
@@ -390,7 +390,7 @@ function supGrade(myAnalistas){
 
 let gradeExportRows = [];
 function exportarGrade(){
-  const linhas = gradeExportRows.map(r=>[r.hora, r.analista, r.op, r.nome, r.isCobertura?'Suplente':'Titular', {wait:'A Iniciar',live:'Em Andamento',naoiniciado:'Não Iniciado',done:'Finalizada',atraso:'Pendente Raio-X'}[r.status]||r.status]);
+  const linhas = gradeExportRows.map(r=>[r.hora, r.analista, r.op, r.nome, r.isCobertura?'Suplente':'Titular', {wait:'A Iniciar',live:'Em Andamento',naoiniciado:'Não Iniciado',done:'Finalizada',atraso:'Não Finalizado'}[r.status]||r.status]);
   exportarRelatorioExcel(`grade-do-dia_${uiState.gradeFilters.data||hojeAgendaISO()}.xlsx`, ['Hora Início','Analista','Operação','Responsável','Tipo','Status'], linhas);
 }
 

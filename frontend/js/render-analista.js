@@ -208,7 +208,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
     linhas.push({ analista:a, slots });
   });
 
-  const statusLabels = { wait:['pill-wait','⏳','A Iniciar'], live:['pill-live','🏃','Em Andamento'], naoiniciado:['pill-naoiniciado','⚠️','Não Iniciado'], done:['pill-done','✅','Finalizada'], atraso:['pill-atraso','🚨','Pendente Raio-X'] };
+  const statusLabels = { wait:['pill-wait','⏳','A Iniciar'], live:['pill-live','🏃','Em Andamento'], naoiniciado:['pill-naoiniciado','⚠️','Não Iniciado'], done:['pill-done','✅','Finalizada'], atraso:['pill-atraso','🚨','Não Finalizado'] };
   const filtro = uiState.progStatusFiltro;
 
   // Card minimalista de propósito: só hub + ciclo, pra grade ficar limpa e
@@ -220,11 +220,12 @@ function renderProgramacaoIntegrada(lista, dateStr){
   const cardHtml = (it, hour, analistaId)=>{
     const status = statusComExecucao(hour, dateStr, analistaId, it.operacao, it.ciclo, it.isOff);
     const dim = filtro && filtro!==status;
-    const detalhe = `${it.operacao} — ${it.ciclo} · ${it.horaInicio}–${it.horaFim}` +
+    const [,emojiStatus,labelStatus] = statusLabels[status] || [];
+    const detalhe = `${it.operacao} — ${it.ciclo} · ${it.horaInicio}–${it.horaFim}${labelStatus ? ` · ${labelStatus}` : ''}` +
       (it.isCobertura ? ` · Cobrindo ${it.responsavelNome}` : it.isOff ? ` · Coberto por ${it.responsavelNome}` : '');
     const borda = status==='atraso' ? ' flash-card-atraso' : status==='naoiniciado' ? ' flash-card-naoiniciado' : '';
     return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${dim?' prog-dim':''}" title="${escapeHtml(detalhe)}">
-      <span class="flash-sigla">${escapeHtml(it.operacao)}</span>
+      <span class="flash-sigla">${emojiStatus?emojiStatus+' ':''}${escapeHtml(it.operacao)}</span>
       <span class="prog-ciclo">${escapeHtml(it.ciclo)}</span>
     </div>`;
   };
