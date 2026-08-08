@@ -157,19 +157,43 @@ function supSPR(){
 }
 
 
+// Junta os dois jeitos de "outra pessoa cobrindo": suplência avulsa
+// (operação sem dono fixo, tabela solta) e ausência (folga/férias do
+// titular numa operação fixa da Base Mestra, criada aqui mesmo pelo
+// "Sugerir Suplente" ou direto na Base Mestra) — antes só a avulsa
+// aparecia nessa lista, o que confundia quem lançava uma folga e não via
+// ela aqui (via aparecer só na Programação/Grade do Dia).
 function supSuplencias(myAnalistas){
   const ids = myAnalistas.map(a=>a.id);
   const f = uiState.suplenciasFiltro;
-  const allRows = DB.suplencias.filter(s=>ids.includes(s.analistaOriginalId));
+
+  const suplenciaRows = DB.suplencias.filter(s=>ids.includes(s.analistaOriginalId)).map(s=>({
+    source:'suplencia', id:s.id, operacao:s.operacao, ciclo:s.ciclo, horaInicio:s.horaInicio, horaFim:s.horaFim,
+    data:s.dataCobertura, folgandoId:s.analistaOriginalId, folgandoNome:userById(s.analistaOriginalId)?.name||'—',
+    suplenteNome:s.suplente||'—', tipo:'cobertura',
+  }));
+  const ausenciaRows = DB.ausencias.filter(a=>ids.includes(a.analistaId)).map(a=>({
+    source:'ausencia', id:a.id, operacao:a.operacao, ciclo:a.ciclo, horaInicio:a.horaInicio, horaFim:a.horaFim,
+    data:a.data, folgandoId:a.analistaId, folgandoNome:userById(a.analistaId)?.name||'—',
+    suplenteNome: a.suplenteId ? (userById(a.suplenteId)?.name || a.suplenteNome || '—') : (a.suplenteNome || 'Ninguém'),
+    tipo:a.tipo,
+  }));
+  const allRows = [...suplenciaRows, ...ausenciaRows].sort((a,b)=> b.data.localeCompare(a.data));
+
   const rows = allRows.filter(s=>
     (!f.operacao || s.operacao.toLowerCase().includes(f.operacao.toLowerCase())) &&
     (!f.horario || `${s.horaInicio}–${s.horaFim}`.includes(f.horario)) &&
-    (f.suplente==='all' || s.suplente===f.suplente) &&
-    (f.cobrindo==='all' || s.analistaOriginalId===f.cobrindo) &&
-    (!f.inicio || s.dataCobertura>=f.inicio) &&
-    (!f.fim || s.dataCobertura<=f.fim)
+    (f.suplente==='all' || s.suplenteNome===f.suplente) &&
+    (f.cobrindo==='all' || s.folgandoId===f.cobrindo) &&
+    (!f.inicio || s.data>=f.inicio) &&
+    (!f.fim || s.data<=f.fim)
   );
-  const suplentesUnicos = [...new Set(allRows.map(s=>s.suplente))].filter(Boolean).sort();
+  const suplentesUnicos = [...new Set(allRows.map(s=>s.suplenteNome))].filter(Boolean).sort();
+
+  const tipoBadge = tipo => tipo==='ferias' ? `<span style="color:var(--folga);font-weight:600;white-space:nowrap;">🏖️ Férias</span>`
+    : tipo==='folga' ? `<span style="color:var(--folga);font-weight:600;white-space:nowrap;">🌙 Folga</span>`
+    : `<span style="color:var(--wait);font-weight:600;white-space:nowrap;">🔁 Avulsa</span>`;
+
   return `
   <div class="section-title">Cobertura</div>
   <div class="csv-row">
@@ -199,12 +223,12 @@ function supSuplencias(myAnalistas){
     </label>
   </div>
   <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
-    <button class="btn btn-danger" id="btnExcluirTodasSuplencias" ${rows.length===0?'disabled':''}>Excluir todos (${rows.length})</button>
+    <button class="btn btn-danger" id="btnExcluirTodasCoberturas" ${rows.length===0?'disabled':''}>Excluir todos (${rows.length})</button>
   </div>
   <div class="card" style="margin-bottom:22px;">
-  <table><thead><tr><th>Operação</th><th>Ciclo</th><th>SPR</th><th>Horário</th><th>Folgando</th><th>Suplente</th><th>Data</th><th></th></tr></thead><tbody>
-  ${rows.map(s=>`<tr><td>${s.operacao}</td><td>${s.ciclo||'—'}</td><td class="mono">${getSPR(session.userId, s.operacao, s.ciclo) ?? '—'}</td><td class="mono">${s.horaInicio}–${s.horaFim}</td><td>${userById(s.analistaOriginalId)?.name||'—'}</td><td>${s.suplente}</td><td class="mono">${s.dataCobertura}</td>
-  <td style="text-align:right;white-space:nowrap;"><button class="btn" data-editar-suplencia="${s.id}">Editar</button> <button class="btn btn-danger" data-excluir-suplencia="${s.id}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="8" class="empty">Nenhuma cobertura avulsa registrada</td></tr>'}
+  <table><thead><tr><th>Tipo</th><th>Operação</th><th>Ciclo</th><th>SPR</th><th>Horário</th><th>Folgando</th><th>Suplente</th><th>Data</th><th></th></tr></thead><tbody>
+  ${rows.map(s=>`<tr><td>${tipoBadge(s.tipo)}</td><td>${s.operacao}</td><td>${s.ciclo||'—'}</td><td class="mono">${getSPR(session.userId, s.operacao, s.ciclo) ?? '—'}</td><td class="mono">${s.horaInicio}–${s.horaFim}</td><td>${s.folgandoNome}</td><td>${s.suplenteNome}</td><td class="mono">${s.data}</td>
+  <td style="text-align:right;white-space:nowrap;"><button class="btn" data-editar-cobertura="${s.id}" data-cobertura-tipo="${s.source}">Editar</button> <button class="btn btn-danger" data-excluir-cobertura="${s.id}" data-cobertura-tipo="${s.source}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="9" class="empty">Nenhuma cobertura registrada</td></tr>'}
   </tbody></table></div>`;
 }
 

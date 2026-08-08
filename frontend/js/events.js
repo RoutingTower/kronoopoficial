@@ -1188,20 +1188,69 @@ function bindMainEvents(){
     alert(`Importação concluída: ${ok} cobertura(s) adicionada(s)${fail?`, ${fail} linha(s) ignorada(s) (campos obrigatórios ausentes)`:''}${pendentes.length?`, ${pendentes.length} nome(s) não encontrado(s) — corrija no aviso no topo da tela.`:''}.`);
   });
 
-  main.querySelectorAll('[data-excluir-suplencia]').forEach(btn=>{
+  // Cobertura (tela do supervisor) mistura dois tipos de registro na mesma
+  // tabela — suplência avulsa (tabela própria) e ausência (folga/férias
+  // ligada a uma operação fixa, criada por ex. no "Sugerir Suplente") —
+  // por isso os botões carregam data-cobertura-tipo pra saber qual dos dois
+  // editar/excluir.
+  main.querySelectorAll('[data-excluir-cobertura]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
-      if(!confirm('Excluir esta cobertura avulsa?')) return;
-      const id = btn.dataset.excluirSuplencia;
-      try{ await apiDeleteSuplencia(id); DB.suplencias = DB.suplencias.filter(x=>x.id!==id); renderMain(); }
-      catch(e){ alert('Não foi possível excluir: '+e.message); }
+      const tipo = btn.dataset.coberturaTipo;
+      const id = btn.dataset.excluirCobertura;
+      if(!confirm(tipo==='ausencia' ? 'Excluir esta folga/férias?' : 'Excluir esta cobertura avulsa?')) return;
+      try{
+        if(tipo==='ausencia'){ await apiDeleteAusencia(id); DB.ausencias = DB.ausencias.filter(x=>x.id!==id); }
+        else{ await apiDeleteSuplencia(id); DB.suplencias = DB.suplencias.filter(x=>x.id!==id); }
+        renderMain();
+      }catch(e){ alert('Não foi possível excluir: '+e.message); }
     });
   });
 
-  main.querySelectorAll('[data-editar-suplencia]').forEach(btn=>{
+  main.querySelectorAll('[data-editar-cobertura]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      const s = DB.suplencias.find(x=>x.id===btn.dataset.editarSuplencia);
-      if(!s) return;
+      const tipo = btn.dataset.coberturaTipo;
+      const id = btn.dataset.editarCobertura;
       const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
+
+      if(tipo==='ausencia'){
+        const a = DB.ausencias.find(x=>x.id===id);
+        if(!a) return;
+        openModal(`<h3>Editar folga/férias</h3>
+          <div class="help-text">${escapeHtml(userById(a.analistaId)?.name||'—')} — ${escapeHtml(a.operacao)} (${escapeHtml(a.ciclo||'')}) ${a.horaInicio}–${a.horaFim}</div>
+          <div class="field"><label>Tipo</label><select id="fEditAusTipo">
+            <option value="folga" ${a.tipo==='folga'?'selected':''}>Folga</option>
+            <option value="ferias" ${a.tipo==='ferias'?'selected':''}>Férias</option>
+          </select></div>
+          <div class="field"><label>Suplente</label><select id="fEditAusSup">
+            <option value="">Ninguém</option>
+            ${myAnalistas.map(u=>`<option value="${u.id}" ${a.suplenteId===u.id?'selected':''}>${escapeHtml(u.name)}</option>`).join('')}
+          </select></div>
+          <div class="field"><label>Data</label><input type="date" id="fEditAusData" value="${a.data}"></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button class="btn" data-modal-cancel>Cancelar</button>
+            <button class="btn btn-brand" id="confirmEditarAusencia">Salvar</button>
+          </div>`);
+        const cancelBtn = document.querySelector('[data-modal-cancel]');
+        if(cancelBtn) cancelBtn.onclick = closeModal;
+        document.getElementById('confirmEditarAusencia').onclick = async ()=>{
+          const suplenteId = document.getElementById('fEditAusSup').value || null;
+          const patch = {
+            tipo: document.getElementById('fEditAusTipo').value,
+            suplenteId,
+            suplenteNome: suplenteId ? (userById(suplenteId)?.name || '') : '',
+            data: document.getElementById('fEditAusData').value,
+          };
+          try{
+            const atualizado = await apiUpdateAusencia(a.id, patch);
+            DB.ausencias = DB.ausencias.map(x=>x.id===a.id ? atualizado : x);
+            closeModal(); renderMain();
+          }catch(e){ alert('Não foi possível salvar: '+e.message); }
+        };
+        return;
+      }
+
+      const s = DB.suplencias.find(x=>x.id===id);
+      if(!s) return;
       openModal(`<h3>Editar cobertura avulsa</h3>
         <div class="help-text">Cobrindo: ${userById(s.analistaOriginalId)?.name||'—'}</div>
         <div class="field"><label>Suplente</label><select id="fEditSupSuplente">${myAnalistas.map(a=>`<option value="${a.name}" ${a.name===s.suplente?'selected':''}>${a.name}</option>`).join('')}</select></div>
@@ -1253,17 +1302,21 @@ function bindMainEvents(){
     exportarRelatorioExcel('particularidades-auditoria.xlsx', ['Operação','Titular','Conteúdo','Atualizado por','Atualizado em'], particularidadesAuditoriaExportRows);
   });
 
-  const btnExcluirTodasSuplencias = document.getElementById('btnExcluirTodasSuplencias');
-  if(btnExcluirTodasSuplencias) btnExcluirTodasSuplencias.addEventListener('click', async ()=>{
-    const ids = Array.from(main.querySelectorAll('[data-excluir-suplencia]')).map(b=>b.dataset.excluirSuplencia);
-    if(ids.length===0) return;
-    if(!confirm(`Excluir ${ids.length} cobertura(s) avulsa(s) (conforme o filtro atual)? Essa ação não pode ser desfeita.`)) return;
+  const btnExcluirTodasCoberturas = document.getElementById('btnExcluirTodasCoberturas');
+  if(btnExcluirTodasCoberturas) btnExcluirTodasCoberturas.addEventListener('click', async ()=>{
+    const alvos = Array.from(main.querySelectorAll('[data-excluir-cobertura]')).map(b=>({id:b.dataset.excluirCobertura, tipo:b.dataset.coberturaTipo}));
+    if(alvos.length===0) return;
+    if(!confirm(`Excluir ${alvos.length} cobertura(s)/folga(s) (conforme o filtro atual)? Essa ação não pode ser desfeita.`)) return;
     let ok=0, fail=0;
-    openProgressModal('Excluindo coberturas avulsas...');
-    for(const [idx, id] of ids.entries()){
-      try{ await apiDeleteSuplencia(id); DB.suplencias = DB.suplencias.filter(x=>x.id!==id); ok++; }
+    openProgressModal('Excluindo coberturas...');
+    for(const [idx, alvo] of alvos.entries()){
+      try{
+        if(alvo.tipo==='ausencia'){ await apiDeleteAusencia(alvo.id); DB.ausencias = DB.ausencias.filter(x=>x.id!==alvo.id); }
+        else{ await apiDeleteSuplencia(alvo.id); DB.suplencias = DB.suplencias.filter(x=>x.id!==alvo.id); }
+        ok++;
+      }
       catch(e){ fail++; }
-      updateProgressModal(idx+1, ids.length);
+      updateProgressModal(idx+1, alvos.length);
     }
     closeModal();
     renderMain();

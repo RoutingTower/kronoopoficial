@@ -187,6 +187,8 @@ const apiDeleteBaseMestra = (id) => apiRequest('DELETE', `/base-mestra/${id}`);
 
 // ausencias
 const apiCreateAusencia = (data) => apiRequest('POST', '/ausencias', data);
+const apiUpdateAusencia = (id, patch) => apiRequest('PATCH', `/ausencias/${id}`, patch);
+const apiDeleteAusencia = (id) => apiRequest('DELETE', `/ausencias/${id}`);
 
 // suplencias
 const apiCreateSuplencia = (data) => apiRequest('POST', '/suplencias', data);
