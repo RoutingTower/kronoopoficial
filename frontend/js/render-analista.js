@@ -520,7 +520,7 @@ function renderRecadosAnalista(){
       ${!sel ? '<div class="empty">Selecione uma mensagem para ler</div>' : `
         <div class="msg-meta" style="font-size:12.5px;">${sel.from} · ${timeAgo(sel.ts)}${sel.editado?' · editado':''}</div>
         ${sel.titulo ? `<div style="font-weight:700;font-size:17px;margin-top:14px;">${escapeHtml(sel.titulo)}</div>` : ''}
-        <div style="font-size:15px;line-height:1.65;margin-top:${sel.titulo?'8px':'16px'};">${escapeHtml(sel.texto)}</div>
+        <div style="font-size:15px;line-height:1.65;margin-top:${sel.titulo?'8px':'16px'};white-space:pre-wrap;">${escapeHtml(sel.texto)}</div>
         ${sel.observacoes ? `<div style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-top:10px;white-space:pre-wrap;">${escapeHtml(sel.observacoes)}</div>` : ''}
         <div style="margin-top:22px;">${(sel.lidoPor||[]).includes(session.userId) ? '<span class="pill pill-done">✓ Leitura confirmada</span>' : `<button class="btn btn-brand" data-confirmar-leitura="${sel.id}">Confirmar leitura</button>`}</div>
       `}
@@ -536,7 +536,7 @@ function lembreteCardHTML(l){
       <span data-lembrete-toggle="${l.id}" style="cursor:pointer;font-size:13px;font-weight:600;${l.done?'text-decoration:line-through;color:var(--text-faint);':''}">${l.titulo ? escapeHtml(l.titulo) : escapeHtml(l.texto)}</span>
       ${l.origem==='self' ? `<span data-lembrete-del="${l.id}" style="cursor:pointer;color:var(--text-faint);flex-shrink:0;">×</span>` : ''}
     </div>
-    ${l.titulo ? `<div style="font-size:12px;color:var(--text-muted);margin-top:3px;">${escapeHtml(l.texto)}</div>` : ''}
+    ${l.titulo ? `<div style="font-size:12px;color:var(--text-muted);margin-top:3px;white-space:pre-wrap;">${escapeHtml(l.texto)}</div>` : ''}
     ${l.observacoes ? `<div style="font-size:11.5px;color:var(--text-faint);margin-top:4px;white-space:pre-wrap;">${escapeHtml(l.observacoes)}</div>` : ''}
     <div class="flash-meta" style="color:${l.done?'var(--text-faint)':color};">${l.origem==='supervisor'?`De ${l.criadoPor}`:'Meu lembrete'}${l.hora?` · ${l.hora}`:''}</div>
   </div>`;

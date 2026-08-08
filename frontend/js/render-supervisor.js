@@ -1451,7 +1451,7 @@ function supTransmissao(myAnalistas){
       return `<div class="msg-item">
         <div class="msg-meta"><span class="pill">Comunicado</span> ${timeAgo(item.ts)}${item.editado?' · editado':''} · ${lidos} leitura(s) confirmada(s)</div>
         ${item.titulo ? `<div style="font-weight:700;font-size:14px;margin-top:6px;">${escapeHtml(item.titulo)}</div>` : ''}
-        <div style="margin-top:4px;">${escapeHtml(item.texto)}</div>
+        <div style="margin-top:4px;white-space:pre-wrap;">${escapeHtml(item.texto)}</div>
         ${item.observacoes ? `<div style="font-size:12.5px;color:var(--text-faint);margin-top:6px;white-space:pre-wrap;">${escapeHtml(item.observacoes)}</div>` : ''}
         <div style="display:flex;gap:6px;margin-top:8px;">
           <button class="btn" data-editar-recado="${item.id}">Editar</button>
@@ -1463,7 +1463,7 @@ function supTransmissao(myAnalistas){
     return `<div class="msg-item">
       <div class="msg-meta"><span class="pill pill-suplente">Lembrete</span> para ${destinatario} · ${timeAgo(item.ts)}${item.data?` · ${item.data}`:''}${item.hora?` ${item.hora}`:''}</div>
       ${item.titulo ? `<div style="font-weight:700;font-size:14px;margin-top:6px;">${escapeHtml(item.titulo)}</div>` : ''}
-      <div style="margin-top:4px;">${escapeHtml(item.texto)}</div>
+      <div style="margin-top:4px;white-space:pre-wrap;">${escapeHtml(item.texto)}</div>
       ${item.observacoes ? `<div style="font-size:12.5px;color:var(--text-faint);margin-top:6px;white-space:pre-wrap;">${escapeHtml(item.observacoes)}</div>` : ''}
       <div style="display:flex;gap:6px;margin-top:8px;">
         <button class="btn btn-danger" data-excluir-lembrete-enviado="${item.id}">Excluir</button>
