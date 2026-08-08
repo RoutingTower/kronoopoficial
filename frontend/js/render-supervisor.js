@@ -876,27 +876,7 @@ function sprResultadoBody(selecionados, picker){
   const doPeriodoAmplo = DB.raioX.filter(noPeriodo).filter(r=> flt.operacao==='all' || r.operacao===flt.operacao);
   const operacoesDisponiveis = [...new Set(DB.raioX.filter(noPeriodo).map(r=>r.operacao))].sort();
 
-  // Linha do tempo semanal (segunda a domingo) usa SEMPRE o período
-  // inteiro (início/fim), mesmo com uma semana específica selecionada no
-  // filtro abaixo — senão a linha do tempo colapsaria pra 1 ponto só toda
-  // vez que alguém filtrasse por semana. Mostra a MÉDIA de SPR (lançado x
-  // REF) por semana, não mais % na meta — foco no valor absoluto.
   const semanasDisponiveis = [...new Set(doPeriodoAmplo.map(r=>weekStartISO(r.data)))].sort();
-  const porSemana = {};
-  doPeriodoAmplo.filter(r=>r.sprMeta!=null).forEach(r=>{
-    const ws = weekStartISO(r.data);
-    if(!porSemana[ws]) porSemana[ws] = { total:0, roteirizadoSoma:0, metaSoma:0 };
-    const d = porSemana[ws];
-    d.total++;
-    d.roteirizadoSoma += r.sprRoteirizado;
-    d.metaSoma += r.sprMeta;
-  });
-  const semanas = Object.entries(porSemana).map(([ws,d])=>({
-    semana: ws,
-    label: `${formatarDataCurta(ws)}–${formatarDataCurta(addDaysISO(ws,6))}`,
-    roteirizadoMedio: d.total ? d.roteirizadoSoma/d.total : 0,
-    metaMedio: d.total ? d.metaSoma/d.total : 0,
-  })).sort((a,b)=>a.semana.localeCompare(b.semana));
 
   // Filtro de semana específica (opcional) — só restringe o resto da
   // tela (stats, tabela, gráficos por hub), não a linha do tempo acima.
@@ -998,7 +978,6 @@ function sprResultadoBody(selecionados, picker){
     porDiaAsc,
     porHub,
     ofensoresHub: [...porHub].sort((a,b)=>a.deltaMedio-b.deltaMedio).slice(0,10).reverse(),
-    semanas,
   };
   sprExportRows = comMeta;
 
@@ -1032,7 +1011,7 @@ function sprResultadoBody(selecionados, picker){
   </div>` : ''}
   <div class="grid-2" style="margin-bottom:20px;align-items:start;">
     <div class="chart-card"><div class="section-title">SPR Lançado por dia (com tendência)</div><canvas id="chartSprStatus"></canvas></div>
-    <div class="chart-card"><div class="section-title">Linha do tempo — média de SPR por semana (seg. a dom.)</div><canvas id="chartSprSemanas"></canvas></div>
+    <div class="chart-card"><div class="section-title">Linha do tempo — trajetória de SPR dia a dia</div><canvas id="chartSprSemanas"></canvas></div>
     <div class="chart-card"><div class="section-title">SPR Lançado x REF por dia</div><canvas id="chartSprMedia"></canvas></div>
     <div class="chart-card"><div class="section-title">Maiores ofensores (hubs, por delta médio)</div><canvas id="chartSprOfensores"></canvas></div>
   </div>
@@ -1095,16 +1074,17 @@ function renderSPRCharts(){
       y:{ ticks:{ color:textColor }, grid:{ color:gridColor } } } }
   });
 
-  // Linha do tempo semanal — média de SPR lançado x REF por semana (segunda
-  // a domingo), sempre no período inteiro (início/fim), independente do
-  // filtro de semana específica (ver sprResultadoBody).
+  // Linha do tempo — trajetória dia a dia de SPR lançado x REF (era por
+  // semana antes; virou por dia pra dar pra ver a trajetória mesmo dentro
+  // de uma única semana). Respeita o filtro de semana específica, já que
+  // usa a mesma base diária (porDiaAsc) dos outros dois gráficos.
   const elSemanas = document.getElementById('chartSprSemanas');
   if(elSemanas){
     sprChartInstances.semanas = new Chart(elSemanas, {
       type:'line',
-      data:{ labels: sprChartData.semanas.map(s=>s.label), datasets:[
-        { label:'SPR Lançado', data: sprChartData.semanas.map(s=>Number(s.roteirizadoMedio.toFixed(1))), borderColor:'#2F80ED', backgroundColor:'rgba(47,128,237,0.15)', fill:true, tension:0.3 },
-        { label:'SPR REF', data: sprChartData.semanas.map(s=>Number(s.metaMedio.toFixed(1))), borderColor:'#A8A8A8', backgroundColor:'rgba(168,168,168,0.12)', fill:true, tension:0.3 },
+      data:{ labels: sprChartData.porDiaAsc.map(d=>d.label), datasets:[
+        { label:'SPR Lançado', data: sprChartData.porDiaAsc.map(d=>Number(d.roteirizadoMedio.toFixed(1))), borderColor:'#2F80ED', backgroundColor:'rgba(47,128,237,0.15)', fill:true, tension:0.3 },
+        { label:'SPR REF', data: sprChartData.porDiaAsc.map(d=>Number(d.metaMedio.toFixed(1))), borderColor:'#A8A8A8', backgroundColor:'rgba(168,168,168,0.12)', fill:true, tension:0.3 },
       ] },
       options:{ plugins:{ legend:{ position:'bottom', labels:{ color:textColor } } }, scales:{
         x:{ ticks:{ color:textColor }, grid:{ display:false } },
