@@ -932,9 +932,25 @@ function sprResultadoBody(selecionados, picker){
     metaMedio: d.total ? d.metaSoma/d.total : 0,
   })).sort((a,b)=>a.operacao.localeCompare(b.operacao));
 
-  // "Ofensor" agora é quem tem o pior delta médio (mais negativo), não
-  // quem bate menos a meta em %.
-  const ofensoresTop5 = [...porHub].sort((a,b)=>a.deltaMedio-b.deltaMedio).slice(0,5);
+  // Oportunidades (pior delta médio) e destaques (melhor) — top 5 de cada
+  // lado, por operação. Substitui o antigo card só com os piores.
+  const oportunidades = [...porHub].filter(h=>h.deltaMedio<0).sort((a,b)=>a.deltaMedio-b.deltaMedio).slice(0,5);
+  const destaques = [...porHub].filter(h=>h.deltaMedio>0).sort((a,b)=>b.deltaMedio-a.deltaMedio).slice(0,5);
+  const maxAbsDeltaHub = Math.max(1, ...porHub.map(h=>Math.abs(h.deltaMedio)));
+  const hubsForaMeta = porHub.filter(h=>h.deltaMedio<0).length;
+
+  // Tendência do card de KPI: compara a média de SPR Lançado do período
+  // exibido com a de uma janela anterior de mesmo tamanho, imediatamente
+  // antes dela — funciona tanto pro período inteiro quanto pra uma semana
+  // específica selecionada no filtro (janela vira 7 dias nesse caso).
+  const efetivoInicio = flt.semana || inicio;
+  const efetivoFim = flt.semana ? addDaysISO(flt.semana,6) : fim;
+  const diasNoPeriodo = Math.round((new Date(efetivoFim+'T00:00:00') - new Date(efetivoInicio+'T00:00:00'))/86400000) + 1;
+  const inicioAnterior = addDaysISO(efetivoInicio, -diasNoPeriodo);
+  const fimAnterior = addDaysISO(efetivoInicio, -1);
+  const comMetaAnterior = DB.raioX.filter(r=> (r.data||'')>=inicioAnterior && (r.data||'')<=fimAnterior && ids.has(r.analistaId) && (flt.operacao==='all' || r.operacao===flt.operacao) && r.sprMeta!=null);
+  const roteirizadoMedioAnterior = comMetaAnterior.length ? comMetaAnterior.reduce((s,r)=>s+r.sprRoteirizado,0)/comMetaAnterior.length : null;
+  const tendenciaPct = roteirizadoMedioAnterior ? ((roteirizadoMedioGeral-roteirizadoMedioAnterior)/roteirizadoMedioAnterior)*100 : null;
 
   // Média por Analista (agregado, cruzando todas as operações dele no
   // período) e Média por Dia (consolidado, todas as operações do dia).
@@ -977,7 +993,6 @@ function sprResultadoBody(selecionados, picker){
   sprChartData = {
     porDiaAsc,
     porHub,
-    ofensoresHub: [...porHub].sort((a,b)=>a.deltaMedio-b.deltaMedio).slice(0,10).reverse(),
   };
   sprExportRows = comMeta;
 
@@ -1000,20 +1015,41 @@ function sprResultadoBody(selecionados, picker){
     ${picker}
     <button class="btn" id="btnExportSPR">⬇ Exportar Excel</button>
   </div>
-  <div class="grid-3" style="margin-bottom:16px;">
+  <div class="grid-4" style="margin-bottom:16px;">
     <div class="stat-card"><div class="stat-num">${roteirizadoMedioGeral.toFixed(1)}</div><div class="stat-label">Média SPR Lançado <span style="color:var(--text-faint);">(REF ${metaMedioGeral.toFixed(1)})</span></div></div>
-    <div class="stat-card"><div class="stat-num" style="color:${deltaMedioGeral>=0?'var(--done)':'var(--alert)'};">${deltaMedioGeral>=0?'+':''}${deltaMedioGeral.toFixed(1)}</div><div class="stat-label">Delta médio consolidado</div></div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:${deltaMedioGeral>=0?'var(--done)':'var(--alert)'};">${deltaMedioGeral>=0?'+':''}${deltaMedioGeral.toFixed(1)}</div>
+      <div class="stat-label">Delta médio consolidado</div>
+      ${tendenciaPct!=null ? `<div class="trend-chip${tendenciaPct<0?' down':''}">${tendenciaPct>=0?'↑':'↓'} ${tendenciaPct>=0?'+':''}${tendenciaPct.toFixed(1)}% <span style="color:var(--text-faint);font-weight:400;">vs. período anterior</span></div>` : ''}
+    </div>
     <div class="stat-card"><div class="stat-num">${totalOps}</div><div class="stat-label">Operações analisadas</div></div>
+    <div class="stat-card"><div class="stat-num">${hubsForaMeta} <span style="font-size:19px;color:var(--text-faint);">de ${porHub.length}</span></div><div class="stat-label">Operações fora da meta</div></div>
   </div>
-  ${ofensoresTop5.length>0 ? `<div class="highlight-card" style="margin-bottom:16px;border-color:var(--alert);">
-    <div class="section-title">🚨 Hubs em destaque (maior delta negativo)</div>
-    <div class="chip-row">${ofensoresTop5.map(o=>`<span class="chip-pessoa">${escapeHtml(o.operacao)} — ${o.deltaMedio>=0?'+':''}${o.deltaMedio.toFixed(1)}</span>`).join('')}</div>
-  </div>` : ''}
   <div class="grid-2" style="margin-bottom:20px;align-items:start;">
-    <div class="chart-card"><div class="section-title">SPR Lançado por dia (com tendência)</div><canvas id="chartSprStatus"></canvas></div>
     <div class="chart-card"><div class="section-title">Linha do tempo — trajetória de SPR dia a dia</div><canvas id="chartSprSemanas"></canvas></div>
+    <div class="chart-card"><div class="section-title">Gap para a referência (delta diário)</div><canvas id="chartSprGap"></canvas></div>
+    <div class="chart-card">
+      <div class="section-title">Oportunidades e destaques <span style="color:var(--text-faint);text-transform:none;letter-spacing:0;">(por operação, delta médio)</span></div>
+      <div class="grid-2" style="gap:18px;">
+        <div>
+          <div style="font-size:11px;color:var(--alert);font-weight:600;margin-bottom:8px;">▾ Abaixo da meta</div>
+          <div class="mover-list">${oportunidades.map(h=>`<div class="mover-row">
+              <span class="mover-name" title="${escapeHtml(h.operacao)}">${escapeHtml(h.operacao)}</span>
+              <span class="mover-delta neg">${h.deltaMedio.toFixed(1)}</span>
+              <div class="mover-bar-wrap"><div class="mover-bar neg" style="width:${Math.abs(h.deltaMedio)/maxAbsDeltaHub*100}%;"></div></div>
+            </div>`).join('') || '<div class="help-text" style="margin:0;">Nenhuma operação abaixo da meta</div>'}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--done);font-weight:600;margin-bottom:8px;">▴ Acima da meta</div>
+          <div class="mover-list">${destaques.map(h=>`<div class="mover-row">
+              <span class="mover-name" title="${escapeHtml(h.operacao)}">${escapeHtml(h.operacao)}</span>
+              <span class="mover-delta pos">+${h.deltaMedio.toFixed(1)}</span>
+              <div class="mover-bar-wrap"><div class="mover-bar pos" style="width:${Math.abs(h.deltaMedio)/maxAbsDeltaHub*100}%;"></div></div>
+            </div>`).join('') || '<div class="help-text" style="margin:0;">Nenhuma operação acima da meta</div>'}</div>
+        </div>
+      </div>
+    </div>
     <div class="chart-card"><div class="section-title">SPR Lançado x REF por dia</div><canvas id="chartSprMedia"></canvas></div>
-    <div class="chart-card"><div class="section-title">Maiores ofensores (hubs, por delta médio)</div><canvas id="chartSprOfensores"></canvas></div>
   </div>
   <div class="card" style="margin-bottom:20px;">
   <div class="section-title">Detalhamento por operação</div>
@@ -1051,35 +1087,18 @@ let sprChartInstances = {};
 function renderSPRCharts(){
   Object.values(sprChartInstances).forEach(c=>c.destroy());
   sprChartInstances = {};
-  const elStatus = document.getElementById('chartSprStatus');
-  if(!elStatus || !sprChartData || typeof Chart === 'undefined') return;
+  const elSemanas = document.getElementById('chartSprSemanas');
+  if(!elSemanas || !sprChartData || typeof Chart === 'undefined') return;
 
   const isDark = document.documentElement.getAttribute('data-theme')==='dark';
   const textColor = isDark ? '#9A9DA6' : '#767676';
   const gridColor = isDark ? '#2E3138' : '#E8E8E8';
 
-  // SPR Lançado por dia — barra + linha de tendência sobre a MESMA série
-  // (só lançado, sem REF), pra ver de cara se tá subindo ou descendo dia a
-  // dia, sem misturar com o comparativo de meta (isso já fica no gráfico
-  // ao lado, por dia, e no de por hub).
-  sprChartInstances.status = new Chart(elStatus, {
-    type:'bar',
-    data:{ labels: sprChartData.porDiaAsc.map(d=>d.label),
-      datasets:[
-        { type:'bar', label:'SPR Lançado', data: sprChartData.porDiaAsc.map(d=>Number(d.roteirizadoMedio.toFixed(1))), backgroundColor:'#2F80ED', borderRadius:4, order:2 },
-        { type:'line', label:'Tendência', data: sprChartData.porDiaAsc.map(d=>Number(d.roteirizadoMedio.toFixed(1))), borderColor:'#EE4D2D', backgroundColor:'transparent', borderWidth:2, tension:0.3, pointRadius:3, pointBackgroundColor:'#EE4D2D', fill:false, order:1 },
-      ] },
-    options:{ plugins:{ legend:{ position:'bottom', labels:{ color:textColor } } }, scales:{
-      x:{ ticks:{ color:textColor, autoSkip:true, maxRotation:60 }, grid:{ display:false } },
-      y:{ ticks:{ color:textColor }, grid:{ color:gridColor } } } }
-  });
-
   // Linha do tempo — trajetória dia a dia de SPR lançado x REF (era por
   // semana antes; virou por dia pra dar pra ver a trajetória mesmo dentro
   // de uma única semana). Respeita o filtro de semana específica, já que
   // usa a mesma base diária (porDiaAsc) dos outros dois gráficos.
-  const elSemanas = document.getElementById('chartSprSemanas');
-  if(elSemanas){
+  {
     sprChartInstances.semanas = new Chart(elSemanas, {
       type:'line',
       data:{ labels: sprChartData.porDiaAsc.map(d=>d.label), datasets:[
@@ -1092,9 +1111,26 @@ function renderSPRCharts(){
     });
   }
 
+  // Gap para a referência — a MESMA base diária, só que como delta puro
+  // (lançado - REF): verde quando bateu, vermelho quando ficou devendo,
+  // pra responder de cara "em que dias a gente perdeu performance".
+  const elGap = document.getElementById('chartSprGap');
+  if(elGap){
+    sprChartInstances.gap = new Chart(elGap, {
+      type:'bar',
+      data:{ labels: sprChartData.porDiaAsc.map(d=>d.label), datasets:[
+        { label:'Delta do dia', data: sprChartData.porDiaAsc.map(d=>Number(d.deltaMedio.toFixed(1))),
+          backgroundColor: sprChartData.porDiaAsc.map(d=> d.deltaMedio>=0 ? '#2FAE60' : '#D9362E'), borderRadius:4 },
+      ] },
+      options:{ plugins:{ legend:{ display:false } }, scales:{
+        x:{ ticks:{ color:textColor }, grid:{ display:false } },
+        y:{ ticks:{ color:textColor }, grid:{ color:gridColor } } } }
+    });
+  }
+
   // SPR Lançado x REF por dia — lado a lado, pra ver de cara em qual dia o
   // real descolou mais do alvo (granularidade diária; o comparativo por
-  // hub fica no gráfico de ofensores + tabela de detalhamento).
+  // hub fica na lista de oportunidades/destaques + tabela de detalhamento).
   const elMedia = document.getElementById('chartSprMedia');
   if(elMedia){
     sprChartInstances.media = new Chart(elMedia, {
@@ -1110,18 +1146,6 @@ function renderSPRCharts(){
     });
   }
 
-  // Maiores ofensores — agora por delta médio (mais negativo primeiro), não
-  // por % na meta.
-  const elOf = document.getElementById('chartSprOfensores');
-  if(elOf){
-    sprChartInstances.ofensores = new Chart(elOf, {
-      type:'bar',
-      data:{ labels: sprChartData.ofensoresHub.map(h=>h.operacao), datasets:[{ label:'Delta médio', data: sprChartData.ofensoresHub.map(h=>Number(h.deltaMedio.toFixed(1))), backgroundColor:'#EE4D2D', borderRadius:4 }] },
-      options:{ plugins:{ legend:{ display:false } }, indexAxis:'y', scales:{
-        x:{ ticks:{ color:textColor }, grid:{ color:gridColor } },
-        y:{ ticks:{ color:textColor, autoSkip:false } } } }
-    });
-  }
 }
 
 function sprAnalistaPicker(myAnalistas){
