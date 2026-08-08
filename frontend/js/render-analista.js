@@ -268,6 +268,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
     ).join('')}
     ${filtro ? `<button class="btn" id="btnLimparStatusFiltro">Limpar</button>` : ''}
     <span class="pill pill-done pill-info" title="Analistas com operação hoje">🟢 ${linhas.length} ativos</span>
+    <span class="pill pill-wait pill-info" title="Soma de operações de todos os analistas exibidos">📋 ${linhas.reduce((s,l)=>s+l.slots.length,0)} operações</span>
     ${folgaNomes.length>0 ? `<span class="pill pill-off pill-info pill-folga-info">🌙 ${folgaNomes.length} de folga
       <span class="folga-tip"><b>De folga hoje</b><br>${folgaNomes.slice(0,2).map(escapeHtml).join('<br>')}${folgaNomes.length>2 ? `<br><span style="opacity:.7;">+${folgaNomes.length-2} outro${folgaNomes.length-2>1?'s':''}</span>` : ''}</span>
     </span>` : ''}
