@@ -261,7 +261,11 @@ input,select,textarea{font-family:inherit;}
 .page-title{font-size:30px;margin:0;}
 .page-desc{color:var(--text-muted);font-size:13px;margin-top:2px;}
 
-.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:0 2px 10px rgba(20,20,20,0.05);transition:box-shadow .15s, transform .15s;}
+/* overflow-x:auto é o que salva as ~17 tabelas do app em telas estreitas —
+   .main tem overflow-x:hidden (evita scroll horizontal da página toda), e
+   sem isso aqui o conteúdo que não coubesse simplesmente sumia cortado em
+   vez de ficar acessível rolando dentro do card. */
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:0 2px 10px rgba(20,20,20,0.05);transition:box-shadow .15s, transform .15s;overflow-x:auto;}
 .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
 .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
 .grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
@@ -477,5 +481,27 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
   .nav-item{white-space:nowrap;}
   .main{padding:18px;}
   .grid-4,.grid-3,.grid-2{grid-template-columns:1fr;}
+}
+/* Ajustes finos pra celular (a 880px acima já resolve a estrutura geral:
+   sidebar vira barra horizontal, grids viram 1 coluna). Aqui é só apertar
+   espaçamento/tipografia pra caber numa tela de ~360-400px sem cortar nada
+   nem depender só do scroll horizontal dos cards. */
+@media (max-width:560px){
+  .main{padding:12px;}
+  .page-title{font-size:23px;}
+  #view-login{padding:14px;}
+  .login-card{padding:26px 20px;}
+  .login-title{font-size:32px;}
+  table{font-size:12px;}
+  th,td{padding:8px 6px;}
+  .modal-bg{padding:10px;}
+  .modal{padding:18px;border-radius:13px;}
+  .modal h3{font-size:17px;}
+  .stat-card{padding:14px 16px;}
+  .stat-num{font-size:26px;}
+  .csv-row{flex-direction:column;align-items:stretch;}
+  .csv-row .csv-label{margin-right:0;}
+  .candidate-row{flex-direction:column;align-items:stretch;}
+  .candidate-row select{min-width:0;}
 }
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important;}}
