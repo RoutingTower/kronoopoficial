@@ -9,14 +9,22 @@
 //    trava, pede pra contatar o supervisor;
 // 5) dentro da janela (de 1h antes até 1h depois do horário), sem nada
 //    ainda — botão Iniciar.
-function renderExecucaoActions(it, dateStr, analistaId, sprMeta){
+function renderExecucaoActions(it, dateStr, analistaId, sprMeta, souEu){
   const raiox = DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===it.horaInicio && r.data===dateStr);
   if(raiox){
     const duracaoHtml = raiox.duracaoSegundos!=null
       ? ` · ⏱ ${formatarDuracao(raiox.duracaoSegundos)}${raiox.duracaoSegundos>SLA_TEMPO_EXECUCAO_SEGUNDOS ? ' <span style="color:var(--alert);font-weight:600;">acima do SLA</span>' : ''}`
       : '';
-    return `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}${raiox.semRoteirizacao ? ' · Sem roteirização' : raiox.sprRoteirizado!=null ? ` · SPR lançado ${escapeHtml(String(raiox.sprRoteirizado))}` : ''}${duracaoHtml}</div>`;
+    // Editar/Excluir só pro supervisor olhando a operação de alguém da
+    // equipe (souEu=false) — preenchimento incorreto ou roteirização
+    // cancelada depois do fato (ver raioX.controller.js, updateRaioX).
+    const acoesSupervisor = !souEu ? `<div class="flash-actions" style="margin-top:6px;">
+        <button class="btn" data-editar-raiox="${raiox.id}">✏️ Editar</button>
+        <button class="btn btn-danger" data-excluir-raiox="${raiox.id}">🗑️ Excluir</button>
+      </div>` : '';
+    return `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}${raiox.semRoteirizacao ? ' · Sem roteirização' : raiox.sprRoteirizado!=null ? ` · SPR lançado ${escapeHtml(String(raiox.sprRoteirizado))}` : ''}${duracaoHtml}</div>${acoesSupervisor}`;
   }
+  if(!souEu) return ''; // sem raio-x ainda: Iniciar/Finalizar/travado só fazem sentido pra quem executa
   const dataAttrs = `data-finalizar-op="${escapeHtml(it.operacao)}" data-hora="${it.horaInicio}" data-data="${dateStr}" data-ciclo="${escapeHtml(it.ciclo)}" data-spr-meta="${sprMeta!=null?sprMeta:''}"`;
   const exec = execucaoInicioPara(analistaId, it.operacao, it.ciclo, it.horaInicio, dateStr);
   if(exec && exec.iniciadoEm!=null){
@@ -111,8 +119,15 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
       // rota de qualquer analista, e ninguém aciona cronômetro alheio.
       // podeIniciarOperacao (não status!=='wait') controla a janela: libera
       // 1h antes do horário, então precisa aparecer mesmo com o slot ainda
-      // "A Iniciar" pela contagem normal.
-      const souEuExec = !it.isOff && analistaId===session?.userId && podeIniciarOperacao(dateStr, it.horaInicio);
+      // "A Iniciar" pela contagem normal. Supervisor vendo a operação de
+      // outra pessoa (souEuExec=false) não vê Iniciar/Finalizar, mas o
+      // resumo do Raio-X já finalizado aparece pra ele o tempo todo (sem
+      // janela), com Editar/Excluir — quem chega aqui já é da própria
+      // equipe (supProgramacao escopa por myAnalistas).
+      const souEu = !it.isOff && analistaId===session?.userId;
+      const souEuExec = souEu && podeIniciarOperacao(dateStr, it.horaInicio);
+      const raioxDaOperacao = !it.isOff && DB.raioX.some(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===it.horaInicio && r.data===dateStr);
+      const mostrarExec = souEuExec || (!souEu && session.role==='supervisor' && raioxDaOperacao);
       return `<div class="flash-card flash-card-${categoriaOperacao(it)}${status==='atraso'?' flash-card-atraso':''}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
           <span class="flash-sigla">${it.operacao}</span>${statusPill(status, true)}
@@ -121,7 +136,7 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
         <div class="flash-meta">${it.isSuplente ? 'Suplente' : 'Titular'}: ${it.responsavelNome}</div>
         ${it.isOff ? `<div class="flash-cover">${it.tipo==='ferias'?'🏖️ Férias':'🌙 Folga'} do titular</div>`
           : it.isCobertura ? `<div class="flash-cover">🔁 Cobrindo ${it.tipo==='ferias'?'férias':'folga'} de ${it.responsavelNome}</div>` : ''}
-        ${souEuExec ? renderExecucaoActions(it, dateStr, analistaId, spr) : ''}
+        ${mostrarExec ? renderExecucaoActions(it, dateStr, analistaId, spr, souEu) : ''}
         <div class="flash-actions" style="margin-top:8px;">
           <button class="btn btn-particularidade" data-particularidade-op="${escapeHtml(it.operacao)}" data-particularidade-sup="${supervisorId||''}" data-particularidade-cobertura="${it.isCobertura?'1':'0'}" data-particularidade-analista="${analistaId}" data-particularidade-data="${dateStr}" data-ciente="${ciente?'1':'0'}">⚙️ Ver Particularidade${(it.isCobertura && !ciente) ? '<span class="badge-alerta-ciente" title="Ainda sem confirmação de ciência"></span>' : ''}</button>
         </div>

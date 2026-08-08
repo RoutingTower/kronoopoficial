@@ -1,5 +1,5 @@
 const supabaseService = require("../services/supabaseService");
-const { getCaller } = require("../services/authz");
+const { getCaller, supervisorIdDoAnalista } = require("../services/authz");
 
 const COLLECTION = "raioX";
 const MIN_OBSERVACAO_LEN = 150;
@@ -127,15 +127,76 @@ async function createRaioX(req, res) {
   res.status(201).json(entry);
 }
 
+// Correção de preenchimento incorreto ou roteirização cancelada depois do
+// fato — diferente de createRaioX (auto-declarado pelo próprio analista no
+// momento em que fecha a operação), esse update é uma correção feita pelo
+// supervisor da equipe (ou admin), não pelo analista. Não mexe em
+// duracaoSegundos/duracaoOrigem (Tempo de Execução) de propósito — a
+// duração vem do cronômetro/preenchimento manual liberado, corrigir isso
+// aqui abriria brecha pra mascarar o indicador.
+async function assertSupervisorDaEquipe(req, existing) {
+  const [caller, supervisorId] = await Promise.all([getCaller(req), supervisorIdDoAnalista(existing.analistaId)]);
+  if (!caller) return null;
+  const pode = caller.isAdmin || (caller.role === "supervisor" && supervisorId === caller.id);
+  return pode ? caller : null;
+}
+
+async function updateRaioX(req, res) {
+  const existing = await supabaseService.getById(COLLECTION, req.params.id);
+  if (!existing) return res.status(404).json({ error: "not_found" });
+  const caller = await assertSupervisorDaEquipe(req, existing);
+  if (!caller) {
+    return res.status(403).json({ error: "forbidden", message: "Só o supervisor da equipe (ou admin) pode editar uma finalização." });
+  }
+
+  const { estrelas, observacao, sprRoteirizado, sprMeta, semRoteirizacao } = req.body;
+  const patch = {};
+  if (estrelas !== undefined) {
+    const nota = Number(estrelas);
+    if (!Number.isInteger(nota) || nota < 1 || nota > 5) {
+      return res.status(400).json({ error: "bad_request", message: "estrelas deve ser um inteiro de 1 a 5" });
+    }
+    patch.estrelas = nota;
+  }
+  const semRotFinal = semRoteirizacao !== undefined ? !!semRoteirizacao : existing.semRoteirizacao;
+  if (semRoteirizacao !== undefined) patch.semRoteirizacao = semRotFinal;
+  if (semRotFinal) {
+    if (observacao !== undefined) patch.observacao = (observacao || "").trim() || "Sem roteirização nesse horário.";
+    if (sprRoteirizado !== undefined || semRoteirizacao === true) patch.sprRoteirizado = 0;
+    if (sprMeta !== undefined || semRoteirizacao === true) patch.sprMeta = null;
+  } else {
+    if (observacao !== undefined) {
+      if (!observacao || observacao.trim().length < MIN_OBSERVACAO_LEN) {
+        return res.status(400).json({
+          error: "bad_request",
+          message: `observacao é obrigatória, com no mínimo ${MIN_OBSERVACAO_LEN} caracteres`,
+        });
+      }
+      patch.observacao = observacao.trim();
+    }
+    if (sprRoteirizado !== undefined) {
+      const sprReal = Number(sprRoteirizado);
+      if (sprRoteirizado === null || sprRoteirizado === "" || Number.isNaN(sprReal)) {
+        return res.status(400).json({ error: "bad_request", message: "sprRoteirizado precisa ser um número" });
+      }
+      patch.sprRoteirizado = sprReal;
+    }
+    if (sprMeta !== undefined) patch.sprMeta = sprMeta === null || sprMeta === "" ? null : Number(sprMeta);
+  }
+
+  const updated = await supabaseService.update(COLLECTION, req.params.id, patch);
+  res.json(updated);
+}
+
 async function deleteRaioX(req, res) {
   const existing = await supabaseService.getById(COLLECTION, req.params.id);
   if (!existing) return res.status(404).json({ error: "not_found" });
-  const caller = await getCaller(req);
-  if (!caller?.isAdmin && existing.analistaId !== req.user.uid) {
-    return res.status(403).json({ error: "forbidden", message: "Você só pode excluir finalizações em seu próprio nome." });
+  const souDono = existing.analistaId === req.user.uid;
+  if (!souDono && !(await assertSupervisorDaEquipe(req, existing))) {
+    return res.status(403).json({ error: "forbidden", message: "Você só pode excluir finalizações em seu próprio nome ou da sua equipe (supervisor)." });
   }
   await supabaseService.remove(COLLECTION, req.params.id);
   res.status(204).send();
 }
 
-module.exports = { listRaioX, createRaioX, deleteRaioX };
+module.exports = { listRaioX, createRaioX, updateRaioX, deleteRaioX };

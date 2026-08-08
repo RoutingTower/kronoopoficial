@@ -183,6 +183,11 @@ const apiDeleteUser = (id) => apiRequest('DELETE', `/users/${id}`);
 // estrelas (1–5) e observação (≥150 caracteres) de novo, mesmo já validados
 // no frontend — ver backend/src/controllers/raioX.controller.js.
 const apiCreateRaioX = (data) => apiRequest('POST', '/raio-x', data);
+// Edição/exclusão de uma finalização já fechada — hoje só o supervisor da
+// equipe (ou admin) edita; excluir também vale pro próprio analista dono
+// (ver raioX.controller.js).
+const apiUpdateRaioX = (id, patch) => apiRequest('PATCH', `/raio-x/${id}`, patch);
+const apiDeleteRaioX = (id) => apiRequest('DELETE', `/raio-x/${id}`);
 
 // Tempo de Execução — "Iniciar" grava o cronômetro no servidor (sobrevive a
 // reload); "liberar" é o supervisor autorizando preenchimento manual pra

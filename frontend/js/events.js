@@ -298,6 +298,100 @@ function bindMainEvents(){
     });
   });
 
+  // Editar/Excluir um Raio-X já fechado — só aparece pro supervisor olhando
+  // a operação de alguém da equipe (ver renderExecucaoActions,
+  // render-analista.js): preenchimento incorreto ou roteirização cancelada
+  // depois do fato. Mesmos campos do Finalizar, só que preenchidos com o
+  // que já foi lançado, e sem os campos de início/fim manual (não mexe em
+  // Tempo de Execução aqui — ver updateRaioX, backend).
+  main.querySelectorAll('[data-editar-raiox]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const r = DB.raioX.find(x=>x.id===btn.dataset.editarRaiox);
+      if(!r) return;
+      let estrelas = r.estrelas || 0;
+      openModal(`
+        <h3>Editar Raio-X — ${escapeHtml(r.operacao)} (${r.hora})</h3>
+        <div class="help-text">Corrige um preenchimento incorreto ou marca a roteirização como cancelada. A observação precisa de no mínimo ${RAIOX_MIN_OBS_LEN} caracteres, a não ser que marque "Sem roteirização".</div>
+        <div class="field">
+          <label>Avaliação</label>
+          <div id="raioxEditStars" class="star-picker" style="display:flex;gap:6px;font-size:28px;line-height:1;">
+            ${[1,2,3,4,5].map(n=>`<span data-star="${n}" style="cursor:pointer;opacity:${n<=estrelas?'1':'0.3'};color:${n<=estrelas?'var(--brand)':''};">★</span>`).join('')}
+          </div>
+        </div>
+        <div class="field">
+          <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" id="raioxEditSemRot" ${r.semRoteirizacao?'checked':''}> Sem roteirização nesse horário</label>
+        </div>
+        <div class="field">
+          <label>SPR lançado</label>
+          <input type="number" id="raioxEditSprReal" step="any" value="${r.semRoteirizacao ? '' : escapeHtml(String(r.sprRoteirizado ?? ''))}">
+        </div>
+        <div class="field">
+          <label>Observação (Raio-X da operação)</label>
+          <textarea id="raioxEditObs" rows="5" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;">${escapeHtml(r.semRoteirizacao ? '' : (r.observacao||''))}</textarea>
+          <div id="raioxEditCounter" style="font-size:11.5px;color:var(--text-faint);margin-top:4px;"></div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn" data-modal-cancel>Cancelar</button>
+          <button class="btn btn-brand" id="confirmEditarRaiox">Salvar alterações</button>
+        </div>`);
+      const cancelBtn = document.querySelector('[data-modal-cancel]');
+      if(cancelBtn) cancelBtn.onclick = closeModal;
+      const starsEl = document.getElementById('raioxEditStars');
+      const semRotEl = document.getElementById('raioxEditSemRot');
+      const obsEl = document.getElementById('raioxEditObs');
+      const sprRealEl = document.getElementById('raioxEditSprReal');
+      const counterEl = document.getElementById('raioxEditCounter');
+      const confirmBtn = document.getElementById('confirmEditarRaiox');
+      function updateState(){
+        const semRot = semRotEl.checked;
+        sprRealEl.disabled = semRot;
+        sprRealEl.style.opacity = semRot ? '0.4' : '1';
+        const len = obsEl.value.trim().length;
+        counterEl.textContent = semRot ? 'Observação opcional (sem roteirização nesse horário)' : `${len} / ${RAIOX_MIN_OBS_LEN} caracteres mínimos`;
+        counterEl.style.color = (semRot || len>=RAIOX_MIN_OBS_LEN) ? 'var(--done)' : 'var(--text-faint)';
+      }
+      starsEl.querySelectorAll('[data-star]').forEach(s=>{
+        s.addEventListener('click', ()=>{
+          estrelas = parseInt(s.dataset.star,10);
+          starsEl.querySelectorAll('[data-star]').forEach(x=>{
+            const active = parseInt(x.dataset.star,10) <= estrelas;
+            x.style.opacity = active ? '1' : '0.3';
+            x.style.color = active ? 'var(--brand)' : '';
+          });
+        });
+      });
+      semRotEl.addEventListener('change', updateState);
+      obsEl.addEventListener('input', updateState);
+      updateState();
+      confirmBtn.onclick = async ()=>{
+        const semRot = semRotEl.checked;
+        const observacao = obsEl.value.trim();
+        const sprReal = Number(sprRealEl.value);
+        if(estrelas<1) return;
+        if(!semRot && (observacao.length<RAIOX_MIN_OBS_LEN || sprRealEl.value.trim()==='' || Number.isNaN(sprReal))) return;
+        const patch = {estrelas, observacao, semRoteirizacao:semRot, sprRoteirizado: semRot ? 0 : sprReal, sprMeta: semRot ? null : r.sprMeta};
+        confirmBtn.disabled = true;
+        try{
+          const atualizado = await apiUpdateRaioX(r.id, patch);
+          Object.assign(r, atualizado);
+          closeModal(); renderMain();
+        }catch(e){ alert('Não foi possível salvar: '+e.message); confirmBtn.disabled = false; }
+      };
+    });
+  });
+  main.querySelectorAll('[data-excluir-raiox]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(!confirm('Excluir este Raio-X? A operação volta a aparecer como pendente de finalização.')) return;
+      const id = btn.dataset.excluirRaiox;
+      btn.disabled = true;
+      try{
+        await apiDeleteRaioX(id);
+        DB.raioX = DB.raioX.filter(x=>x.id!==id);
+        renderMain();
+      }catch(e){ alert('Não foi possível excluir: '+e.message); btn.disabled = false; }
+    });
+  });
+
   // "Ver Particularidade" — nota compartilhada por Operação+Supervisor (uma
   // só, upsert), pensada pra passagem de bastão entre turnos. Só fecha pelo
   // "X" (modalLocked, ver ui.js/main.js) pra não perder texto por engano
