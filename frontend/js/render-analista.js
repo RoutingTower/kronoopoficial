@@ -511,7 +511,7 @@ function renderRecadosAnalista(){
             <span style="width:7px;height:7px;border-radius:50%;flex-shrink:0;background:${lido?'transparent':'var(--brand)'};"></span>
             <span style="font-size:13px;font-weight:${lido?'400':'700'};color:${lido?'var(--text-muted)':'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.from}</span>
           </div>
-          <div style="font-size:12.5px;color:${lido?'var(--text-faint)':'var(--text)'};font-weight:${lido?'400':'600'};margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(r.titulo || r.texto)}</div>
+          <div style="font-size:12.5px;color:${lido?'var(--text-faint)':'var(--text)'};font-weight:${lido?'400':'600'};margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(r.titulo || stripHtmlPreview(r.texto, 80))}</div>
           <div style="font-size:10.5px;color:var(--text-faint);margin-top:5px;">${timeAgo(r.ts)}${r.editado?' · editado':''}</div>
         </div>`;
       }).join('')}
@@ -520,7 +520,7 @@ function renderRecadosAnalista(){
       ${!sel ? '<div class="empty">Selecione uma mensagem para ler</div>' : `
         <div class="msg-meta" style="font-size:12.5px;">${sel.from} · ${timeAgo(sel.ts)}${sel.editado?' · editado':''}</div>
         ${sel.titulo ? `<div style="font-weight:700;font-size:17px;margin-top:14px;">${escapeHtml(sel.titulo)}</div>` : ''}
-        <div style="font-size:15px;line-height:1.65;margin-top:${sel.titulo?'8px':'16px'};white-space:pre-wrap;">${escapeHtml(sel.texto)}</div>
+        <div style="font-size:15px;line-height:1.65;margin-top:${sel.titulo?'8px':'16px'};white-space:pre-wrap;">${sel.texto}</div>
         ${sel.observacoes ? `<div style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-top:10px;white-space:pre-wrap;">${escapeHtml(sel.observacoes)}</div>` : ''}
         <div style="margin-top:22px;">${(sel.lidoPor||[]).includes(session.userId) ? '<span class="pill pill-done">✓ Leitura confirmada</span>' : `<button class="btn btn-brand" data-confirmar-leitura="${sel.id}">Confirmar leitura</button>`}</div>
       `}

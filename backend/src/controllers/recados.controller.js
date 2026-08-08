@@ -1,5 +1,6 @@
 const supabaseService = require("../services/supabaseService");
 const { getCaller } = require("../services/authz");
+const { sanitizeRichText } = require("../services/sanitizeHtml");
 
 const COLLECTION = "recados";
 
@@ -28,7 +29,10 @@ async function createRecado(req, res) {
     from,
     to,
     titulo: titulo || "",
-    texto: texto.trim(),
+    // Só o toolbar (negrito/itálico/sublinhado/alinhamento/link) sobrevive —
+    // fecha a brecha de quem mandar HTML direto pro POST, sem passar pelo
+    // execCommand do frontend (ver sanitizeHtml.js).
+    texto: sanitizeRichText(texto.trim()),
     observacoes: observacoes || "",
     ts: Date.now(),
     lidoPor: [],
@@ -54,7 +58,7 @@ async function updateRecado(req, res) {
   const patch = {};
   if (typeof titulo === "string") patch.titulo = titulo;
   if (typeof texto === "string" && texto.trim()) {
-    patch.texto = texto.trim();
+    patch.texto = sanitizeRichText(texto.trim());
     patch.editado = true;
   }
   if (typeof observacoes === "string") patch.observacoes = observacoes;

@@ -1403,7 +1403,19 @@ function bindMainEvents(){
       const r = DB.recados.find(x=>x.id===btn.dataset.editarRecado);
       openModal(`<h3>Editar comunicado</h3>
         <div class="field"><label>Título</label><input id="fEditRecadoTitulo" value="${escapeHtml(r.titulo||'')}"></div>
-        <div class="field"><label>Mensagem</label><textarea id="fEditRecado" rows="4" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;">${escapeHtml(r.texto)}</textarea></div>
+        <div class="field">
+          <label>Mensagem</label>
+          <div class="rte-toolbar">
+            <button type="button" class="rte-btn" data-rte-cmd="bold" title="Negrito"><b>B</b></button>
+            <button type="button" class="rte-btn" data-rte-cmd="italic" title="Itálico"><i>I</i></button>
+            <button type="button" class="rte-btn" data-rte-cmd="underline" title="Sublinhado"><u>S</u></button>
+            <span class="rte-sep"></span>
+            <button type="button" class="rte-btn" data-rte-cmd="justifyLeft" title="Alinhar à esquerda">≡«</button>
+            <button type="button" class="rte-btn" data-rte-cmd="justifyCenter" title="Centralizar">≡</button>
+            <button type="button" class="rte-btn" data-rte-cmd="justifyRight" title="Alinhar à direita">»≡</button>
+          </div>
+          <div id="fEditRecado" class="rte-editable" contenteditable="true" style="min-height:110px;">${r.texto}</div>
+        </div>
         <div class="field"><label>Observações</label><textarea id="fEditRecadoObs" rows="2" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;">${escapeHtml(r.observacoes||'')}</textarea></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
           <button class="btn" data-modal-cancel>Cancelar</button>
@@ -1411,11 +1423,27 @@ function bindMainEvents(){
         </div>`);
       const cancelBtn = document.querySelector('[data-modal-cancel]');
       if(cancelBtn) cancelBtn.onclick = closeModal;
+      const editorRecado = document.getElementById('fEditRecado');
+      document.querySelectorAll('.rte-btn').forEach(rteBtn=>{
+        rteBtn.addEventListener('mousedown', e=>{
+          e.preventDefault();
+          document.execCommand(rteBtn.dataset.rteCmd, false, null);
+          editorRecado.focus();
+        });
+      });
+      editorRecado.addEventListener('paste', e=>{
+        e.preventDefault();
+        const cd = e.clipboardData || window.clipboardData;
+        const html = cd.getData('text/html');
+        const limpo = html ? limparHtmlColado(html) : escapeHtml(cd.getData('text/plain')).replace(/\n/g, '<br>');
+        document.execCommand('insertHTML', false, limpo);
+        linkify(editorRecado);
+      });
       document.getElementById('confirmEditRecado').onclick = async ()=>{
-        const novo = document.getElementById('fEditRecado').value.trim();
-        if(!novo) return;
+        if(!editorRecado.textContent.trim()) return;
+        linkify(editorRecado);
         const patch = {
-          texto: novo,
+          texto: editorRecado.innerHTML,
           titulo: document.getElementById('fEditRecadoTitulo').value.trim(),
           observacoes: document.getElementById('fEditRecadoObs').value.trim(),
         };
@@ -1454,18 +1482,45 @@ function bindMainEvents(){
     }catch(e){ alert('Não foi possível enviar: '+e.message); }
   });
 
+  // "Novo comunicado" (Caixa de Envio) ganhou o mesmo editor rico da
+  // Particularidade (negrito/itálico/sublinhado/alinhamento) — mesmo padrão
+  // de wiring (mousedown+preventDefault pra não perder a seleção, paste
+  // limpando HTML colado de fora). Escopado a `main` (não a `document`)
+  // porque, ao contrário da Particularidade, esse editor vive na tela em
+  // vez de um modal.
+  const transmEditor = document.getElementById('transmMsg');
+  if(transmEditor){
+    main.querySelectorAll('.rte-toolbar .rte-btn').forEach(rteBtn=>{
+      rteBtn.addEventListener('mousedown', e=>{
+        e.preventDefault();
+        document.execCommand(rteBtn.dataset.rteCmd, false, null);
+        transmEditor.focus();
+      });
+    });
+    transmEditor.addEventListener('paste', e=>{
+      e.preventDefault();
+      const cd = e.clipboardData || window.clipboardData;
+      const html = cd.getData('text/html');
+      const limpo = html ? limparHtmlColado(html) : escapeHtml(cd.getData('text/plain')).replace(/\n/g, '<br>');
+      document.execCommand('insertHTML', false, limpo);
+      linkify(transmEditor);
+    });
+  }
+
   const btnEnviarRecado = document.getElementById('btnEnviarRecado');
   if(btnEnviarRecado) btnEnviarRecado.addEventListener('click', async ()=>{
-    const txt = document.getElementById('transmMsg').value.trim();
-    if(!txt) return;
+    if(!transmEditor.textContent.trim()) return;
+    linkify(transmEditor);
+    const txt = transmEditor.innerHTML;
     const titulo = document.getElementById('transmTitulo').value.trim();
     const obs = document.getElementById('transmObs').value.trim();
     const entrada = {from:`${session.name} (Supervisor)`, to:'all_ana_'+session.userId, titulo, texto:txt, observacoes: obs};
+    btnEnviarRecado.disabled = true;
     try{
       const novo = await apiCreateRecado(entrada);
       DB.recados.push(novo);
       renderMain();
-    }catch(e){ alert('Não foi possível enviar: '+e.message); }
+    }catch(e){ alert('Não foi possível enviar: '+e.message); btnEnviarRecado.disabled = false; }
   });
 
   main.querySelectorAll('[data-enviofiltro]').forEach(inp=>{

@@ -1,13 +1,14 @@
-// Sanitizador estreito, feito sob medida pro editor de Particularidade
-// (negrito/itálico/sublinhado/alinhamento/link — ver frontend/js/events.js,
-// document.execCommand + linkify em utils.js). NÃO é um sanitizador de HTML
-// genérico: só existe pra fechar a brecha de stored XSS de quem burlar o
-// toolbar e mandar HTML arbitrário direto pro POST /api/particularidades
+// Sanitizador estreito, feito sob medida pro toolbar rico compartilhado por
+// Particularidade (frontend/js/events.js, particularidade) e Caixa de Envio
+// (frontend/js/events.js, "Novo comunicado") — negrito/itálico/sublinhado/
+// alinhamento/link, via document.execCommand + linkify em utils.js. NÃO é
+// um sanitizador de HTML genérico: só existe pra fechar a brecha de stored
+// XSS de quem burlar o toolbar e mandar HTML arbitrário direto pro POST
 // (ex.: <script>, onerror=, href="javascript:..."). Continua sendo a única
 // defesa real — o frontend nunca é a fonte da verdade de segurança.
 const ALLOWED_TAGS = new Set(["b", "strong", "i", "em", "u", "div", "span", "br", "p", "a"]);
 
-function sanitizeParticularidadeHtml(html) {
+function sanitizeRichText(html) {
   if (!html) return "";
   let out = String(html)
     .replace(/<!--[\s\S]*?-->/g, "")
@@ -47,4 +48,4 @@ function sanitizeParticularidadeHtml(html) {
   return out;
 }
 
-module.exports = { sanitizeParticularidadeHtml };
+module.exports = { sanitizeRichText };

@@ -1,6 +1,6 @@
 const supabaseService = require("../services/supabaseService");
 const { getCaller } = require("../services/authz");
-const { sanitizeParticularidadeHtml } = require("../services/sanitizeHtml");
+const { sanitizeRichText } = require("../services/sanitizeHtml");
 
 const COLLECTION = "particularidades";
 
@@ -40,7 +40,7 @@ async function upsertParticularidade(req, res) {
     // Só o toolbar (negrito/itálico/sublinhado/alinhamento) sobrevive —
     // fecha a brecha de quem mandar HTML direto pro POST, sem passar pelo
     // execCommand do frontend (ver sanitizeHtml.js).
-    texto: sanitizeParticularidadeHtml(texto),
+    texto: sanitizeRichText(texto),
     atualizadoPor: caller.name || caller.email || "—",
     atualizadoEm: Date.now(),
   };

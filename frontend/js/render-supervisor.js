@@ -1431,7 +1431,16 @@ function supTransmissao(myAnalistas){
   <div class="card" style="margin-bottom:18px;">
     <div class="section-title">Novo comunicado</div>
     <input id="transmTitulo" placeholder="Título..." style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);margin-bottom:10px;">
-    <textarea id="transmMsg" rows="3" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;font-size:13.5px;margin-bottom:10px;" placeholder="Escreva a mensagem para sua equipe..."></textarea>
+    <div class="rte-toolbar">
+      <button type="button" class="rte-btn" data-rte-cmd="bold" title="Negrito"><b>B</b></button>
+      <button type="button" class="rte-btn" data-rte-cmd="italic" title="Itálico"><i>I</i></button>
+      <button type="button" class="rte-btn" data-rte-cmd="underline" title="Sublinhado"><u>S</u></button>
+      <span class="rte-sep"></span>
+      <button type="button" class="rte-btn" data-rte-cmd="justifyLeft" title="Alinhar à esquerda">≡«</button>
+      <button type="button" class="rte-btn" data-rte-cmd="justifyCenter" title="Centralizar">≡</button>
+      <button type="button" class="rte-btn" data-rte-cmd="justifyRight" title="Alinhar à direita">»≡</button>
+    </div>
+    <div id="transmMsg" class="rte-editable" contenteditable="true" data-placeholder="Escreva a mensagem para sua equipe..." style="min-height:110px;margin-bottom:10px;"></div>
     <textarea id="transmObs" rows="2" placeholder="Observações (detalhamento opcional)..." style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;font-size:13.5px;"></textarea>
     <div style="display:flex;justify-content:flex-end;margin-top:10px;"><button class="btn btn-brand" id="btnEnviarRecado">Enviar para toda a equipe</button></div>
   </div>
@@ -1451,7 +1460,7 @@ function supTransmissao(myAnalistas){
       return `<div class="msg-item">
         <div class="msg-meta"><span class="pill">Comunicado</span> ${timeAgo(item.ts)}${item.editado?' · editado':''} · ${lidos} leitura(s) confirmada(s)</div>
         ${item.titulo ? `<div style="font-weight:700;font-size:14px;margin-top:6px;">${escapeHtml(item.titulo)}</div>` : ''}
-        <div style="margin-top:4px;white-space:pre-wrap;">${escapeHtml(item.texto)}</div>
+        <div style="margin-top:4px;white-space:pre-wrap;">${item.texto}</div>
         ${item.observacoes ? `<div style="font-size:12.5px;color:var(--text-faint);margin-top:6px;white-space:pre-wrap;">${escapeHtml(item.observacoes)}</div>` : ''}
         <div style="display:flex;gap:6px;margin-top:8px;">
           <button class="btn" data-editar-recado="${item.id}">Editar</button>
