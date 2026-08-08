@@ -167,6 +167,21 @@ function computeStatus(hora, dataStr, analistaId, operacao, isOff){
   return atrasada();
 }
 
+// Cruza o status por horário (computeStatus, só relógio) com o cronômetro
+// de Tempo de Execução: "Em Andamento" pelo relógio mas sem ninguém ter
+// clicado Iniciar (nem liberação manual do supervisor) vira um status à
+// parte — separa quem está atrasado pra COMEÇAR de quem só está com o
+// horário rolando normalmente, já com o cronômetro andando. Não muda
+// computeStatus em si (ele segue usado como sempre onde só o relógio
+// importa) — é um enriquecimento, só pra exibição em telas do supervisor.
+function statusComExecucao(hora, dataStr, analistaId, operacao, ciclo, isOff){
+  const status = computeStatus(hora, dataStr, analistaId, operacao, isOff);
+  if(status!=='live' || isOff) return status;
+  const exec = execucaoInicioPara(analistaId, operacao, ciclo, hora, dataStr);
+  if(exec && (exec.iniciadoEm!=null || exec.liberadoManual)) return status;
+  return 'naoiniciado';
+}
+
 // emojiOnly: usado na escala em cards (flashcards) do analista pra deixar o
 // visual mais limpo — o emoji já carrega o significado, e o texto completo
 // ainda fica disponível no title (tooltip). Tabelas administrativas (Grade
@@ -182,7 +197,7 @@ function getSPR(supervisorId, operacao, ciclo){
 }
 
 function statusPill(status, emojiOnly){
-  const map = { wait:['pill-wait','⏳','A Iniciar'], live:['pill-live','🏃','Em Andamento'], done:['pill-done','✅','Finalizada'], off:['pill-off','🌙','Ausente'], atraso:['pill-atraso','🚨','Pendente Raio-X'] };
+  const map = { wait:['pill-wait','⏳','A Iniciar'], live:['pill-live','🏃','Em Andamento'], done:['pill-done','✅','Finalizada'], off:['pill-off','🌙','Ausente'], atraso:['pill-atraso','🚨','Pendente Raio-X'], naoiniciado:['pill-naoiniciado','⚠️','Não Iniciado'] };
   const [cls,emoji,text] = map[status] || map.wait;
   if(emojiOnly) return `<span class="pill pill-emoji ${cls}" title="${text}">${emoji}</span>`;
   return `<span class="pill ${cls}">${emoji} ${text}</span>`;

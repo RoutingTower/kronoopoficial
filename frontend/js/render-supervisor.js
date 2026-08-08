@@ -314,7 +314,7 @@ function supGrade(myAnalistas){
   ids.forEach(id=>{
     const slots = getDaySlots(id, dateStr);
     slots.forEach(s=>{
-      const status = computeStatus(s.horaInicio, dateStr, id, s.operacao, s.isOff);
+      const status = statusComExecucao(s.horaInicio, dateStr, id, s.operacao, s.ciclo, s.isOff);
       rows.push({chave:s.id, analistaId:id, analista:userById(id).name, op:s.operacao, ciclo:s.ciclo||'', hora:s.horaInicio, horaFim:s.horaFim, nome:s.responsavelNome, isCobertura:!!s.isCobertura, status});
     });
   });
@@ -335,7 +335,7 @@ function supGrade(myAnalistas){
     (f.nome==='all' || r.nome===f.nome) &&
     (f.status==='all' || r.status===f.status)
   );
-  const statusLabels = {wait:'A Iniciar', live:'Em Andamento', done:'Finalizada', atraso:'Pendente Raio-X'};
+  const statusLabels = {wait:'A Iniciar', live:'Em Andamento', naoiniciado:'Não Iniciado', done:'Finalizada', atraso:'Pendente Raio-X'};
   const select = (key, label, values) => `
     <select data-gradefilter="${key}">
       <option value="all">${label}: todos</option>
@@ -357,7 +357,7 @@ function supGrade(myAnalistas){
     ${select('analista','Analista', uniq('analista'))}
     ${select('op','Operação', uniq('op'))}
     ${select('nome','Responsável', uniq('nome'))}
-    ${select('status','Status', ['all','wait','live','done','atraso'])}
+    ${select('status','Status', ['all','wait','live','naoiniciado','done','atraso'])}
     <button class="btn" id="btnExportGrade">⬇ Exportar Excel</button>
   </div>
   <div class="card" style="margin-bottom:${(atrasoHoje>0||risco.length>0)?'16px':'0'};">
@@ -390,7 +390,7 @@ function supGrade(myAnalistas){
 
 let gradeExportRows = [];
 function exportarGrade(){
-  const linhas = gradeExportRows.map(r=>[r.hora, r.analista, r.op, r.nome, r.isCobertura?'Suplente':'Titular', {wait:'A Iniciar',live:'Em Andamento',done:'Finalizada',atraso:'Pendente Raio-X'}[r.status]||r.status]);
+  const linhas = gradeExportRows.map(r=>[r.hora, r.analista, r.op, r.nome, r.isCobertura?'Suplente':'Titular', {wait:'A Iniciar',live:'Em Andamento',naoiniciado:'Não Iniciado',done:'Finalizada',atraso:'Pendente Raio-X'}[r.status]||r.status]);
   exportarRelatorioExcel(`grade-do-dia_${uiState.gradeFilters.data||hojeAgendaISO()}.xlsx`, ['Hora Início','Analista','Operação','Responsável','Tipo','Status'], linhas);
 }
 

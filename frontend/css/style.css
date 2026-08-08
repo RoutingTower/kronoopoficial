@@ -282,6 +282,13 @@ input,select,textarea{font-family:inherit;}
 .pill-emoji{padding:2px 7px;font-size:13px;line-height:1;}
 @keyframes pill-atraso-pulse{0%,100%{box-shadow:0 0 0 2px rgba(217,54,46,0.25);}50%{box-shadow:0 0 0 5px rgba(217,54,46,0.12);}}
 .flash-card-atraso{border-color:var(--alert)!important;}
+/* "Não Iniciado" (statusComExecucao, utils.js): horário diz que já devia
+   estar rolando, mas ninguém clicou Iniciar ainda — tom âmbar de propósito,
+   pra não confundir com "Pendente Raio-X" (atraso, vermelho — já passou da
+   hora de FINALIZAR, uma urgência diferente e mais grave). */
+.pill-naoiniciado{background:#B8860B;color:#FFFFFF;font-weight:700;box-shadow:0 0 0 2px rgba(184,134,11,0.3);animation:pill-naoiniciado-pulse 1.6s ease-in-out infinite;}
+@keyframes pill-naoiniciado-pulse{0%,100%{box-shadow:0 0 0 2px rgba(184,134,11,0.3);}50%{box-shadow:0 0 0 5px rgba(184,134,11,0.15);}}
+.flash-card-naoiniciado{border-color:var(--folga)!important;}
 .btn{padding:8px 14px;border-radius:8px;font-size:12.5px;border:1px solid var(--border);background:var(--panel);color:var(--text);transition:all .12s;text-decoration:none;display:inline-block;}
 .btn:hover{border-color:var(--text-muted);transform:translateY(-1px);}
 .btn-brand{background:linear-gradient(135deg,var(--brand),var(--brand-2));border-color:var(--brand);color:var(--brand-ink);font-weight:600;box-shadow:0 6px 16px rgba(238,77,45,0.25);}

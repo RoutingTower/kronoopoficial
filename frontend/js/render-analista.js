@@ -208,19 +208,22 @@ function renderProgramacaoIntegrada(lista, dateStr){
     linhas.push({ analista:a, slots });
   });
 
-  const statusLabels = { wait:['pill-wait','⏳','A Iniciar'], live:['pill-live','🏃','Em Andamento'], done:['pill-done','✅','Finalizada'], atraso:['pill-atraso','🚨','Pendente Raio-X'] };
+  const statusLabels = { wait:['pill-wait','⏳','A Iniciar'], live:['pill-live','🏃','Em Andamento'], naoiniciado:['pill-naoiniciado','⚠️','Não Iniciado'], done:['pill-done','✅','Finalizada'], atraso:['pill-atraso','🚨','Pendente Raio-X'] };
   const filtro = uiState.progStatusFiltro;
 
   // Card minimalista de propósito: só hub + ciclo, pra grade ficar limpa e
   // alinhada com muitos analistas na tela — hora/SPR REF/cobertura ainda dá
   // pra ver passando o mouse (title), particularidade e reunião saíram
   // daqui (quem quiser isso entra na Programação individual do analista).
+  // Status cruza o horário com o cronômetro (statusComExecucao, utils.js) —
+  // "Em Andamento" sem ninguém ter clicado Iniciar vira "Não Iniciado".
   const cardHtml = (it, hour, analistaId)=>{
-    const status = computeStatus(hour, dateStr, analistaId, it.operacao, it.isOff);
+    const status = statusComExecucao(hour, dateStr, analistaId, it.operacao, it.ciclo, it.isOff);
     const dim = filtro && filtro!==status;
     const detalhe = `${it.operacao} — ${it.ciclo} · ${it.horaInicio}–${it.horaFim}` +
       (it.isCobertura ? ` · Cobrindo ${it.responsavelNome}` : it.isOff ? ` · Coberto por ${it.responsavelNome}` : '');
-    return `<div class="flash-card flash-card-${categoriaOperacao(it)}${status==='atraso'?' flash-card-atraso':''}${dim?' prog-dim':''}" title="${escapeHtml(detalhe)}">
+    const borda = status==='atraso' ? ' flash-card-atraso' : status==='naoiniciado' ? ' flash-card-naoiniciado' : '';
+    return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${dim?' prog-dim':''}" title="${escapeHtml(detalhe)}">
       <span class="flash-sigla">${escapeHtml(it.operacao)}</span>
       <span class="prog-ciclo">${escapeHtml(it.ciclo)}</span>
     </div>`;
