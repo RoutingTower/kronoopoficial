@@ -147,10 +147,41 @@ create table raio_x (
   spr_roteirizado numeric not null,
   spr_meta        numeric,
   sem_roteirizacao boolean not null default false,
+  -- Tempo de Execução: quanto levou do "Iniciar" (ver execucao_inicio
+  -- abaixo) até esse Finalizar. Nulo em registros antigos, de antes dessa
+  -- feature existir. duracao_origem diferencia o cronômetro automático de
+  -- um preenchimento manual liberado pelo supervisor (ver
+  -- execucaoInicio.controller.js) — importante pra auditoria, já que o
+  -- manual não tem o mesmo grau de confiança do automático.
+  duracao_segundos integer,
+  duracao_origem    text,
   ts            bigint not null
 );
 create index idx_raiox_analista on raio_x(analista_id);
 create index idx_raiox_data on raio_x(data);
+
+-- Registra o clique em "Iniciar operação" (Tempo de Execução) — existe pra
+-- que o cronômetro sobreviva a um reload/fechamento do app no meio da
+-- operação, e pra o backend poder calcular a duração de forma confiável em
+-- vez de confiar num valor calculado só no cliente. Uma linha por
+-- analista+operação+ciclo+hora+data (upsert nesse conjunto). Quando o
+-- analista esquece de clicar Iniciar dentro da janela, o supervisor libera
+-- o preenchimento manual (liberado_manual=true, iniciado_em fica null) e o
+-- Finalizar passa a pedir início/fim digitados à mão.
+create table execucao_inicio (
+  id              uuid primary key default gen_random_uuid(),
+  analista_id     uuid not null references users(id),
+  operacao        text not null,
+  ciclo           text not null default '',
+  hora            text not null,
+  data            date not null,
+  iniciado_em     bigint,
+  liberado_manual boolean not null default false,
+  liberado_por    uuid references users(id),
+  criado_em       bigint not null
+);
+create unique index idx_execucao_inicio_unico on execucao_inicio(analista_id, operacao, ciclo, hora, data);
+create index idx_execucao_inicio_analista on execucao_inicio(analista_id);
 
 create table recados (
   id            uuid primary key default gen_random_uuid(),

@@ -329,6 +329,15 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .flash-col-agora .flash-time{color:var(--brand);font-weight:700;}
 .timeline-badge-agora{font-size:9px;background:var(--brand);color:var(--brand-ink);padding:1px 6px;border-radius:20px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;vertical-align:middle;margin-left:4px;}
 .badge-alerta-ciente{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--alert);margin-left:6px;vertical-align:middle;box-shadow:0 0 0 2px rgba(217,54,46,0.25);}
+
+/* Tempo de Execução: cronômetro ao vivo no flashcard (Iniciar/Finalizar) —
+   ver renderExecucaoActions em render-analista.js e o setInterval de
+   atualização em main.js (só troca o texto, não re-renderiza a tela). */
+.timer-live{display:flex;align-items:center;gap:8px;margin-top:8px;padding:6px 10px;border-radius:8px;background:rgba(238,77,45,0.08);}
+:root[data-theme="dark"] .timer-live{background:rgba(255,107,69,0.12);}
+.timer-dot{width:7px;height:7px;border-radius:50%;background:var(--brand);flex-shrink:0;animation:pill-atraso-pulse 1.4s ease-in-out infinite;}
+.timer-num{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;color:var(--brand);}
+.timer-tag{font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.04em;}
 /* Fica dentro do mesmo .flash-outer que rola horizontalmente junto com
    .flash-row (por isso os dois sempre ficam alinhados) — largura e offset
    calculados em px no JS (renderFlashcardRow) pra baterem exatamente com

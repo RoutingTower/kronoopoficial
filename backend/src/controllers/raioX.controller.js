@@ -34,7 +34,7 @@ async function listRaioX(req, res) {
 // Finalização é sempre auto-declarada pelo próprio analista (ver
 // frontend/js/events.js) — ninguém finaliza operação de outra pessoa.
 async function createRaioX(req, res) {
-  const { analistaId, operacao, hora, data, estrelas, observacao, sprRoteirizado, sprMeta, semRoteirizacao } = req.body;
+  const { analistaId, operacao, ciclo, hora, data, estrelas, observacao, sprRoteirizado, sprMeta, semRoteirizacao, duracaoSegundos } = req.body;
   if (!analistaId || !operacao || !hora || !data) {
     return res.status(400).json({
       error: "bad_request",
@@ -48,6 +48,40 @@ async function createRaioX(req, res) {
   const nota = Number(estrelas);
   if (!Number.isInteger(nota) || nota < 1 || nota > 5) {
     return res.status(400).json({ error: "bad_request", message: "estrelas deve ser um inteiro de 1 a 5" });
+  }
+
+  // Tempo de Execução: finalizar exige um "Iniciar" registrado (cronômetro,
+  // ver execucaoInicio.controller.js) ou uma duração explícita — só aceita
+  // se o supervisor tiver liberado o preenchimento manual pra esse slot
+  // (senão qualquer um poderia inventar uma duração no corpo da requisição).
+  // Não vale pra "sem roteirização" (não teve operação pra cronometrar) nem
+  // pra admin (correção direta, fora do fluxo normal).
+  let duracaoFinal = null, duracaoOrigemFinal = null;
+  if (!semRoteirizacao && !caller?.isAdmin) {
+    const existentes = await supabaseService.listWhere("execucaoInicio", [["analistaId", "==", analistaId], ["data", "==", data]]);
+    const doSlot = (r) => r.operacao === operacao && (r.ciclo || "") === (ciclo || "") && r.hora === hora;
+    if (duracaoSegundos != null) {
+      const liberado = existentes.find((r) => doSlot(r) && r.liberadoManual === true);
+      if (!liberado) {
+        return res.status(403).json({ error: "forbidden", message: "Preenchimento manual não foi liberado pelo supervisor para essa operação." });
+      }
+      const val = Number(duracaoSegundos);
+      if (!Number.isFinite(val) || val < 0) {
+        return res.status(400).json({ error: "bad_request", message: "duracaoSegundos inválido" });
+      }
+      duracaoFinal = Math.round(val);
+      duracaoOrigemFinal = "manual";
+    } else {
+      const inicio = existentes.find((r) => doSlot(r) && r.iniciadoEm != null);
+      if (!inicio) {
+        return res.status(400).json({
+          error: "bad_request",
+          message: 'É preciso clicar em "Iniciar operação" antes de finalizar (ou pedir liberação manual ao supervisor).',
+        });
+      }
+      duracaoFinal = Math.round((Date.now() - inicio.iniciadoEm) / 1000);
+      duracaoOrigemFinal = "cronometro";
+    }
   }
 
   // Ciclo sem roteirização nesse horário: SPR e observação deixam de ser
@@ -86,6 +120,8 @@ async function createRaioX(req, res) {
     sprRoteirizado: sprRealFinal,
     sprMeta: sprMetaFinal,
     semRoteirizacao: !!semRoteirizacao,
+    duracaoSegundos: duracaoFinal,
+    duracaoOrigem: duracaoOrigemFinal,
     ts: Date.now(),
   });
   res.status(201).json(entry);

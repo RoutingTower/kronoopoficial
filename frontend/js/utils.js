@@ -123,6 +123,41 @@ function slotTimestamp(dataStr, hora){
   return d.getTime();
 }
 
+// Tempo de Execução: cronômetro de "Iniciar"/"Finalizar" por operação, com
+// SLA fixo de 1h de relógio pra toda operação (ver execucaoInicio.controller.js
+// e raioX.controller.js, backend).
+const SLA_TEMPO_EXECUCAO_SEGUNDOS = 3600;
+
+function execucaoInicioPara(analistaId, operacao, ciclo, hora, dataStr){
+  return DB.execucaoInicio.find(e=> e.analistaId===analistaId && e.operacao===operacao && (e.ciclo||'')===(ciclo||'') && e.hora===hora && e.data===dataStr);
+}
+
+// "Iniciar" libera 1h antes do horário do slot (tem gente que já começa
+// adiantado) — passada 1h DO HORÁRIO sem nunca ter clicado, a janela fecha
+// e passa a exigir liberação manual do supervisor (ver janelaIniciarFechada).
+function podeIniciarOperacao(dataStr, hora){
+  return Date.now() >= slotTimestamp(dataStr, hora) - 60*60*1000;
+}
+function janelaIniciarFechada(dataStr, hora){
+  return Date.now() >= slotTimestamp(dataStr, hora) + 60*60*1000;
+}
+// Preenchimento manual (liberado pelo supervisor): dois horários HH:MM do
+// mesmo jeito que o turno normal — se "fim" for menor ou igual a "início",
+// assume que virou a madrugada (mesma lógica de slotTimestamp).
+function calcularDuracaoManual(horaInicioStr, horaFimStr){
+  const [hi,mi] = horaInicioStr.split(':').map(Number);
+  const [hf,mf] = horaFimStr.split(':').map(Number);
+  let iniMin = hi*60+mi, fimMin = hf*60+mf;
+  if(fimMin <= iniMin) fimMin += 24*60;
+  return (fimMin-iniMin)*60;
+}
+function formatarDuracao(totalSegundos){
+  const h = Math.floor(totalSegundos/3600), m = Math.floor((totalSegundos%3600)/60), s = totalSegundos%60;
+  if(h>0) return `${h}h ${m}min`;
+  if(m>0) return `${m}min ${s}s`;
+  return `${s}s`;
+}
+
 function computeStatus(hora, dataStr, analistaId, operacao, isOff){
   const atrasada = () => (analistaId && operacao && !isOff && !isOperacaoFinalizada(analistaId, operacao, hora, dataStr)) ? 'atraso' : 'done';
   const slotStart = slotTimestamp(dataStr, hora);

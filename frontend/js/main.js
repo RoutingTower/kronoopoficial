@@ -135,3 +135,17 @@ setInterval(async ()=>{
     console.error('KronoOP: falha na atualização automática periódica.', e);
   }
 }, 2*60*60*1000);
+
+// Cronômetro ao vivo do card de operação (Tempo de Execução, ver
+// render-analista.js) — só atualiza o texto do timer a cada segundo, sem
+// re-renderizar a tela inteira (o que fecharia modais/menus abertos à toa).
+setInterval(()=>{
+  document.querySelectorAll('[data-timer-desde]').forEach(el=>{
+    const desde = Number(el.dataset.timerDesde);
+    if(!desde) return;
+    const totalSeg = Math.max(0, Math.floor((Date.now()-desde)/1000));
+    const h = Math.floor(totalSeg/3600), m = Math.floor((totalSeg%3600)/60), s = totalSeg%60;
+    const numEl = el.querySelector('.timer-num');
+    if(numEl) numEl.textContent = h>0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  });
+}, 1000);

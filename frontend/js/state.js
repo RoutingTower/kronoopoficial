@@ -57,6 +57,9 @@ let uiState = {
   sprFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), operacao: 'all', semana: '', analistas: [], supervisores: [] },
   sprAnalistaDropdownOpen: false,
   sprSupervisorDropdownOpen: false,
+  tempoFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), operacao: 'all', semana: '', analistas: [], supervisores: [] },
+  tempoAnalistaDropdownOpen: false,
+  tempoSupervisorDropdownOpen: false,
   envioFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO() },
   ocorrenciasFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), analista: 'all', operacao: 'all', avaliacaoMax: '' },
   suplenciasFiltro:{ operacao:'', horario:'', suplente:'all', cobrindo:'all', inicio:'', fim:'' },
@@ -105,7 +108,7 @@ let _loadDBInFlight = null;
 async function loadDB(){
   if(_loadDBInFlight) return _loadDBInFlight;
   _loadDBInFlight = (async ()=>{
-    const [users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca] = await Promise.all([
+    const [users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, execucaoInicio] = await Promise.all([
       apiRequest('GET', '/users'),
       apiRequest('GET', '/base-mestra'),
       apiRequest('GET', '/suplencias'),
@@ -120,8 +123,9 @@ async function loadDB(){
       apiRequest('GET', '/particularidades'),
       apiRequest('GET', '/particularidade-ciente'),
       apiRequest('GET', '/reuniao-presenca'),
+      apiRequest('GET', '/execucao-inicio'),
     ]);
-    DB = { users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca };
+    DB = { users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, execucaoInicio };
   })();
   try{ await _loadDBInFlight; }
   finally{ _loadDBInFlight = null; }
@@ -179,6 +183,12 @@ const apiDeleteUser = (id) => apiRequest('DELETE', `/users/${id}`);
 // estrelas (1–5) e observação (≥150 caracteres) de novo, mesmo já validados
 // no frontend — ver backend/src/controllers/raioX.controller.js.
 const apiCreateRaioX = (data) => apiRequest('POST', '/raio-x', data);
+
+// Tempo de Execução — "Iniciar" grava o cronômetro no servidor (sobrevive a
+// reload); "liberar" é o supervisor autorizando preenchimento manual pra
+// quem esqueceu de clicar Iniciar (ver execucaoInicio.controller.js).
+const apiIniciarExecucao = (data) => apiRequest('POST', '/execucao-inicio', data);
+const apiLiberarExecucaoManual = (data) => apiRequest('POST', '/execucao-inicio/liberar', data);
 
 // baseMestra
 const apiCreateBaseMestra = (data) => apiRequest('POST', '/base-mestra', data);

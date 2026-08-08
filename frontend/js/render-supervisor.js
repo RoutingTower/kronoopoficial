@@ -8,6 +8,7 @@ function renderSupervisor(){
   else if(activeNavKey==='basemestra') content = supBaseMestra(myAnalistas);
   else if(activeNavKey==='spr') content = supSPR();
   else if(activeNavKey==='resultadospr') content = supResultadoSPR(myAnalistas);
+  else if(activeNavKey==='tempoexecucao') content = supTempoExecucao(myAnalistas);
   else if(activeNavKey==='suplencias') content = renderImportPendentesBanner('suplencias', myAnalistas) + supSugerirSuplente(myAnalistas) + supSuplencias(myAnalistas);
   else if(activeNavKey==='programacao') content = supProgramacao(myAnalistas);
   else if(activeNavKey==='grade') content = supGrade(myAnalistas);
@@ -314,7 +315,7 @@ function supGrade(myAnalistas){
     const slots = getDaySlots(id, dateStr);
     slots.forEach(s=>{
       const status = computeStatus(s.horaInicio, dateStr, id, s.operacao, s.isOff);
-      rows.push({chave:s.id, analistaId:id, analista:userById(id).name, op:s.operacao, hora:s.horaInicio, horaFim:s.horaFim, nome:s.responsavelNome, isCobertura:!!s.isCobertura, status});
+      rows.push({chave:s.id, analistaId:id, analista:userById(id).name, op:s.operacao, ciclo:s.ciclo||'', hora:s.horaInicio, horaFim:s.horaFim, nome:s.responsavelNome, isCobertura:!!s.isCobertura, status});
     });
   });
   // Uma cobertura gera 2 entradas com o mesmo id em getDaySlots: uma na
@@ -360,8 +361,20 @@ function supGrade(myAnalistas){
     <button class="btn" id="btnExportGrade">⬇ Exportar Excel</button>
   </div>
   <div class="card" style="margin-bottom:${(atrasoHoje>0||risco.length>0)?'16px':'0'};">
-  <table><thead><tr><th>Horário</th><th>Analista</th><th>Operação</th><th>Responsável</th><th>Status</th></tr></thead><tbody>
-  ${filtered.map(r=>`<tr class="${r.isCobertura?'row-suplente':''}"><td class="mono">${r.hora}–${r.horaFim}</td><td style="cursor:pointer;" data-analista-timeline="${r.analistaId}" title="Ver histórico">${r.analista} ${r.isCobertura?'<span class="pill pill-suplente">🔁 Suplente</span>':''}</td><td>${r.op}</td><td>${r.nome}</td><td>${statusPill(r.status)}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">Nenhum registro para os filtros selecionados</td></tr>'}
+  <table><thead><tr><th>Horário</th><th>Analista</th><th>Operação</th><th>Responsável</th><th>Status</th><th>Execução</th></tr></thead><tbody>
+  ${filtered.map(r=>{
+    const exec = DB.execucaoInicio.find(e=>e.analistaId===r.analistaId && e.operacao===r.op && (e.ciclo||'')===r.ciclo && e.hora===r.hora && e.data===dateStr);
+    // Só faz sentido liberar manual quem nunca clicou Iniciar e já perdeu a
+    // janela (1h depois do horário) — antes disso a pessoa ainda consegue
+    // iniciar normalmente (ver janelaIniciarFechada, utils.js).
+    let execCell = '';
+    if(exec && exec.liberadoManual && exec.iniciadoEm==null){
+      execCell = `<span class="pill pill-folga" title="Liberado por ${escapeHtml(userById(exec.liberadoPor)?.name||'—')}">🔓 Manual liberado</span>`;
+    } else if(!exec && r.status!=='done' && janelaIniciarFechada(dateStr, r.hora)){
+      execCell = `<button class="btn" data-liberar-manual="1" data-analista-id="${r.analistaId}" data-op="${escapeHtml(r.op)}" data-ciclo="${escapeHtml(r.ciclo)}" data-hora="${r.hora}" data-data="${dateStr}" title="Analista não iniciou o cronômetro — liberar preenchimento manual">🔓 Liberar manual</button>`;
+    }
+    return `<tr class="${r.isCobertura?'row-suplente':''}"><td class="mono">${r.hora}–${r.horaFim}</td><td style="cursor:pointer;" data-analista-timeline="${r.analistaId}" title="Ver histórico">${r.analista} ${r.isCobertura?'<span class="pill pill-suplente">🔁 Suplente</span>':''}</td><td>${r.op}</td><td>${r.nome}</td><td>${statusPill(r.status)}</td><td>${execCell}</td></tr>`;
+  }).join('') || '<tr><td colspan="6" class="empty">Nenhum registro para os filtros selecionados</td></tr>'}
   </tbody></table></div>
   ${atrasoHoje>0 ? `<div class="highlight-card" style="margin-bottom:14px;border-color:var(--alert);">
     <div class="section-title">🚨 ${atrasoHoje} operação(ões) de hoje com Raio-X pendente há mais de 1h</div>
@@ -1079,6 +1092,234 @@ function sprResultadoBody(selecionados, picker){
 function exportarSPR(){
   const linhas = sprExportRows.map(r=>[userById(r.analistaId)?.name||'—', r.operacao, r.data, r.hora, r.sprRoteirizado, r.sprMeta, (r.sprRoteirizado-r.sprMeta).toFixed(1)]);
   exportarRelatorioExcel(`resultado-spr_${uiState.sprFiltro.inicio}_a_${uiState.sprFiltro.fim}.xlsx`, ['Analista','Operação','Data','Hora','SPR Lançado','SPR REF','Delta'], linhas);
+}
+
+// Tela irmã do Resultado SPR (sprResultadoBody acima) — mesmo layout, dados
+// vêm do cronômetro Iniciar/Finalizar (execucaoInicio.controller.js +
+// duracaoSegundos em raio_x) em vez do SPR. Diferença central: aqui existe
+// um SLA fixo (SLA_TEMPO_EXECUCAO_SEGUNDOS, utils.js — 1h pra toda
+// operação), não uma meta cadastrada por operação como o SPR REF.
+let tempoChartData = null;
+let tempoExportRows = [];
+
+function tempoExecucaoBody(selecionados, picker){
+  const flt = uiState.tempoFiltro;
+  const inicio = flt.inicio || addDaysISO(todayISO(), -30);
+  const fim = flt.fim || todayISO();
+  const ids = new Set(selecionados.map(a=>a.id));
+  const noPeriodo = r => (r.data||'')>=inicio && (r.data||'')<=fim && ids.has(r.analistaId);
+
+  const doPeriodoAmplo = DB.raioX.filter(noPeriodo).filter(r=> flt.operacao==='all' || r.operacao===flt.operacao).filter(r=>r.duracaoSegundos!=null);
+  const operacoesDisponiveis = [...new Set(DB.raioX.filter(noPeriodo).map(r=>r.operacao))].sort();
+  const semanasDisponiveis = [...new Set(doPeriodoAmplo.map(r=>weekStartISO(r.data)))].sort();
+
+  const doPeriodo = flt.semana ? doPeriodoAmplo.filter(r=>weekStartISO(r.data)===flt.semana) : doPeriodoAmplo;
+
+  const totalExecucoes = doPeriodo.length;
+  const tempoMedioGeral = totalExecucoes ? doPeriodo.reduce((s,r)=>s+r.duracaoSegundos,0)/totalExecucoes : 0;
+
+  const porOperacaoAnalista = {};
+  doPeriodo.forEach(r=>{
+    const nome = userById(r.analistaId)?.name || '—';
+    const chave = r.operacao+'||'+nome;
+    if(!porOperacaoAnalista[chave]) porOperacaoAnalista[chave] = { operacao:r.operacao, nome, analistaId:r.analistaId, total:0, soma:0 };
+    const d = porOperacaoAnalista[chave];
+    d.total++; d.soma += r.duracaoSegundos;
+  });
+  const detalhe = Object.values(porOperacaoAnalista).map(d=>({
+    operacao:d.operacao, nome:d.nome, analistaId:d.analistaId, total:d.total,
+    tempoMedio: d.total ? d.soma/d.total : 0,
+  })).sort((a,b)=> a.operacao.localeCompare(b.operacao) || a.nome.localeCompare(b.nome));
+
+  const porOperacao = {};
+  doPeriodo.forEach(r=>{
+    if(!porOperacao[r.operacao]) porOperacao[r.operacao] = { total:0, soma:0 };
+    const d = porOperacao[r.operacao];
+    d.total++; d.soma += r.duracaoSegundos;
+  });
+  const porHub = Object.entries(porOperacao).map(([operacao,d])=>({
+    operacao, total:d.total, tempoMedio: d.total ? d.soma/d.total : 0,
+  })).sort((a,b)=>a.operacao.localeCompare(b.operacao));
+
+  const agiles = [...porHub].filter(h=>h.tempoMedio<SLA_TEMPO_EXECUCAO_SEGUNDOS).sort((a,b)=>a.tempoMedio-b.tempoMedio).slice(0,5);
+  const lentas = [...porHub].filter(h=>h.tempoMedio>SLA_TEMPO_EXECUCAO_SEGUNDOS).sort((a,b)=>b.tempoMedio-a.tempoMedio).slice(0,5);
+  const maxAbsDeltaHub = Math.max(1, ...porHub.map(h=>Math.abs(h.tempoMedio-SLA_TEMPO_EXECUCAO_SEGUNDOS)));
+  const operacoesAcimaSLA = porHub.filter(h=>h.tempoMedio>SLA_TEMPO_EXECUCAO_SEGUNDOS).length;
+
+  // Tendência: mesmo esquema do Resultado SPR — compara com uma janela
+  // anterior de mesmo tamanho, sensível ao filtro de semana (ver
+  // sprResultadoBody acima pro comentário completo).
+  const efetivoInicio = flt.semana || inicio;
+  const efetivoFim = flt.semana ? addDaysISO(flt.semana,6) : fim;
+  const diasNoPeriodo = Math.round((new Date(efetivoFim+'T00:00:00') - new Date(efetivoInicio+'T00:00:00'))/86400000) + 1;
+  const inicioAnterior = addDaysISO(efetivoInicio, -diasNoPeriodo);
+  const fimAnterior = addDaysISO(efetivoInicio, -1);
+  const anteriores = DB.raioX.filter(r=> (r.data||'')>=inicioAnterior && (r.data||'')<=fimAnterior && ids.has(r.analistaId) && (flt.operacao==='all' || r.operacao===flt.operacao) && r.duracaoSegundos!=null);
+  const tempoMedioAnterior = anteriores.length ? anteriores.reduce((s,r)=>s+r.duracaoSegundos,0)/anteriores.length : null;
+  const tendenciaPct = tempoMedioAnterior ? ((tempoMedioGeral-tempoMedioAnterior)/tempoMedioAnterior)*100 : null;
+
+  const porDiaAgg = {};
+  doPeriodo.forEach(r=>{
+    if(!porDiaAgg[r.data]) porDiaAgg[r.data] = { total:0, soma:0 };
+    const d = porDiaAgg[r.data];
+    d.total++; d.soma += r.duracaoSegundos;
+  });
+  const porDia = Object.entries(porDiaAgg).map(([data,d])=>({
+    data, total:d.total, tempoMedio: d.total ? d.soma/d.total : 0,
+  })).sort((a,b)=>b.data.localeCompare(a.data));
+  const porDiaAsc = [...porDia].reverse().map(d=>({...d, label:formatarDataCurta(d.data)}));
+
+  tempoChartData = { porDiaAsc, porHub };
+  tempoExportRows = doPeriodo;
+
+  const tempoBadge = segundos => segundos>SLA_TEMPO_EXECUCAO_SEGUNDOS
+    ? `<span style="color:var(--alert);font-weight:700;">${formatarDuracao(segundos)}</span>`
+    : `<span style="color:var(--done);font-weight:700;">${formatarDuracao(segundos)}</span>`;
+
+  return `
+  <div class="filter-row" style="margin-bottom:16px;">
+    <label style="font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">Início
+      <input type="date" data-tempofiltro="inicio" value="${inicio}" max="${fim}">
+    </label>
+    <label style="font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">Fim
+      <input type="date" data-tempofiltro="fim" value="${fim}" min="${inicio}">
+    </label>
+    <input type="text" list="tempoOperacaoList" data-tempofiltro="operacao" placeholder="Operação: todas" value="${flt.operacao!=='all' ? escapeHtml(flt.operacao) : ''}" style="min-width:220px;">
+    <datalist id="tempoOperacaoList">
+      ${operacoesDisponiveis.map(op=>`<option value="${escapeHtml(op)}">`).join('')}
+    </datalist>
+    <select data-tempofiltro="semana">
+      <option value="">Semana: todas (${formatarDataCurta(inicio)} a ${formatarDataCurta(fim)})</option>
+      ${semanasDisponiveis.map(ws=>`<option value="${ws}" ${flt.semana===ws?'selected':''}>Semana ${formatarDataCurta(ws)}–${formatarDataCurta(addDaysISO(ws,6))}</option>`).join('')}
+    </select>
+    ${picker}
+    <button class="btn" id="btnExportTempo">⬇ Exportar Excel</button>
+  </div>
+  <div class="grid-4" style="margin-bottom:16px;">
+    <div class="stat-card">
+      <div class="stat-num" style="color:${tempoMedioGeral>SLA_TEMPO_EXECUCAO_SEGUNDOS?'var(--alert)':'var(--done)'};">${formatarDuracao(Math.round(tempoMedioGeral))}</div>
+      <div class="stat-label">Tempo médio de execução <span style="color:var(--text-faint);">(SLA 1h)</span></div>
+      ${tendenciaPct!=null ? `<div class="trend-chip${tendenciaPct>0?' down':''}">${tendenciaPct<=0?'↓':'↑'} ${tendenciaPct>=0?'+':''}${tendenciaPct.toFixed(1)}% <span style="color:var(--text-faint);font-weight:400;">vs. período anterior</span></div>` : ''}
+    </div>
+    <div class="stat-card"><div class="stat-num">${totalExecucoes}</div><div class="stat-label">Execuções cronometradas</div></div>
+    <div class="stat-card"><div class="stat-num">${operacoesAcimaSLA} <span style="font-size:19px;color:var(--text-faint);">de ${porHub.length}</span></div><div class="stat-label">Operações acima do SLA</div></div>
+    <div class="stat-card"><div class="stat-num">${formatarDuracao(SLA_TEMPO_EXECUCAO_SEGUNDOS)}</div><div class="stat-label">SLA (todas as operações)</div></div>
+  </div>
+  <div class="grid-2" style="margin-bottom:20px;align-items:start;">
+    <div class="chart-card"><div class="section-title">Linha do tempo — trajetória de tempo médio dia a dia</div><canvas id="chartTempoLinha"></canvas></div>
+    <div class="chart-card"><div class="section-title">Gap para o SLA <span style="color:var(--text-faint);text-transform:none;letter-spacing:0;">(1h, por dia)</span></div><canvas id="chartTempoGap"></canvas></div>
+    <div class="chart-card">
+      <div class="section-title">Mais ágeis e mais lentas <span style="color:var(--text-faint);text-transform:none;letter-spacing:0;">(por operação, vs. SLA de 1h)</span></div>
+      <div class="grid-2" style="gap:18px;">
+        <div>
+          <div style="font-size:11px;color:var(--alert);font-weight:600;margin-bottom:8px;">▾ Mais lentas</div>
+          <div class="mover-list">${lentas.map(h=>`<div class="mover-row">
+              <span class="mover-name" title="${escapeHtml(h.operacao)}">${escapeHtml(h.operacao)}</span>
+              <span class="mover-delta neg">+${formatarDuracao(Math.round(h.tempoMedio-SLA_TEMPO_EXECUCAO_SEGUNDOS))}</span>
+              <div class="mover-bar-wrap"><div class="mover-bar neg" style="width:${Math.abs(h.tempoMedio-SLA_TEMPO_EXECUCAO_SEGUNDOS)/maxAbsDeltaHub*100}%;"></div></div>
+            </div>`).join('') || '<div class="help-text" style="margin:0;">Nenhuma operação acima do SLA</div>'}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--done);font-weight:600;margin-bottom:8px;">▴ Mais ágeis</div>
+          <div class="mover-list">${agiles.map(h=>`<div class="mover-row">
+              <span class="mover-name" title="${escapeHtml(h.operacao)}">${escapeHtml(h.operacao)}</span>
+              <span class="mover-delta pos">-${formatarDuracao(Math.round(SLA_TEMPO_EXECUCAO_SEGUNDOS-h.tempoMedio))}</span>
+              <div class="mover-bar-wrap"><div class="mover-bar pos" style="width:${Math.abs(h.tempoMedio-SLA_TEMPO_EXECUCAO_SEGUNDOS)/maxAbsDeltaHub*100}%;"></div></div>
+            </div>`).join('') || '<div class="help-text" style="margin:0;">Nenhuma operação abaixo do SLA</div>'}</div>
+        </div>
+      </div>
+    </div>
+    <div class="chart-card"><div class="section-title">Tempo médio por dia</div><canvas id="chartTempoBarras"></canvas></div>
+  </div>
+  <div class="card">
+  <div class="section-title">Detalhamento por operação</div>
+  <table><thead><tr><th>Operação</th><th>Analista</th><th>Tempo médio</th><th>Execuções</th></tr></thead><tbody>
+  ${detalhe.map(d=>`<tr><td>${escapeHtml(d.operacao)}</td><td style="cursor:pointer;" data-analista-timeline="${d.analistaId}" title="Ver histórico">${escapeHtml(d.nome)}</td><td class="mono">${tempoBadge(Math.round(d.tempoMedio))}</td><td class="mono">${d.total}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">Sem execuções cronometradas no período</td></tr>'}
+  </tbody></table>
+  </div>`;
+}
+
+function exportarTempo(){
+  const linhas = tempoExportRows.map(r=>[userById(r.analistaId)?.name||'—', r.operacao, r.data, r.hora, formatarDuracao(r.duracaoSegundos), r.duracaoOrigem||'—']);
+  exportarRelatorioExcel(`tempo-execucao_${uiState.tempoFiltro.inicio}_a_${uiState.tempoFiltro.fim}.xlsx`, ['Analista','Operação','Data','Hora','Tempo de execução','Origem'], linhas);
+}
+
+// Mesmo padrão de renderSPRCharts() acima — destrói as instâncias antigas e
+// não faz nada fora da tela de Tempo de Execução. "SLA (1h)" entra como uma
+// segunda linha reta no gráfico de trajetória, mesmo truque do "SPR REF" no
+// gráfico irmão.
+let tempoChartInstances = {};
+function renderTempoCharts(){
+  Object.values(tempoChartInstances).forEach(c=>c.destroy());
+  tempoChartInstances = {};
+  const elLinha = document.getElementById('chartTempoLinha');
+  if(!elLinha || !tempoChartData || typeof Chart === 'undefined') return;
+
+  const isDark = document.documentElement.getAttribute('data-theme')==='dark';
+  const textColor = isDark ? '#9A9DA6' : '#767676';
+  const gridColor = isDark ? '#2E3138' : '#E8E8E8';
+  const slaMin = SLA_TEMPO_EXECUCAO_SEGUNDOS/60;
+  const minutos = seg => Number((seg/60).toFixed(1));
+
+  tempoChartInstances.linha = new Chart(elLinha, {
+    type:'line',
+    data:{ labels: tempoChartData.porDiaAsc.map(d=>d.label), datasets:[
+      { label:'Tempo médio (min)', data: tempoChartData.porDiaAsc.map(d=>minutos(d.tempoMedio)), borderColor:'#2F80ED', backgroundColor:'rgba(47,128,237,0.15)', fill:true, tension:0.3 },
+      { label:'SLA (1h)', data: tempoChartData.porDiaAsc.map(()=>slaMin), borderColor:'#A8A8A8', borderDash:[5,4], pointRadius:0, fill:false },
+    ] },
+    options:{ plugins:{ legend:{ position:'bottom', labels:{ color:textColor } } }, scales:{
+      x:{ ticks:{ color:textColor }, grid:{ display:false } },
+      y:{ ticks:{ color:textColor, callback:v=>v+'min' }, grid:{ color:gridColor } } } }
+  });
+
+  const elGap = document.getElementById('chartTempoGap');
+  if(elGap){
+    const gaps = tempoChartData.porDiaAsc.map(d=>Number((minutos(d.tempoMedio)-slaMin).toFixed(1)));
+    tempoChartInstances.gap = new Chart(elGap, {
+      type:'bar',
+      data:{ labels: tempoChartData.porDiaAsc.map(d=>d.label), datasets:[
+        { label:'Gap pro SLA (min)', data: gaps, backgroundColor: gaps.map(v=> v<=0 ? '#2FAE60' : '#D9362E'), borderRadius:4 },
+      ] },
+      options:{ plugins:{ legend:{ display:false } }, scales:{
+        x:{ ticks:{ color:textColor }, grid:{ display:false } },
+        y:{ ticks:{ color:textColor, callback:v=>v+'min' }, grid:{ color:gridColor } } } }
+    });
+  }
+
+  const elBarras = document.getElementById('chartTempoBarras');
+  if(elBarras){
+    tempoChartInstances.barras = new Chart(elBarras, {
+      type:'bar',
+      data:{ labels: tempoChartData.porDiaAsc.map(d=>d.label), datasets:[
+        { label:'Tempo médio (min)', data: tempoChartData.porDiaAsc.map(d=>minutos(d.tempoMedio)), backgroundColor: tempoChartData.porDiaAsc.map(d=> d.tempoMedio>SLA_TEMPO_EXECUCAO_SEGUNDOS ? '#D9362E' : '#2F80ED'), borderRadius:4 },
+      ] },
+      options:{ plugins:{ legend:{ display:false } }, scales:{
+        x:{ ticks:{ color:textColor }, grid:{ display:false } },
+        y:{ ticks:{ color:textColor, callback:v=>v+'min' }, grid:{ color:gridColor } } } }
+    });
+  }
+}
+
+function tempoAnalistaPicker(myAnalistas){
+  const flt = uiState.tempoFiltro;
+  return `<div class="multiselect">
+      <button type="button" class="multiselect-btn" id="btnTempoAnalistaToggle">
+        <span>${flt.analistas.length===0 ? 'Todos os analistas' : `${flt.analistas.length} analista(s) selecionado(s)`}</span>
+        <span>▾</span>
+      </button>
+      ${uiState.tempoAnalistaDropdownOpen ? `
+      <div class="multiselect-panel">
+        <label><input type="checkbox" id="tempoAnalistaTodos" ${flt.analistas.length===0?'checked':''}> <b>Todos</b></label>
+        <div class="msep"></div>
+        ${myAnalistas.map(a=>`<label><input type="checkbox" class="tempoAnalistaChk" value="${a.id}" ${flt.analistas.includes(a.id)?'checked':''}> ${escapeHtml(a.name)}</label>`).join('') || '<div class="help-text" style="margin:6px 8px;">Nenhum analista cadastrado</div>'}
+      </div>` : ''}
+    </div>`;
+}
+
+function supTempoExecucao(myAnalistas){
+  const flt = uiState.tempoFiltro;
+  const selecionados = flt.analistas.length ? myAnalistas.filter(a=>flt.analistas.includes(a.id)) : myAnalistas;
+  return tempoExecucaoBody(selecionados, tempoAnalistaPicker(myAnalistas));
 }
 
 // Mesmo padrão de renderMetricasCharts() — destrói as instâncias antigas e

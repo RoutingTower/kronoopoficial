@@ -1,5 +1,40 @@
 /* Telas do papel Analista: programação, caixa de entrada e lembretes. */
 
+// Tempo de Execução — área de ação do flashcard, com 5 estados possíveis:
+// 1) já finalizado (raio-x existe) — mostra o resumo, com a duração;
+// 2) cronômetro rodando (clicou Iniciar) — timer ao vivo + Finalizar;
+// 3) liberado manual pelo supervisor (esqueceu de iniciar) — Finalizar pede
+//    início/fim digitados;
+// 4) janela de Iniciar fechada (passou 1h do horário, nunca iniciou) —
+//    trava, pede pra contatar o supervisor;
+// 5) dentro da janela (de 1h antes até 1h depois do horário), sem nada
+//    ainda — botão Iniciar.
+function renderExecucaoActions(it, dateStr, analistaId, sprMeta){
+  const raiox = DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===it.horaInicio && r.data===dateStr);
+  if(raiox){
+    const duracaoHtml = raiox.duracaoSegundos!=null
+      ? ` · ⏱ ${formatarDuracao(raiox.duracaoSegundos)}${raiox.duracaoSegundos>SLA_TEMPO_EXECUCAO_SEGUNDOS ? ' <span style="color:var(--alert);font-weight:600;">acima do SLA</span>' : ''}`
+      : '';
+    return `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}${raiox.semRoteirizacao ? ' · Sem roteirização' : raiox.sprRoteirizado!=null ? ` · SPR lançado ${escapeHtml(String(raiox.sprRoteirizado))}` : ''}${duracaoHtml}</div>`;
+  }
+  const dataAttrs = `data-finalizar-op="${escapeHtml(it.operacao)}" data-hora="${it.horaInicio}" data-data="${dateStr}" data-ciclo="${escapeHtml(it.ciclo)}" data-spr-meta="${sprMeta!=null?sprMeta:''}"`;
+  const exec = execucaoInicioPara(analistaId, it.operacao, it.ciclo, it.horaInicio, dateStr);
+  if(exec && exec.iniciadoEm!=null){
+    return `<div class="timer-live" data-timer-desde="${exec.iniciadoEm}">
+        <span class="timer-dot"></span><span class="timer-num mono">00:00</span><span class="timer-tag">em andamento</span>
+      </div>
+      <div class="flash-actions"><button class="btn btn-brand" ${dataAttrs}>■ Finalizar operação</button></div>`;
+  }
+  if(exec && exec.liberadoManual){
+    return `<div class="flash-meta" style="color:var(--folga);font-weight:600;">🔓 Liberado pelo supervisor — informe início e fim ao finalizar</div>
+      <div class="flash-actions"><button class="btn btn-brand" ${dataAttrs} data-manual="1">■ Finalizar operação</button></div>`;
+  }
+  if(janelaIniciarFechada(dateStr, it.horaInicio)){
+    return `<div class="flash-meta" style="color:var(--alert);font-weight:600;">🔒 Não iniciado — contate seu supervisor pra liberar o preenchimento</div>`;
+  }
+  return `<div class="flash-actions"><button class="btn btn-brand" data-iniciar-op="${escapeHtml(it.operacao)}" data-hora="${it.horaInicio}" data-data="${dateStr}" data-ciclo="${escapeHtml(it.ciclo)}">▶ Iniciar operação</button></div>`;
+}
+
 // showLembretes só é true na própria Programação do analista (renderAnalista) —
 // a "Programação Analista" do supervisor reusa esta mesma função pra ver a
 // rota de qualquer analista da equipe, e lembretes são um to-do pessoal
@@ -63,12 +98,7 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
       return `<div ${colAttrs}><div class="flash-time">${horaLabel}</div><div class="flash-card off"><div style="color:var(--text-faint);font-size:12px;">Sem operação</div></div></div>`;
     }
     let cardsHtml = items.map(it=>{
-      // status!=='wait' controla a exibição de "Finalizar operação" logo
-      // abaixo — sem essa checagem dava pra finalizar uma operação que
-      // ainda nem começou (horário futuro do próprio dia, ou navegando a
-      // agenda pra um dia futuro), gravando um Raio-X pra data/hora errada.
       const status = computeStatus(hour, dateStr, analistaId, it.operacao, it.isOff);
-      const raiox = DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===it.horaInicio && r.data===dateStr);
       const spr = getSPR(supervisorId, it.operacao, it.ciclo);
       // "Ciente" da particularidade é por analista+operação+data (uma
       // cobertura específica), não pela nota em si (que é compartilhada) —
@@ -76,6 +106,13 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
       // está olhando (ex.: supervisor na Programação Analista), mas só quem
       // está cobrindo consegue de fato confirmar (ver events.js).
       const ciente = it.isCobertura && DB.particularidadeCiente.some(c=>c.analistaId===analistaId && c.operacao===it.operacao && c.data===dateStr);
+      // Tempo de Execução (Iniciar/Finalizar) só é meu de verdade — a
+      // "Programação Analista" do supervisor reusa esta função pra ver a
+      // rota de qualquer analista, e ninguém aciona cronômetro alheio.
+      // podeIniciarOperacao (não status!=='wait') controla a janela: libera
+      // 1h antes do horário, então precisa aparecer mesmo com o slot ainda
+      // "A Iniciar" pela contagem normal.
+      const souEuExec = !it.isOff && analistaId===session?.userId && podeIniciarOperacao(dateStr, it.horaInicio);
       return `<div class="flash-card flash-card-${categoriaOperacao(it)}${status==='atraso'?' flash-card-atraso':''}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
           <span class="flash-sigla">${it.operacao}</span>${statusPill(status, true)}
@@ -84,9 +121,7 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
         <div class="flash-meta">${it.isSuplente ? 'Suplente' : 'Titular'}: ${it.responsavelNome}</div>
         ${it.isOff ? `<div class="flash-cover">${it.tipo==='ferias'?'🏖️ Férias':'🌙 Folga'} do titular</div>`
           : it.isCobertura ? `<div class="flash-cover">🔁 Cobrindo ${it.tipo==='ferias'?'férias':'folga'} de ${it.responsavelNome}</div>` : ''}
-        ${!it.isOff && analistaId===session?.userId && status!=='wait' ? (raiox ? `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}${raiox.semRoteirizacao ? ' · Sem roteirização' : raiox.sprRoteirizado!=null ? ` · SPR lançado ${escapeHtml(String(raiox.sprRoteirizado))}` : ''}</div>` : `<div class="flash-actions">
-            <button class="btn btn-brand" data-finalizar-op="${it.operacao}" data-hora="${it.horaInicio}" data-data="${dateStr}" data-ciclo="${it.ciclo}" data-spr-meta="${spr!=null?spr:''}">Finalizar operação</button>
-          </div>`) : ''}
+        ${souEuExec ? renderExecucaoActions(it, dateStr, analistaId, spr) : ''}
         <div class="flash-actions" style="margin-top:8px;">
           <button class="btn btn-particularidade" data-particularidade-op="${escapeHtml(it.operacao)}" data-particularidade-sup="${supervisorId||''}" data-particularidade-cobertura="${it.isCobertura?'1':'0'}" data-particularidade-analista="${analistaId}" data-particularidade-data="${dateStr}" data-ciente="${ciente?'1':'0'}">⚙️ Ver Particularidade${(it.isCobertura && !ciente) ? '<span class="badge-alerta-ciente" title="Ainda sem confirmação de ciência"></span>' : ''}</button>
         </div>
@@ -348,6 +383,18 @@ function renderAnalista(){
   // filtrarSlotsAgenda), mas a definição vale pra qualquer dia da semana.
   const proxFolga = proximaOcorrencia(d=> isFolgaDSR(session.userId, d), 90);
 
+  // Tira de foco no topo (SPR + Tempo de Execução, últimos 30 dias, mesma
+  // janela padrão do Resultado SPR/Tempo de Execução) — os dois indicadores
+  // da área, pra não precisar sair da própria Programação pra ver "como eu
+  // tô indo". O resto da tela (operações do dia, coberturas) continua igual.
+  const janela30 = addDaysISO(todayISO(), -30);
+  const raioxRecente = DB.raioX.filter(r=>r.analistaId===session.userId && (r.data||'')>=janela30);
+  const comMetaRecente = raioxRecente.filter(r=>r.sprMeta!=null);
+  const sprLancadoMedio = comMetaRecente.length ? comMetaRecente.reduce((s,r)=>s+r.sprRoteirizado,0)/comMetaRecente.length : null;
+  const sprRefMedio = comMetaRecente.length ? comMetaRecente.reduce((s,r)=>s+r.sprMeta,0)/comMetaRecente.length : null;
+  const comTempoRecente = raioxRecente.filter(r=>r.duracaoSegundos!=null);
+  const tempoMedioRecente = comTempoRecente.length ? comTempoRecente.reduce((s,r)=>s+r.duracaoSegundos,0)/comTempoRecente.length : null;
+
   return `
   ${plantaoBannerFor(session.userId, dateStr)}
   ${passagemBastaoBannerFor(session.userId, dateStr)}
@@ -360,6 +407,16 @@ function renderAnalista(){
       <button data-view="diaria" class="${uiState.analistaView==='diaria'?'active':''}">Diária</button>
       <button data-view="semanal" class="${uiState.analistaView==='semanal'?'active':''}">Semanal</button>
       <button data-view="mensal" class="${uiState.analistaView==='mensal'?'active':''}">Mensal</button>
+    </div>
+  </div>
+  <div class="grid-2" style="margin-bottom:14px;">
+    <div class="stat-card">
+      <div class="stat-num">${sprLancadoMedio!=null ? sprLancadoMedio.toFixed(1) : '—'}</div>
+      <div class="stat-label">🎯 SPR Lançado${sprRefMedio!=null?` <span style="color:var(--text-faint);">(REF ${sprRefMedio.toFixed(1)})</span>`:''} <span style="color:var(--text-faint);">· 30 dias</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:${tempoMedioRecente!=null && tempoMedioRecente>SLA_TEMPO_EXECUCAO_SEGUNDOS?'var(--alert)':'var(--done)'};">${tempoMedioRecente!=null ? formatarDuracao(Math.round(tempoMedioRecente)) : '—'}</div>
+      <div class="stat-label">⏳ Tempo médio de execução <span style="color:var(--text-faint);">(SLA 1h · 30 dias)</span></div>
     </div>
   </div>
   ${renderGamificacao(session.userId)}
@@ -502,6 +559,14 @@ function renderFeedbackAnalista(){
 function analistaResultadoSPR(){
   const me = userById(session.userId);
   return sprResultadoBody([me], '');
+}
+
+// Mesmo núcleo de Tempo de Execução do supervisor/coordenador
+// (tempoExecucaoBody, em render-supervisor.js), sempre escopado ao próprio
+// analista.
+function analistaTempoExecucao(){
+  const me = userById(session.userId);
+  return tempoExecucaoBody([me], '');
 }
 
 

@@ -52,6 +52,7 @@ function renderCoordenador(){
   else if(activeNavKey==='anomalias') content = coordAnomalias();
   else if(activeNavKey==='metricas') content = coordMetricas();
   else if(activeNavKey==='resultadospr') content = coordResultadoSPR();
+  else if(activeNavKey==='tempoexecucao') content = coordTempoExecucao();
   return `<div class="page-head"><div><h1 class="page-title">${tabLabel}</h1><div class="page-desc">Visão executiva de toda a operação</div></div></div>${content}`;
 }
 
@@ -101,6 +102,29 @@ function coordResultadoSPR(){
       </div>` : ''}
     </div>`;
   return sprResultadoBody(selecionados, picker);
+}
+
+// Mesmo núcleo de Tempo de Execução do supervisor (tempoExecucaoBody, em
+// render-supervisor.js), filtrando por Supervisor em vez de Analista.
+function coordTempoExecucao(){
+  const flt = uiState.tempoFiltro;
+  const sups = usersByRole('supervisor');
+  const supsSelecionados = flt.supervisores.length ? sups.filter(s=>flt.supervisores.includes(s.id)) : sups;
+  const supIds = supsSelecionados.map(s=>s.id);
+  const selecionados = DB.users.filter(u=>u.role==='analista' && supIds.includes(u.supervisorId));
+  const picker = `<div class="multiselect">
+      <button type="button" class="multiselect-btn" id="btnTempoSupervisorToggle">
+        <span>${flt.supervisores.length===0 ? 'Todos os supervisores' : `${flt.supervisores.length} supervisor(es) selecionado(s)`}</span>
+        <span>▾</span>
+      </button>
+      ${uiState.tempoSupervisorDropdownOpen ? `
+      <div class="multiselect-panel">
+        <label><input type="checkbox" id="tempoSupervisorTodos" ${flt.supervisores.length===0?'checked':''}> <b>Todos</b></label>
+        <div class="msep"></div>
+        ${sups.map(s=>`<label><input type="checkbox" class="tempoSupervisorChk" value="${s.id}" ${flt.supervisores.includes(s.id)?'checked':''}> ${escapeHtml(s.name)}</label>`).join('') || '<div class="help-text" style="margin:6px 8px;">Nenhum supervisor cadastrado</div>'}
+      </div>` : ''}
+    </div>`;
+  return tempoExecucaoBody(selecionados, picker);
 }
 
 // Reexecuta a classificação (mesma de metricasBody, em render-supervisor.js)
