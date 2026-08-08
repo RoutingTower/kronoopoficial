@@ -475,10 +475,13 @@ function bindMainEvents(){
     };
   });
 
-  const btnNovaSuplencia = document.getElementById('btnNovaSuplencia');
-  if(btnNovaSuplencia) btnNovaSuplencia.addEventListener('click', ()=>{
+  // Nova cobertura avulsa — "Nova cobertura avulsa" lança tipo folga
+  // (comportamento de sempre) e "Cobertura de férias" lança tipo férias;
+  // mesmo modal pros dois, só muda o tipo gravado.
+  function abrirModalNovaSuplencia(tipo){
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
-    openModal(`<h3>Nova cobertura avulsa</h3>
+    const titulo = tipo==='ferias' ? 'Nova cobertura avulsa — Férias' : 'Nova cobertura avulsa';
+    openModal(`<h3>${titulo}</h3>
       <div class="field"><label>Analista original (quem está sendo coberto)</label><select id="fOrig">${myAnalistas.map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}</select></div>
       <div class="field"><label>Suplente</label><select id="fSup">${myAnalistas.map(a=>`<option value="${a.name}">${a.name}</option>`).join('')}</select></div>
       <div class="grid-2"><div class="field"><label>Operação</label><input id="fOp2" placeholder="ex: COL-B"></div>
@@ -496,14 +499,18 @@ function bindMainEvents(){
       const analistaOriginalId = document.getElementById('fOrig').value;
       const entrada = {operacao:document.getElementById('fOp2').value||'OP', ciclo:document.getElementById('fCiclo2').value||'T3',
         horaInicio:document.getElementById('fHi2').value, horaFim:document.getElementById('fHf2').value,
-        suplente:document.getElementById('fSup').value||'—', dataCobertura:document.getElementById('fData').value, analistaOriginalId};
+        suplente:document.getElementById('fSup').value||'—', dataCobertura:document.getElementById('fData').value, analistaOriginalId, tipo};
       try{
         const novo = await apiCreateSuplencia(entrada);
         DB.suplencias.push(novo);
         closeModal(); renderMain();
       }catch(e){ alert('Não foi possível salvar: '+e.message); }
     };
-  });
+  }
+  const btnNovaSuplencia = document.getElementById('btnNovaSuplencia');
+  if(btnNovaSuplencia) btnNovaSuplencia.addEventListener('click', ()=> abrirModalNovaSuplencia('folga'));
+  const btnNovaSuplenciaFerias = document.getElementById('btnNovaSuplenciaFerias');
+  if(btnNovaSuplenciaFerias) btnNovaSuplenciaFerias.addEventListener('click', ()=> abrirModalNovaSuplencia('ferias'));
 
   main.querySelectorAll('[data-gradefilter]').forEach(sel=>{
     sel.addEventListener('change', ()=>{ uiState.gradeFilters[sel.dataset.gradefilter] = sel.value; renderMain(); });
@@ -1253,6 +1260,10 @@ function bindMainEvents(){
       if(!s) return;
       openModal(`<h3>Editar cobertura avulsa</h3>
         <div class="help-text">Cobrindo: ${userById(s.analistaOriginalId)?.name||'—'}</div>
+        <div class="field"><label>Tipo</label><select id="fEditSupTipo">
+          <option value="folga" ${(s.tipo||'folga')==='folga'?'selected':''}>Folga</option>
+          <option value="ferias" ${s.tipo==='ferias'?'selected':''}>Férias</option>
+        </select></div>
         <div class="field"><label>Suplente</label><select id="fEditSupSuplente">${myAnalistas.map(a=>`<option value="${a.name}" ${a.name===s.suplente?'selected':''}>${a.name}</option>`).join('')}</select></div>
         <div class="grid-2"><div class="field"><label>Operação</label><input id="fEditSupOp" value="${s.operacao}"></div>
         <div class="field"><label>Ciclo</label><input id="fEditSupCiclo" value="${s.ciclo||'T3'}"></div></div>
@@ -1273,6 +1284,7 @@ function bindMainEvents(){
           horaFim: document.getElementById('fEditSupHf').value,
           suplente: document.getElementById('fEditSupSuplente').value,
           dataCobertura: document.getElementById('fEditSupData').value,
+          tipo: document.getElementById('fEditSupTipo').value,
         };
         try{
           const atualizado = await apiUpdateSuplencia(s.id, patch);

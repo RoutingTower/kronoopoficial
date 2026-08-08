@@ -207,7 +207,8 @@ create table suplencias (
   hora_fim              text not null,
   suplente              text not null,
   data_cobertura        date not null,
-  analista_original_id  uuid not null references users(id)
+  analista_original_id  uuid not null references users(id),
+  tipo                  text not null default 'folga'
 );
 create index idx_suplencias_analista_original on suplencias(analista_original_id);
 

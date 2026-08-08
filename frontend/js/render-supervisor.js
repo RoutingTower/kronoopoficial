@@ -170,7 +170,9 @@ function supSuplencias(myAnalistas){
   const suplenciaRows = DB.suplencias.filter(s=>ids.includes(s.analistaOriginalId)).map(s=>({
     source:'suplencia', id:s.id, operacao:s.operacao, ciclo:s.ciclo, horaInicio:s.horaInicio, horaFim:s.horaFim,
     data:s.dataCobertura, folgandoId:s.analistaOriginalId, folgandoNome:userById(s.analistaOriginalId)?.name||'—',
-    suplenteNome:s.suplente||'—', tipo:'cobertura',
+    // Sem "tipo" próprio até a migração rodar (coluna nova) — trata como
+    // folga, igual sempre foi tratada antes de existir a distinção.
+    suplenteNome:s.suplente||'—', tipo:s.tipo||'folga',
   }));
   const ausenciaRows = DB.ausencias.filter(a=>ids.includes(a.analistaId)).map(a=>({
     source:'ausencia', id:a.id, operacao:a.operacao, ciclo:a.ciclo, horaInicio:a.horaInicio, horaFim:a.horaFim,
@@ -190,9 +192,9 @@ function supSuplencias(myAnalistas){
   );
   const suplentesUnicos = [...new Set(allRows.map(s=>s.suplenteNome))].filter(Boolean).sort();
 
-  const tipoBadge = tipo => tipo==='ferias' ? `<span style="color:var(--folga);font-weight:600;white-space:nowrap;">🏖️ Férias</span>`
-    : tipo==='folga' ? `<span style="color:var(--folga);font-weight:600;white-space:nowrap;">🌙 Folga</span>`
-    : `<span style="color:var(--wait);font-weight:600;white-space:nowrap;">🔁 Avulsa</span>`;
+  const tipoBadge = tipo => tipo==='ferias'
+    ? `<span style="color:var(--folga);font-weight:600;white-space:nowrap;">🏖️ Férias</span>`
+    : `<span style="color:var(--folga);font-weight:600;white-space:nowrap;">🌙 Folga</span>`;
 
   return `
   <div class="section-title">Cobertura</div>
@@ -201,7 +203,8 @@ function supSuplencias(myAnalistas){
     <button class="btn" id="btnBaixarModeloSuplencia">⭳ Baixar modelo Excel</button>
     <label class="btn" style="margin:0;">⭱ Importar Excel<input type="file" accept=".xlsx,.xls" id="fileImportSuplencia" style="display:none;"></label>
   </div>
-  <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+  <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:14px;">
+    <button class="btn" id="btnNovaSuplenciaFerias">🏖️ Cobertura de férias</button>
     <button class="btn btn-brand" id="btnNovaSuplencia">+ Nova cobertura avulsa</button>
   </div>
   <div class="filter-row">
