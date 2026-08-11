@@ -304,7 +304,7 @@ function supGerarEscalaDomingo(myAnalistas){
 
   return `
   <div class="section-title">Gerar Escala de Domingo</div>
-  <div class="help-text">Informe a data e quem foi escalado pra trabalhar. O sistema monta a escala do dia inteiro: até 5 operações por pessoa, priorizando a carteira própria de cada um (🏠) e completando com hubs de quem não vai trabalhar, sem passar de 8h de turno.</div>
+  <div class="help-text">Informe a data e quem foi escalado pra trabalhar. O sistema monta a escala do dia inteiro: até 5 operações por pessoa, priorizando a carteira própria de cada um (🏠), equilibrando o total entre todos e variando o estado (UF) dos hubs extras, sem passar de 8h de turno.</div>
   <div class="card" style="margin-bottom:22px;">
     <div class="grid-2">
       <div class="field" style="margin-bottom:0;"><label>Data</label><input type="date" id="escalaDomDataInput" value="${dataStr}"></div>

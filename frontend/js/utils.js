@@ -544,6 +544,15 @@ function candidatosParaSlot(myAnalistas, titularId, bm, dataStr){
 }
 
 
+// UF embutida no nome do hub — sempre "LM Hub_UF_Cidade..." (92/92 hubs
+// reais seguem esse padrão). Usado só pra diversificar a escala de domingo
+// (gerarEscalaDomingo), sem valor de fallback especial se não bater —
+// hubs sem esse padrão simplesmente não contam pra diversidade de ninguém.
+function ufDaOperacao(operacao){
+  const m = /^LM Hub_([A-Za-z]{2})_/.exec(operacao||'');
+  return m ? m[1].toUpperCase() : '';
+}
+
 // Todos os hubs (Base Mestra) que rodam numa data, com o horário já
 // convertido pra timestamp real (cruza meia-noite corretamente pra
 // turnos de madrugada, ver slotTimestamp) — usado pelo Gerar Escala de
@@ -568,12 +577,15 @@ const ESCALA_DOMINGO_MAX_JORNADA_MS = 8*60*60*1000;
 //
 // Prioridade 1: cada escalado recebe as operações que já são da carteira
 // dele (Base Mestra), se caírem nessa data — são as que ele já conhece.
-// Prioridade 2: o que sobra é distribuído priorizando quem tem menos
-// operações até agora (pra fechar todo mundo perto de 5, em vez de
-// sobrecarregar os primeiros), usando o encaixe de horário mais justo
-// (menor crescimento da janela do turno) como critério de desempate.
-// Hubs que não couberem em ninguém (capacidade ou janela de horário
-// esgotada) voltam em naoCobertos, pro supervisor resolver manualmente.
+// Prioridade 2: o que sobra é distribuído priorizando, nessa ordem: (a)
+// quem tem menos operações até agora (pra fechar todo mundo perto de 5,
+// em vez de sobrecarregar os primeiros), (b) UF diferente das que a
+// pessoa já pegou (própria carteira + extras já atribuídos) — evita
+// empilhar hub do mesmo estado que ela já roteiriza — e por fim (c) o
+// encaixe de horário mais justo (menor crescimento da janela do turno)
+// como desempate final. Hubs que não couberem em ninguém (capacidade ou
+// janela de horário esgotada) voltam em naoCobertos, pro supervisor
+// resolver manualmente.
 function gerarEscalaDomingo(escaladoIds, dateStr){
   const hubs = hubsParaData(dateStr);
   const jaCoberto = new Set(
@@ -584,7 +596,7 @@ function gerarEscalaDomingo(escaladoIds, dateStr){
 
   const escalados = escaladoIds.map(id=>{
     const u = userById(id);
-    return { id, name: u?.name || '—', assigned: [], minStart: null, maxEnd: null };
+    return { id, name: u?.name || '—', assigned: [], minStart: null, maxEnd: null, ufs: new Set() };
   });
   const porId = new Map(escalados.map(e=>[e.id, e]));
 
@@ -599,6 +611,7 @@ function gerarEscalaDomingo(escaladoIds, dateStr){
     e.assigned.push(hub);
     e.minStart = e.minStart===null ? hub.startMs : Math.min(e.minStart, hub.startMs);
     e.maxEnd = e.maxEnd===null ? hub.endMs : Math.max(e.maxEnd, hub.endMs);
+    e.ufs.add(ufDaOperacao(hub.operacao));
   }
 
   const restantes = [];
@@ -613,8 +626,11 @@ function gerarEscalaDomingo(escaladoIds, dateStr){
   restantes.forEach(hub=>{
     const elegiveis = escalados.filter(e=>cabe(e, hub));
     if(elegiveis.length===0){ naoCobertos.push(hub); return; }
+    const ufHub = ufDaOperacao(hub.operacao);
     elegiveis.sort((a,b)=>{
       if(a.assigned.length !== b.assigned.length) return a.assigned.length - b.assigned.length;
+      const repeteUfA = a.ufs.has(ufHub) ? 1 : 0, repeteUfB = b.ufs.has(ufHub) ? 1 : 0;
+      if(repeteUfA !== repeteUfB) return repeteUfA - repeteUfB;
       const spanA = a.minStart===null ? 0 : Math.max(a.maxEnd, hub.endMs) - Math.min(a.minStart, hub.startMs);
       const spanB = b.minStart===null ? 0 : Math.max(b.maxEnd, hub.endMs) - Math.min(b.minStart, hub.startMs);
       return spanA - spanB;
