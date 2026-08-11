@@ -74,6 +74,12 @@ let uiState = {
   escalaDomData: null,
   escalaDomSelecionados: [],
   escalaDomResultado: null,
+  // Formulários (Convocações) — supervisor: form de nova/editar aberto +
+  // quais respostas estão expandidas na lista. Ver render-supervisor.js/
+  // render-analista.js (formulariosScreen) e events.js.
+  formulariosEditingId: null,
+  formulariosShowNew: false,
+  formulariosExpanded: {},
   // Linhas de importação em massa (Excel) cujo nome de analista não bateu
   // com ninguém da equipe — { tipo:'basemestra'|'suplencias', items:[...] }.
   // Mostrado como banner no topo da tela até o supervisor resolver ou
@@ -114,7 +120,7 @@ let _loadDBInFlight = null;
 async function loadDB(){
   if(_loadDBInFlight) return _loadDBInFlight;
   _loadDBInFlight = (async ()=>{
-    const [users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, execucaoInicio] = await Promise.all([
+    const [users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, execucaoInicio, formularios, formularioRespostas] = await Promise.all([
       apiRequest('GET', '/users'),
       apiRequest('GET', '/base-mestra'),
       apiRequest('GET', '/suplencias'),
@@ -130,8 +136,10 @@ async function loadDB(){
       apiRequest('GET', '/particularidade-ciente'),
       apiRequest('GET', '/reuniao-presenca'),
       apiRequest('GET', '/execucao-inicio'),
+      apiRequest('GET', '/formularios'),
+      apiRequest('GET', '/formulario-respostas'),
     ]);
-    DB = { users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, execucaoInicio };
+    DB = { users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, execucaoInicio, formularios, formularioRespostas };
   })();
   try{ await _loadDBInFlight; }
   finally{ _loadDBInFlight = null; }
@@ -220,6 +228,14 @@ const apiDeleteSuplencia = (id) => apiRequest('DELETE', `/suplencias/${id}`);
 const apiCreateRecado = (data) => apiRequest('POST', '/recados', data);
 const apiUpdateRecado = (id, patch) => apiRequest('PATCH', `/recados/${id}`, patch);
 const apiDeleteRecado = (id) => apiRequest('DELETE', `/recados/${id}`);
+
+// formularios (Convocações)
+const apiCreateFormulario = (data) => apiRequest('POST', '/formularios', data);
+const apiUpdateFormulario = (id, patch) => apiRequest('PATCH', `/formularios/${id}`, patch);
+const apiDeleteFormulario = (id) => apiRequest('DELETE', `/formularios/${id}`);
+const apiEnviarResposta = (formularioId, payload) => apiRequest('POST', '/formulario-respostas', { formularioId, payload });
+const apiAprovarFerias = (respostaId) => apiRequest('POST', `/formulario-respostas/${respostaId}/aprovar`, {});
+const apiRecusarFerias = (respostaId, motivo) => apiRequest('POST', `/formulario-respostas/${respostaId}/recusar`, { motivo });
 
 // reunioes
 const apiCreateReuniao = (data) => apiRequest('POST', '/reunioes', data);

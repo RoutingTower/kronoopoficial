@@ -250,6 +250,56 @@ function proximoDomingoISO(fromDateStr){
   return d;
 }
 
+// Formulários (Convocações): status calculado, nunca guardado — mesma
+// lógica do backend (statusFormulario, formularios.controller.js).
+// Pausado manualmente vence a janela programada; fora isso é só relógio.
+function formularioStatus(f){
+  if(!f.ativoManual) return 'pausado';
+  const agora = Date.now();
+  if(agora < f.abertura) return 'agendado';
+  if(agora > f.fechamento) return 'encerrado';
+  return 'aberto';
+}
+const FORMULARIO_STATUS_LABEL = {aberto:'Aberto agora', agendado:'Agendado', pausado:'Pausado', encerrado:'Encerrado'};
+const FORMULARIO_TIPO_LABEL = {
+  domingo_voluntariado: '📅 Voluntariado de domingo',
+  folga_escolha: '🏖️ Escolha de folga',
+  reconhecimento_mensal: '🌟 Reconhecimento mensal',
+  ferias_solicitacao: '🧳 Solicitação de férias',
+};
+
+const WEEKDAY_ABBR = {dom:'dom',seg:'seg',ter:'ter',qua:'qua',qui:'qui',sex:'sex',sab:'sáb'};
+function fmtDataCurta(iso){
+  const d = new Date(iso+'T00:00:00');
+  const dd = String(d.getDate()).padStart(2,'0'), mm = String(d.getMonth()+1).padStart(2,'0');
+  return `${WEEKDAY_ABBR[WEEKDAYS[d.getDay()]]} ${dd}/${mm}`;
+}
+
+function sundaysInRange(inicio, fim){
+  const out=[]; let d=inicio;
+  while(d<=fim){ if(isDomingo(d)) out.push(d); d=addDaysISO(d,1); }
+  return out;
+}
+function daysInRange(inicio, fim){
+  const out=[]; let d=inicio;
+  while(d<=fim){ out.push(d); d=addDaysISO(d,1); }
+  return out;
+}
+
+function minhaRespostaFormulario(formularioId, analistaId){
+  return DB.formularioRespostas.find(r=>r.formularioId===formularioId && r.analistaId===analistaId);
+}
+
+// bigint (epoch ms, formato salvo no banco) <-> valor de <input
+// type="datetime-local"> (sempre em horário local, sem timezone no texto —
+// por isso `new Date(valorDoInput).getTime()` já basta pro sentido inverso).
+function msParaDatetimeLocal(ms){
+  if(!ms) return '';
+  const d = new Date(ms);
+  const pad = n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 // Analista escalado em plantão numa data — reaproveita o cadastro de
 // Plantão da aba Eventos (DB.plantoes: data + cargo + nome do plantonista,
 // ver supPlantao()/events.js). Esse cadastro nasceu pra cobrir a AUSÊNCIA

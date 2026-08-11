@@ -83,6 +83,62 @@ function wireEscalaDomModal(myAnalistas){
   document.getElementById('btnFecharEscalaDomModal').onclick = ()=>{ closeModal(); renderMain(); };
 }
 
+// Formulários (Convocações): form de criar/editar (ver formularioFormHtml,
+// render-supervisor.js) — reaproveitado pra "newf" (nova) e "editf-{id}"
+// (edição), diferenciados só pelo prefix e por editingFormulario ser null
+// ou não. tipo não é editável depois de criado (mudaria o formato das
+// respostas já enviadas).
+function wireFormularioForm(prefix, editingFormulario){
+  const tipoSel = document.getElementById(`${prefix}-tipo`);
+  if(!tipoSel) return;
+  const periodoWrap = document.getElementById(`${prefix}-periodoWrap`);
+  const limiteWrap = document.getElementById(`${prefix}-limiteWrap`);
+  const ajuda = document.getElementById(`${prefix}-ajuda`);
+  tipoSel.addEventListener('change', ()=>{
+    const usaPeriodo = tipoSel.value==='domingo_voluntariado' || tipoSel.value==='folga_escolha';
+    periodoWrap.style.display = usaPeriodo ? '' : 'none';
+    limiteWrap.style.display = tipoSel.value==='folga_escolha' ? '' : 'none';
+    ajuda.textContent = formularioAjudaTexto(tipoSel.value);
+  });
+  document.getElementById(`${prefix}-cancelar`).onclick = ()=>{
+    uiState.formulariosShowNew = false;
+    uiState.formulariosEditingId = null;
+    renderMain();
+  };
+  document.getElementById(`${prefix}-salvar`).onclick = async ()=>{
+    const tipo = tipoSel.value;
+    const usaPeriodo = tipo==='domingo_voluntariado' || tipo==='folga_escolha';
+    const abertura = new Date(document.getElementById(`${prefix}-abertura`).value).getTime();
+    const fechamento = new Date(document.getElementById(`${prefix}-fechamento`).value).getTime();
+    if(!abertura || !fechamento || fechamento<=abertura){
+      alert('Confira a janela — o fechamento precisa ser depois da abertura.');
+      return;
+    }
+    const dados = {
+      tipo,
+      titulo: document.getElementById(`${prefix}-titulo`).value.trim() || 'Convocação sem título',
+      descricao: document.getElementById(`${prefix}-descricao`).value.trim(),
+      abertura, fechamento,
+      periodoInicio: usaPeriodo ? (document.getElementById(`${prefix}-periodoInicio`).value || null) : null,
+      periodoFim: usaPeriodo ? (document.getElementById(`${prefix}-periodoFim`).value || null) : null,
+      limitePorDia: tipo==='folga_escolha' ? (Number(document.getElementById(`${prefix}-limite`).value) || 1) : null,
+    };
+    try{
+      if(editingFormulario){
+        const { tipo: _tipoIgnorado, ...patch } = dados;
+        const atualizado = await apiUpdateFormulario(editingFormulario.id, patch);
+        DB.formularios = DB.formularios.map(f=>f.id===editingFormulario.id ? atualizado : f);
+        uiState.formulariosEditingId = null;
+      } else {
+        const novo = await apiCreateFormulario(dados);
+        DB.formularios.push(novo);
+        uiState.formulariosShowNew = false;
+      }
+      renderMain();
+    }catch(e){ alert('Não foi possível salvar: '+e.message); }
+  };
+}
+
 function bindMainEvents(){
   const main = document.getElementById('mainArea');
 
@@ -881,6 +937,111 @@ function bindMainEvents(){
     uiState.escalaDomResultado = null;
     renderMain();
     alert(`${ok} cobertura(s) lançada(s) com sucesso.${fail?` ${fail} falharam.`:''}`);
+  });
+
+  // Formulários (Convocações) — supervisor: criar/editar/pausar/excluir/ver
+  // respostas + aprovar-recusar férias.
+  const btnNovoFormulario = document.getElementById('btnNovoFormulario');
+  if(btnNovoFormulario) btnNovoFormulario.addEventListener('click', ()=>{
+    uiState.formulariosShowNew = !uiState.formulariosShowNew;
+    uiState.formulariosEditingId = null;
+    renderMain();
+  });
+  wireFormularioForm('newf', null);
+  DB.formularios.forEach(f=>{
+    if(uiState.formulariosEditingId===f.id) wireFormularioForm(`editf-${f.id}`, f);
+  });
+  main.querySelectorAll('.chk-formulario-ativo').forEach(chk=>{
+    chk.addEventListener('change', async ()=>{
+      try{
+        const atualizado = await apiUpdateFormulario(chk.dataset.id, { ativoManual: chk.checked });
+        DB.formularios = DB.formularios.map(x=>x.id===chk.dataset.id ? atualizado : x);
+      }catch(e){ alert('Não foi possível atualizar: '+e.message); }
+      renderMain();
+    });
+  });
+  main.querySelectorAll('.btn-editar-formulario').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      uiState.formulariosEditingId = uiState.formulariosEditingId===btn.dataset.id ? null : btn.dataset.id;
+      uiState.formulariosShowNew = false;
+      renderMain();
+    });
+  });
+  main.querySelectorAll('.btn-excluir-formulario').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(!confirm('Excluir esta convocação? As respostas já enviadas também são apagadas.')) return;
+      try{
+        await apiDeleteFormulario(btn.dataset.id);
+        DB.formularios = DB.formularios.filter(x=>x.id!==btn.dataset.id);
+        DB.formularioRespostas = DB.formularioRespostas.filter(r=>r.formularioId!==btn.dataset.id);
+        renderMain();
+      }catch(e){ alert('Não foi possível excluir: '+e.message); }
+    });
+  });
+  main.querySelectorAll('.btn-resultados-formulario').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      uiState.formulariosExpanded[btn.dataset.id] = !uiState.formulariosExpanded[btn.dataset.id];
+      renderMain();
+    });
+  });
+  main.querySelectorAll('.btn-aprovar-ferias').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(!confirm('Aprovar essa solicitação de férias? Isso já lança as ausências na agenda do analista (sem suplente ainda — complete a cobertura depois).')) return;
+      try{ await apiAprovarFerias(btn.dataset.id); await loadDB(); renderMain(); }
+      catch(e){ alert('Não foi possível aprovar: '+e.message); }
+    });
+  });
+  main.querySelectorAll('.btn-recusar-ferias').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const motivo = prompt('Motivo da recusa (opcional):') || '';
+      try{ await apiRecusarFerias(btn.dataset.id, motivo); await loadDB(); renderMain(); }
+      catch(e){ alert('Não foi possível recusar: '+e.message); }
+    });
+  });
+
+  // Formulários — analista: domingo_voluntariado/folga_escolha respondem no
+  // clique do chip; reconhecimento_mensal/ferias_solicitacao juntam campos
+  // antes de enviar.
+  const substituirMinhaResposta = (resp) => {
+    DB.formularioRespostas = [...DB.formularioRespostas.filter(r=>!(r.formularioId===resp.formularioId && r.analistaId===session.userId)), resp];
+  };
+  main.querySelectorAll('[data-formvol-fid]').forEach(el=>{
+    el.addEventListener('click', async ()=>{
+      const fid = el.dataset.formvolFid, dia = el.dataset.formvolDia;
+      const atuais = minhaRespostaFormulario(fid, session.userId)?.payload?.datas || [];
+      const novas = atuais.includes(dia) ? atuais.filter(d=>d!==dia) : [...atuais, dia];
+      try{ substituirMinhaResposta(await apiEnviarResposta(fid, {datas: novas})); renderMain(); }
+      catch(e){ alert('Não foi possível salvar: '+e.message); }
+    });
+  });
+  main.querySelectorAll('[data-formfolga-fid]').forEach(el=>{
+    el.addEventListener('click', async ()=>{
+      const fid = el.dataset.formfolgaFid, dia = el.dataset.formfolgaDia;
+      try{ substituirMinhaResposta(await apiEnviarResposta(fid, {data: dia})); renderMain(); }
+      catch(e){ alert('Não foi possível salvar: '+e.message); }
+    });
+  });
+  main.querySelectorAll('[data-formrec-enviar]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const fid = btn.dataset.formrecEnviar;
+      const indicadoId = document.getElementById(`formRecIndicado-${fid}`).value;
+      const motivo = document.getElementById(`formRecMotivo-${fid}`).value.trim();
+      if(!indicadoId){ alert('Selecione quem você quer indicar.'); return; }
+      try{ substituirMinhaResposta(await apiEnviarResposta(fid, {indicadoId, motivo})); renderMain(); alert('Indicação enviada!'); }
+      catch(e){ alert('Não foi possível enviar: '+e.message); }
+    });
+  });
+  main.querySelectorAll('[data-formferias-enviar]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const fid = btn.dataset.formferiasEnviar;
+      const inicio = document.getElementById(`formFeriasInicio-${fid}`).value;
+      const fim = document.getElementById(`formFeriasFim-${fid}`).value;
+      const justificativa = document.getElementById(`formFeriasJust-${fid}`).value.trim();
+      if(!inicio || !fim){ alert('Informe início e fim das férias.'); return; }
+      if(inicio>fim){ alert('A data final não pode ser antes da inicial.'); return; }
+      try{ substituirMinhaResposta(await apiEnviarResposta(fid, {inicio, fim, justificativa})); renderMain(); alert('Solicitação enviada!'); }
+      catch(e){ alert('Não foi possível enviar: '+e.message); }
+    });
   });
 
   const btnGerarSugestao = document.getElementById('btnGerarSugestao');

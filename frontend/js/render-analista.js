@@ -512,6 +512,91 @@ function analistaTempoExecucao(){
 }
 
 
+// Formulários (Convocações): só mostra o que estiver "aberto" agora (ver
+// formularioStatus, utils.js) — o que o supervisor programou/pausou nunca
+// aparece aqui, sem precisar de nenhum filtro extra além do status.
+// domingo_voluntariado/folga_escolha respondem na hora do clique (o chip já
+// É a resposta); reconhecimento_mensal/ferias_solicitacao juntam campos
+// antes de um botão "Enviar" (não faz sentido salvar a cada letra digitada).
+function analistaFormularios(){
+  const abertos = DB.formularios.filter(f=>formularioStatus(f)==='aberto');
+  const conteudo = abertos.length===0
+    ? '<div class="card"><div class="empty">Nenhuma convocação aberta no momento.</div></div>'
+    : abertos.map(f=>analistaFormularioCardHtml(f)).join('');
+  return `<div class="section-title">Formulários abertos</div>${conteudo}`;
+}
+
+function analistaFormularioCardHtml(f){
+  const minha = minhaRespostaFormulario(f.id, session.userId);
+  const cabecalho = `
+    <div class="tag-row" style="margin-bottom:6px;"><span class="tag tag-tipo">${FORMULARIO_TIPO_LABEL[f.tipo]}</span></div>
+    <div class="campaign-title">${escapeHtml(f.titulo||'')}</div>
+    <p class="campaign-desc">${escapeHtml(f.descricao)}</p>
+    <div class="help-text">Fecha em ${new Date(f.fechamento).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}.</div>`;
+
+  if(f.tipo==='domingo_voluntariado'){
+    const domingos = sundaysInRange(f.periodoInicio, f.periodoFim);
+    const minhasDatas = minha?.payload?.datas || [];
+    return `<div class="card">${cabecalho}
+      <div class="formulario-chip-grid">
+        ${domingos.map(d=>`<label class="formulario-chip ${minhasDatas.includes(d)?'checked':''}" data-formvol-fid="${f.id}" data-formvol-dia="${d}">${fmtDataCurta(d)}</label>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  if(f.tipo==='folga_escolha'){
+    const dias = daysInRange(f.periodoInicio, f.periodoFim);
+    const todasRespostas = DB.formularioRespostas.filter(r=>r.formularioId===f.id);
+    const minhaData = minha?.payload?.data;
+    return `<div class="card">${cabecalho}
+      <div class="formulario-chip-grid">
+        ${dias.map(d=>{
+          const quem = todasRespostas.filter(r=>r.payload.data===d);
+          const marcado = minhaData===d;
+          const cheio = quem.length >= f.limitePorDia && !marcado;
+          return `<label class="formulario-chip ${marcado?'checked':''} ${cheio?'disabled':''}" ${cheio?'':`data-formfolga-fid="${f.id}" data-formfolga-dia="${d}"`}>
+            ${fmtDataCurta(d)} <span class="sub">${cheio?'lotado':`${quem.length}/${f.limitePorDia} vaga(s)`}</span>
+          </label>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }
+
+  if(f.tipo==='reconhecimento_mensal'){
+    const colegas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId && u.id!==session.userId);
+    return `<div class="card">${cabecalho}
+      <div class="grid-2" style="margin-top:10px;">
+        <div class="field"><label>Quem você indica</label>
+          <select data-formrec-fid="${f.id}" id="formRecIndicado-${f.id}">
+            <option value="">Selecione...</option>
+            ${colegas.map(c=>`<option value="${c.id}" ${minha?.payload?.indicadoId===c.id?'selected':''}>${escapeHtml(c.name)}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="field" style="margin-top:10px;"><label>Motivo</label><textarea id="formRecMotivo-${f.id}" rows="2" placeholder="Por que essa pessoa merece o destaque do mês?" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;">${escapeHtml(minha?.payload?.motivo||'')}</textarea></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+        <button class="btn btn-brand btn-sm" data-formrec-enviar="${f.id}">${minha?'Atualizar indicação':'Enviar indicação'}</button>
+      </div>
+    </div>`;
+  }
+
+  // ferias_solicitacao
+  const statusLabel = {pendente:'⏳ Pendente de aprovação', aprovado:'✓ Aprovada', recusado:'✕ Recusada'};
+  return `<div class="card">${cabecalho}
+    ${minha ? `<div class="tag ${minha.status==='aprovado'?'status-aberto':minha.status==='recusado'?'status-encerrado':'status-agendado'}" style="margin-top:8px;">${statusLabel[minha.status]}</div>
+      ${minha.status==='recusado' && minha.motivoRecusa ? `<div class="help-text">Motivo: ${escapeHtml(minha.motivoRecusa)}</div>` : ''}` : ''}
+    <div class="grid-2" style="margin-top:10px;">
+      <div class="field"><label>Início</label><input type="date" id="formFeriasInicio-${f.id}" value="${minha?.payload?.inicio||''}" min="${f.periodoInicio||''}" max="${f.periodoFim||''}"></div>
+      <div class="field"><label>Fim</label><input type="date" id="formFeriasFim-${f.id}" value="${minha?.payload?.fim||''}" min="${f.periodoInicio||''}" max="${f.periodoFim||''}"></div>
+    </div>
+    <div class="field" style="margin-top:10px;"><label>Justificativa (opcional)</label><textarea id="formFeriasJust-${f.id}" rows="2" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;">${escapeHtml(minha?.payload?.justificativa||'')}</textarea></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+      <button class="btn btn-brand btn-sm" data-formferias-enviar="${f.id}">${minha?'Reenviar solicitação':'Enviar solicitação'}</button>
+    </div>
+  </div>`;
+}
+
+
 function renderRecadosAnalista(){
   const my = recadosParaAnalista(session.userId).sort((a,b)=>b.ts-a.ts);
   if(!uiState.inboxSelected || !my.find(m=>m.id===uiState.inboxSelected)) uiState.inboxSelected = my[0]?.id || null;

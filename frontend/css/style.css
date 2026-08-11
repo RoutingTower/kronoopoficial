@@ -483,6 +483,45 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .escaladom-item.checked:hover{background:rgba(238,77,45,0.16);}
 @media (max-width:480px){ .escaladom-dual{flex-direction:column;} }
 
+/* Formulários (Convocações) — render-supervisor.js/render-analista.js. */
+.spacer{flex:1;}
+.campaign-card{display:flex;flex-direction:column;gap:10px;}
+.campaign-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;}
+.campaign-title{font-size:15px;font-weight:700;margin:0 0 3px;}
+.campaign-desc{color:var(--text-muted);font-size:12.5px;margin:0;max-width:60ch;}
+.tag-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.tag{border-radius:100px;padding:3px 10px;font-size:11px;font-weight:600;letter-spacing:.01em;border:1px solid transparent;}
+.tag-tipo{background:var(--panel-2);color:var(--text-muted);border-color:var(--border);}
+.status-aberto{background:rgba(238,77,45,.12);color:var(--live);}
+.status-agendado{background:rgba(47,128,237,.12);color:var(--wait);}
+.status-pausado{background:var(--panel-2);color:var(--text-faint);}
+.status-encerrado{background:var(--panel-2);color:var(--text-faint);}
+.meta-row{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--text-muted);}
+.meta-row b{color:var(--text);font-weight:600;}
+.edit-form{background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-top:6px;}
+.resp-table{width:100%;border-collapse:collapse;margin-top:8px;font-size:12.5px;}
+.resp-table th{text-align:left;color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;padding:6px 8px;border-bottom:1px solid var(--border);}
+.resp-table td{padding:7px 8px;border-bottom:1px solid var(--border);vertical-align:top;}
+.resp-table tr:last-child td{border-bottom:none;}
+.capbar-track{background:var(--panel-2);border-radius:100px;height:7px;width:100%;overflow:hidden;margin-top:4px;}
+.capbar-fill{height:100%;border-radius:100px;background:var(--done);}
+.capbar-fill.full{background:var(--alert);}
+.names-inline{color:var(--text-muted);font-size:11.5px;}
+.toggle-switch{position:relative;display:inline-block;width:38px;height:21px;flex-shrink:0;}
+.toggle-switch input{opacity:0;width:0;height:0;}
+.toggle-slider{position:absolute;cursor:pointer;inset:0;background:var(--border);border-radius:100px;transition:.15s;}
+.toggle-slider:before{content:"";position:absolute;height:15px;width:15px;left:3px;top:3px;background:var(--panel);border-radius:50%;transition:.15s;}
+.toggle-switch input:checked + .toggle-slider{background:var(--brand);}
+.toggle-switch input:checked + .toggle-slider:before{transform:translateX(17px);}
+.toggle-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);}
+.formulario-chip-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+.formulario-chip{display:flex;align-items:center;gap:7px;padding:8px 13px;border:1px solid var(--border);border-radius:100px;background:var(--panel-2);font-size:12.5px;cursor:pointer;user-select:none;transition:all .12s;}
+.formulario-chip:hover{border-color:var(--text-muted);}
+.formulario-chip.checked{background:rgba(238,77,45,.12);border-color:var(--brand);color:var(--brand);font-weight:600;}
+.formulario-chip.disabled{opacity:.4;cursor:not-allowed;}
+.formulario-chip .sub{font-size:10.5px;color:var(--text-faint);font-weight:400;}
+.formulario-chip.checked .sub{color:var(--brand);opacity:.8;}
+
 /* Card com destaque de cor (ex.: seção "Em Folga" em Métricas). */
 .highlight-card{border-radius:var(--radius);padding:16px 18px;margin-bottom:20px;background:rgba(184,134,11,0.07);border:1px solid rgba(184,134,11,0.3);}
 .highlight-card .section-title{color:var(--folga);margin-bottom:8px;}

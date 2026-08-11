@@ -18,6 +18,8 @@ const notificacoesRoutes = require("./notificacoes.routes");
 const particularidadesRoutes = require("./particularidades.routes");
 const particularidadeCienteRoutes = require("./particularidadeCiente.routes");
 const reuniaoPresencaRoutes = require("./reuniaoPresenca.routes");
+const formulariosRoutes = require("./formularios.routes");
+const formularioRespostasRoutes = require("./formularioRespostas.routes");
 
 const router = Router();
 
@@ -47,5 +49,7 @@ router.use("/notificacoes", notificacoesRoutes);
 router.use("/particularidades", particularidadesRoutes);
 router.use("/particularidade-ciente", particularidadeCienteRoutes);
 router.use("/reuniao-presenca", reuniaoPresencaRoutes);
+router.use("/formularios", formulariosRoutes);
+router.use("/formulario-respostas", formularioRespostasRoutes);
 
 module.exports = router;

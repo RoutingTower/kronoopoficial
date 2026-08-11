@@ -19,6 +19,7 @@ function renderSupervisor(){
   else if(activeNavKey==='transmissao') content = supTransmissao(myAnalistas);
   else if(activeNavKey==='ocorrencias') content = supOcorrencias(myAnalistas);
   else if(activeNavKey==='feedbacks') content = supFeedbacks(myAnalistas);
+  else if(activeNavKey==='formularios') content = supFormularios(myAnalistas);
   return `<div class="page-head"><div><h1 class="page-title">${tabLabel}</h1><div class="page-desc">Gestão da equipe de ${session.name}</div></div></div>${content}`;
 }
 
@@ -1688,5 +1689,165 @@ function renderOcorrenciasCharts(){
         y:{ min:0, max:5, ticks:{ color:textColor }, grid:{ color:gridColor } } } }
     });
   }
+}
+
+
+// Formulários (Convocações): supervisor liga/desliga, programa a janela de
+// abertura/fechamento e edita cada convocação — 4 tipos (ver
+// FORMULARIO_TIPO_LABEL, utils.js). DB.formularios/DB.formularioRespostas
+// já vêm filtrados pra equipe do supervisor (backend), sem filtro extra
+// aqui. Eventos reais em events.js; espelha o padrão de
+// supSugerirSuplente (form + lista + resultado expansível).
+function supFormularios(myAnalistas){
+  const form = uiState.formulariosShowNew ? formularioFormHtml(null) : '';
+  const formularios = DB.formularios.slice().sort((a,b)=>b.criadoEm-a.criadoEm);
+  const cards = formularios.map(f=>formularioCardHtml(f)).join('');
+  return `
+  <div class="section-title">Suas convocações
+    <span class="spacer" style="flex:1;"></span>
+    <button class="btn btn-brand btn-sm" id="btnNovoFormulario">${uiState.formulariosShowNew ? '✕ Cancelar' : '+ Nova convocação'}</button>
+  </div>
+  ${form}
+  ${cards || '<div class="empty">Nenhuma convocação criada ainda.</div>'}`;
+}
+
+function formularioFormHtml(editing){
+  const agora = Date.now();
+  const c = editing || {
+    tipo:'domingo_voluntariado', titulo:'', descricao:'',
+    abertura: agora, fechamento: agora + 7*86400000,
+    periodoInicio: todayISO(), periodoFim: addDaysISO(todayISO(), 30),
+    limitePorDia: 3,
+  };
+  const isEdit = !!editing;
+  const prefix = isEdit ? `editf-${editing.id}` : 'newf';
+  const usaPeriodo = c.tipo==='domingo_voluntariado' || c.tipo==='folga_escolha';
+  return `
+  <div class="card edit-form" style="border-color:var(--brand);margin-bottom:16px;">
+    <div class="grid-2">
+      <div class="field"><label>Tipo de convocação</label>
+        <select id="${prefix}-tipo" ${isEdit?'disabled':''}>
+          ${Object.entries(FORMULARIO_TIPO_LABEL).map(([k,l])=>`<option value="${k}" ${c.tipo===k?'selected':''}>${l}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label>Título</label><input type="text" id="${prefix}-titulo" value="${escapeHtml(c.titulo)}" placeholder="ex: Voluntários pra domingo — Outubro"></div>
+    </div>
+    <div class="field" style="margin-top:10px;"><label>Descrição (o que o analista vê)</label><textarea id="${prefix}-descricao" rows="2" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;">${escapeHtml(c.descricao)}</textarea></div>
+    <div class="grid-2" style="margin-top:10px;">
+      <div class="field"><label>Janela — abre em</label><input type="datetime-local" id="${prefix}-abertura" value="${msParaDatetimeLocal(c.abertura)}"></div>
+      <div class="field"><label>Janela — fecha em</label><input type="datetime-local" id="${prefix}-fechamento" value="${msParaDatetimeLocal(c.fechamento)}"></div>
+    </div>
+    <div class="grid-3" id="${prefix}-periodoWrap" style="margin-top:10px;${usaPeriodo?'':'display:none;'}">
+      <div class="field"><label>Período de referência — de</label><input type="date" id="${prefix}-periodoInicio" value="${c.periodoInicio||''}"></div>
+      <div class="field"><label>Período de referência — até</label><input type="date" id="${prefix}-periodoFim" value="${c.periodoFim||''}"></div>
+      <div class="field" id="${prefix}-limiteWrap" style="${c.tipo==='folga_escolha'?'':'display:none;'}">
+        <label>Limite de folgas por dia</label><input type="number" id="${prefix}-limite" min="1" value="${c.limitePorDia||3}">
+      </div>
+    </div>
+    <div class="help-text" id="${prefix}-ajuda">${formularioAjudaTexto(c.tipo)}</div>
+    <div class="card-actions" style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn btn-brand btn-sm" id="${prefix}-salvar">${isEdit?'Salvar alterações':'Criar convocação'}</button>
+      <button class="btn btn-sm" id="${prefix}-cancelar">Cancelar</button>
+    </div>
+  </div>`;
+}
+
+function formularioAjudaTexto(tipo){
+  if(tipo==='domingo_voluntariado') return 'O analista vê e marca cada domingo dentro do período de referência em que topa trabalhar.';
+  if(tipo==='folga_escolha') return 'O analista escolhe 1 dia dentro do período — dias que baterem o limite ficam bloqueados pra novas escolhas.';
+  if(tipo==='reconhecimento_mensal') return 'O analista indica um colega de equipe como destaque do mês, com um motivo.';
+  return 'O analista pede um período de férias (início e fim) — fica pendente até você aprovar ou recusar.';
+}
+
+function formularioCardHtml(f){
+  const status = formularioStatus(f);
+  const respostas = DB.formularioRespostas.filter(r=>r.formularioId===f.id);
+  const isEditing = uiState.formulariosEditingId===f.id;
+  return `
+  <div class="card campaign-card">
+    <div class="campaign-top">
+      <div>
+        <div class="tag-row" style="margin-bottom:6px;">
+          <span class="tag tag-tipo">${FORMULARIO_TIPO_LABEL[f.tipo]}</span>
+          <span class="tag status-${status}">${FORMULARIO_STATUS_LABEL[status]}</span>
+        </div>
+        <div class="campaign-title">${escapeHtml(f.titulo||'(sem título)')}</div>
+        <p class="campaign-desc">${escapeHtml(f.descricao)}</p>
+      </div>
+      <div class="toggle-row">
+        ${status==='pausado'?'Pausada':'Ativa'}
+        <label class="toggle-switch">
+          <input type="checkbox" class="chk-formulario-ativo" data-id="${f.id}" ${f.ativoManual?'checked':''}>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+    <div class="meta-row">
+      <span>Janela: <b>${new Date(f.abertura).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</b> → <b>${new Date(f.fechamento).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</b></span>
+      ${f.periodoInicio ? `<span>Período: <b>${f.periodoInicio}–${f.periodoFim}</b></span>` : ''}
+      ${f.tipo==='folga_escolha' ? `<span>Limite/dia: <b>${f.limitePorDia}</b></span>` : ''}
+      <span><b>${respostas.length}</b> resposta(s)</span>
+    </div>
+    <div class="card-actions" style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-sm btn-editar-formulario" data-id="${f.id}">${isEditing?'✕ Fechar edição':'✎ Editar'}</button>
+      <button class="btn btn-sm btn-excluir-formulario" data-id="${f.id}">🗑 Excluir</button>
+      <button class="btn btn-sm btn-resultados-formulario" data-id="${f.id}">${uiState.formulariosExpanded[f.id]?'▾ Ocultar respostas':'▸ Ver respostas'}</button>
+    </div>
+    ${isEditing ? formularioFormHtml(f) : ''}
+    ${uiState.formulariosExpanded[f.id] ? formularioResultsHtml(f, respostas) : ''}
+  </div>`;
+}
+
+function formularioResultsHtml(f, respostas){
+  if(respostas.length===0) return '<div class="empty">Ninguém respondeu ainda.</div>';
+
+  if(f.tipo==='domingo_voluntariado'){
+    const domingos = sundaysInRange(f.periodoInicio, f.periodoFim);
+    const rows = domingos.map(d=>{
+      const voluntarios = respostas.filter(r=>(r.payload.datas||[]).includes(d)).map(r=>userById(r.analistaId)?.name||'—');
+      return `<tr><td>${d}</td><td><b>${voluntarios.length}</b> voluntário(s)</td><td class="names-inline">${voluntarios.map(escapeHtml).join(', ')||'—'}</td></tr>`;
+    }).join('');
+    return `<div style="overflow-x:auto;"><table class="resp-table"><thead><tr><th>Domingo</th><th>Total</th><th>Quem topou</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  if(f.tipo==='folga_escolha'){
+    const dias = daysInRange(f.periodoInicio, f.periodoFim);
+    const rows = dias.map(d=>{
+      const quem = respostas.filter(r=>r.payload.data===d).map(r=>userById(r.analistaId)?.name||'—');
+      const pct = Math.min(100, Math.round(quem.length / f.limitePorDia * 100));
+      const cheio = quem.length >= f.limitePorDia;
+      return `<tr><td>${d}</td><td style="min-width:140px;">
+          <span style="${cheio?'color:var(--alert);font-weight:600;':''}">${quem.length}/${f.limitePorDia}${cheio?' · lotado':''}</span>
+          <div class="capbar-track"><div class="capbar-fill ${cheio?'full':''}" style="width:${pct}%;"></div></div>
+        </td><td class="names-inline">${quem.map(escapeHtml).join(', ')||'—'}</td></tr>`;
+    }).join('');
+    return `<div style="overflow-x:auto;"><table class="resp-table"><thead><tr><th>Dia</th><th>Vagas</th><th>Quem escolheu</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  if(f.tipo==='reconhecimento_mensal'){
+    const rows = respostas.map(r=>{
+      const quem = userById(r.analistaId)?.name || '—';
+      const indicado = userById(r.payload.indicadoId)?.name || '—';
+      return `<tr><td>${escapeHtml(quem)}</td><td>${escapeHtml(indicado)}</td><td>${escapeHtml(r.payload.motivo||'—')}</td></tr>`;
+    }).join('');
+    return `<div style="overflow-x:auto;"><table class="resp-table"><thead><tr><th>Quem indicou</th><th>Quem foi indicado</th><th>Motivo</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  // ferias_solicitacao
+  const statusLabel = {pendente:'Pendente', aprovado:'Aprovado', recusado:'Recusado'};
+  const rows = respostas.slice().sort((a,b)=>a.status==='pendente'?-1:1).map(r=>{
+    const nome = userById(r.analistaId)?.name || '—';
+    return `<tr>
+      <td>${escapeHtml(nome)}</td>
+      <td>${r.payload.inicio} – ${r.payload.fim}</td>
+      <td class="names-inline">${escapeHtml(r.payload.justificativa||'—')}</td>
+      <td><span class="tag ${r.status==='aprovado'?'status-aberto':r.status==='recusado'?'status-encerrado':'status-agendado'}">${statusLabel[r.status]||r.status}</span></td>
+      <td>${r.status==='pendente' ? `
+        <button class="btn btn-sm btn-aprovar-ferias" data-id="${r.id}">✓ Aprovar</button>
+        <button class="btn btn-sm btn-recusar-ferias" data-id="${r.id}">✕ Recusar</button>
+      ` : (r.status==='recusado' && r.motivoRecusa ? `<span class="names-inline">${escapeHtml(r.motivoRecusa)}</span>` : '')}</td>
+    </tr>`;
+  }).join('');
+  return `<div style="overflow-x:auto;"><table class="resp-table"><thead><tr><th>Analista</th><th>Período</th><th>Justificativa</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 

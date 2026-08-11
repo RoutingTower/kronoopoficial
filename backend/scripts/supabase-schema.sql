@@ -256,3 +256,51 @@ create table notificacoes (
   ts              bigint not null
 );
 create index idx_notificacoes_destinatario on notificacoes(destinatario_id);
+
+-- Convocações/formulários internos que o supervisor liga/desliga e programa
+-- (janela abertura/fechamento) — hoje 4 tipos: domingo_voluntariado (analista
+-- marca em quais domingos topa trabalhar), folga_escolha (analista escolhe 1
+-- dia de folga compensatória, respeitando limite_por_dia), reconhecimento_mensal
+-- (analista indica um colega + motivo) e ferias_solicitacao (analista pede um
+-- período, fica "pendente" até o supervisor aprovar/recusar). abertura/
+-- fechamento em bigint (epoch ms), mesmo padrão de execucao_inicio.iniciado_em
+-- e notificacoes.ts — não timestamptz, pra bater com o resto do schema.
+create table formularios (
+  id              uuid primary key default gen_random_uuid(),
+  supervisor_id   uuid not null references users(id),
+  tipo            text not null check (tipo in ('domingo_voluntariado','folga_escolha','reconhecimento_mensal','ferias_solicitacao')),
+  titulo          text not null default '',
+  descricao       text not null default '',
+  abertura        bigint not null,
+  fechamento      bigint not null,
+  ativo_manual    boolean not null default true,
+  -- período de referência (ex.: os domingos de setembro; a janela de dias
+  -- pra escolher folga) — nulo pra reconhecimento_mensal, que não usa.
+  periodo_inicio  date,
+  periodo_fim     date,
+  -- só usado por folga_escolha (vagas por dia); nulo nos demais tipos.
+  limite_por_dia  integer,
+  criado_em       bigint not null
+);
+create index idx_formularios_supervisor on formularios(supervisor_id);
+
+-- Uma resposta por analista por formulário (reenviar substitui a anterior,
+-- enquanto a janela estiver aberta) — payload varia por tipo:
+--   domingo_voluntariado: { "datas": ["2026-09-06", ...] }
+--   folga_escolha:         { "data": "2026-08-19" }
+--   reconhecimento_mensal: { "indicadoId": "uuid", "motivo": "texto" }
+--   ferias_solicitacao:    { "inicio": "2026-09-10", "fim": "2026-09-20", "justificativa": "texto" }
+-- status só é relevante pra ferias_solicitacao (fica "pendente" até o
+-- supervisor decidir); nos outros tipos fica sempre "enviado", sem uso.
+create table formulario_respostas (
+  id              uuid primary key default gen_random_uuid(),
+  formulario_id   uuid not null references formularios(id) on delete cascade,
+  analista_id     uuid not null references users(id),
+  payload         jsonb not null default '{}',
+  status          text not null default 'enviado' check (status in ('enviado','pendente','aprovado','recusado')),
+  motivo_recusa   text not null default '',
+  criado_em       bigint not null,
+  atualizado_em   bigint not null
+);
+create unique index idx_formresp_unico on formulario_respostas(formulario_id, analista_id);
+create index idx_formresp_formulario on formulario_respostas(formulario_id);
