@@ -77,6 +77,25 @@ async function updateBaseMestra(req, res) {
   if (patch.analistaId && patch.analistaId !== existing.analistaId) {
     await notificar(existing.analistaId, "agenda", `A operação ${existing.operacao} (${existing.horaInicio}–${existing.horaFim}) saiu da sua agenda — passou para outro titular.`);
     await notificar(updated.analistaId, "agenda", `Uma operação fixa foi transferida para você: ${updated.operacao} (${updated.horaInicio}–${updated.horaFim}).`);
+
+    // Cobertura avulsa (suplencias) não tem FK pra base_mestra — foi lançada
+    // pro antigo titular (analistaOriginalId) casando por operacao/ciclo/
+    // horario. Trocado o titular, as coberturas FUTURAS que ainda apontam
+    // pro antigo titular ficam órfãs (ele não é mais dono da operação) —
+    // limpa daqui pra frente; datas passadas ficam como registro histórico
+    // do que realmente aconteceu.
+    const hoje = new Date().toISOString().slice(0, 10);
+    const todasSuplencias = await supabaseService.listAll("suplencias");
+    const orfas = todasSuplencias.filter(
+      (s) =>
+        s.analistaOriginalId === existing.analistaId &&
+        s.operacao === existing.operacao &&
+        s.ciclo === existing.ciclo &&
+        s.horaInicio === existing.horaInicio &&
+        s.horaFim === existing.horaFim &&
+        s.dataCobertura >= hoje
+    );
+    await Promise.all(orfas.map((s) => supabaseService.remove("suplencias", s.id)));
   } else {
     await notificar(existing.analistaId, "agenda", `Uma operação da sua agenda foi alterada: ${updated.operacao} (${updated.horaInicio}–${updated.horaFim}).`);
   }
