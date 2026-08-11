@@ -69,6 +69,17 @@ function operacoesFixasTooltip(analistaId){
 
 function rangesOverlap(s1,e1,s2,e2){ return s1 < e2 && s2 < e1; }
 
+// Mesmos elementos, independente de ordem — usado pra achar reuniões da
+// mesma série (analistaIds) na edição em massa "esta e as futuras"
+// (events.js, data-editar-reuniao). Reuniões recorrentes não têm um
+// serie_id no banco (cada data vira uma linha independente, ver
+// btnNovaReuniao); a série é reconhecida por combinação de campos.
+function mesmoConjunto(a, b){
+  if(a.length!==b.length) return false;
+  const sa=[...a].sort(), sb=[...b].sort();
+  return sa.every((v,i)=>v===sb[i]);
+}
+
 
 function usersByRole(role){ return DB.users.filter(u=>u.role===role); }
 

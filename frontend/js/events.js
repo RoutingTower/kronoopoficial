@@ -969,11 +969,61 @@ function bindMainEvents(){
           horaFim:fEditRHoraFim.value,
           data:document.getElementById('fEditRData').value, hora:document.getElementById('fEditRHora').value, analistaIds,
           link:normalizeUrl(document.getElementById('fEditRLink').value.trim())};
-        try{
-          const atualizado = await apiUpdateReuniao(r.id, patch);
-          DB.reunioes = DB.reunioes.map(x=>x.id===r.id ? atualizado : x);
+
+        // Reunião recorrente = várias linhas independentes, uma por data
+        // (sem serie_id no banco — ver comentário de mesmoConjunto em
+        // utils.js). Antes de salvar, procura outras reuniões futuras que
+        // batem com ESTA (mesmo tipo/título/horário/participantes/link,
+        // antes da edição) pra oferecer aplicar a mudança nelas também.
+        const futuras = DB.reunioes.filter(x=>
+          x.id!==r.id && x.tipo===r.tipo && x.titulo===r.titulo && x.hora===r.hora &&
+          (x.horaFim||'')===(r.horaFim||'') && x.supervisorId===r.supervisorId &&
+          (x.link||'')===(r.link||'') && mesmoConjunto(x.analistaIds, r.analistaIds) && x.data > r.data
+        ).sort((a,b)=>a.data.localeCompare(b.data));
+
+        const salvarSomenteEsta = async ()=>{
+          try{
+            const atualizado = await apiUpdateReuniao(r.id, patch);
+            DB.reunioes = DB.reunioes.map(x=>x.id===r.id ? atualizado : x);
+            closeModal(); renderMain();
+          }catch(e){ alert('Não foi possível salvar: '+e.message); }
+        };
+
+        if(futuras.length===0){ await salvarSomenteEsta(); return; }
+
+        // patchSerie repete tipo/título/horário/participantes/link em cada
+        // ocorrência futura, mas SEM a data — cada uma mantém a sua própria.
+        const { data: _data, ...patchSerie } = patch;
+        openModal(`<h3>Editar reunião</h3>
+          <p style="margin-top:0;">Essa reunião faz parte de uma série — encontrei mais <strong>${futuras.length}</strong> no futuro com o mesmo horário e participantes. Aplicar essa alteração a:</p>
+          <div style="display:flex;flex-direction:column;gap:8px;margin:16px 0;">
+            <button class="btn" id="btnEditarSomenteEsta">Somente esta reunião</button>
+            <button class="btn btn-brand" id="btnEditarEstaEFuturas">Esta e as ${futuras.length} futuras</button>
+          </div>
+          <div style="display:flex;justify-content:flex-end;">
+            <button class="btn" data-modal-cancel>Cancelar</button>
+          </div>`);
+        document.querySelector('[data-modal-cancel]').onclick = closeModal;
+        document.getElementById('btnEditarSomenteEsta').onclick = salvarSomenteEsta;
+        document.getElementById('btnEditarEstaEFuturas').onclick = async ()=>{
+          openProgressModal('Atualizando série de reuniões...');
+          let done=0, fail=0;
+          const total = 1 + futuras.length;
+          try{
+            const atualizado = await apiUpdateReuniao(r.id, patch);
+            DB.reunioes = DB.reunioes.map(x=>x.id===r.id ? atualizado : x);
+          }catch(e){ fail++; }
+          done++; updateProgressModal(done, total);
+          for(const f of futuras){
+            try{
+              const atualizado = await apiUpdateReuniao(f.id, patchSerie);
+              DB.reunioes = DB.reunioes.map(x=>x.id===f.id ? atualizado : x);
+            }catch(e){ fail++; }
+            done++; updateProgressModal(done, total);
+          }
           closeModal(); renderMain();
-        }catch(e){ alert('Não foi possível salvar: '+e.message); }
+          if(fail) alert(`${total-fail} reunião(ões) atualizada(s). ${fail} falharam.`);
+        };
       };
     });
   });
