@@ -553,12 +553,16 @@ function ufDaOperacao(operacao){
   return m ? m[1].toUpperCase() : '';
 }
 
-// Todos os hubs (Base Mestra) que rodam numa data, com o horário já
-// convertido pra timestamp real (cruza meia-noite corretamente pra
-// turnos de madrugada, ver slotTimestamp) — usado pelo Gerar Escala de
-// Domingo abaixo.
-function hubsParaData(dateStr){
-  return DB.baseMestra.filter(b=>bmRodaNoDia(b, dateStr)).map(b=>{
+// Hubs (Base Mestra) que rodam numa data, com o horário já convertido pra
+// timestamp real (cruza meia-noite corretamente pra turnos de madrugada,
+// ver slotTimestamp) — usado pelo Gerar Escala de Domingo abaixo.
+// DB.baseMestra vem SEM filtro de equipe (GET /base-mestra devolve a
+// tabela inteira, todo supervisor — cada tela filtra por myAnalistas na
+// hora de usar). idsEquipe é obrigatório aqui: sem ele, a proposta mistura
+// hub de time nenhum a ver com o supervisor que está gerando a escala.
+function hubsParaData(dateStr, idsEquipe){
+  const equipe = new Set(idsEquipe);
+  return DB.baseMestra.filter(b=>b.analistaId && equipe.has(b.analistaId) && bmRodaNoDia(b, dateStr)).map(b=>{
     const startMs = slotTimestamp(dateStr, b.horaInicio);
     const durMs = calcularDuracaoManual(b.horaInicio, b.horaFim)*1000;
     return { bmId:b.id, analistaId:b.analistaId, titular:b.titular, operacao:b.operacao, ciclo:b.ciclo,
@@ -586,8 +590,8 @@ const ESCALA_DOMINGO_MAX_JORNADA_MS = 8*60*60*1000;
 // como desempate final. Hubs que não couberem em ninguém (capacidade ou
 // janela de horário esgotada) voltam em naoCobertos, pro supervisor
 // resolver manualmente.
-function gerarEscalaDomingo(escaladoIds, dateStr){
-  const hubs = hubsParaData(dateStr);
+function gerarEscalaDomingo(escaladoIds, dateStr, idsEquipe){
+  const hubs = hubsParaData(dateStr, idsEquipe);
   const jaCoberto = new Set(
     DB.suplencias.filter(s=>s.dataCobertura===dateStr)
       .map(s=>`${s.operacao}|${s.ciclo}|${s.horaInicio}|${s.horaFim}`)
