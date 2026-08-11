@@ -245,24 +245,17 @@ function supSuplencias(myAnalistas){
 // priorizando a carteira própria de cada um. A proposta fica editável
 // (dropdown por linha) antes de confirmar — mesmo espírito do Sugerir
 // Suplente logo abaixo, só que pro domingo inteiro de uma vez.
-// Picker sempre visível (sem dropdown pra abrir/fechar) — escolher 10-14
-// pessoas dentro de um painel flutuante de 260px de altura era o que
-// deixava isso ruim de manusear. Chips clicáveis + atalhos "Todos"/"Limpar"
-// deixam a seleção inteira visível e editável de uma vez.
+// A grade de chips (escaladom-grid) é grande demais pra ficar sempre
+// aberta dentro do card — aqui só um botão-resumo, que abre a seleção
+// numa caixa (modal, ver abrirModalEscalaDomAnalistas em events.js).
 function escalaDomAnalistaPicker(myAnalistas){
   const sel = uiState.escalaDomSelecionados;
   return `<div class="field" style="margin-bottom:0;">
-    <label style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
-      <span>Quem foi escalado pra trabalhar (${sel.length} selecionado${sel.length===1?'':'s'})</span>
-      <span style="display:flex;gap:6px;">
-        <button type="button" class="btn" id="btnEscalaDomTodos" style="padding:4px 10px;font-size:11.5px;">Selecionar todos</button>
-        <button type="button" class="btn" id="btnEscalaDomLimpar" style="padding:4px 10px;font-size:11.5px;">Limpar</button>
-      </span>
-    </label>
-    <div class="escaladom-grid">
-      ${myAnalistas.map(a=>`<label class="escaladom-chip ${sel.includes(a.id)?'checked':''}"><input type="checkbox" class="escalaDomChk" value="${a.id}" ${sel.includes(a.id)?'checked':''}> ${escapeHtml(a.name)}</label>`).join('')
-        || '<div class="help-text" style="margin:6px 8px;">Nenhum analista cadastrado</div>'}
-    </div>
+    <label>Quem foi escalado pra trabalhar</label>
+    <button type="button" class="btn" id="btnAbrirEscalaDomAnalistas" style="width:100%;display:flex;justify-content:space-between;align-items:center;">
+      <span>${sel.length===0 ? 'Selecionar analistas' : `${sel.length} analista(s) selecionado(s)`}</span>
+      <span>✎</span>
+    </button>
   </div>`;
 }
 

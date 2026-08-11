@@ -24,6 +24,43 @@ function bindMultiselect(main, toggleId, todosId, chkClass, filtro, key, openKey
   });
 }
 
+// Escala de Domingo (ver supGerarEscalaDomingo/escalaDomAnalistaPicker em
+// render-supervisor.js): a grade de chips fica dentro de uma caixa (modal)
+// em vez de aberta direto no card — escolher 10-14 pessoas ocupava espaço
+// demais na tela principal. Cada toggle re-renderiza só o CONTEÚDO do
+// modal (openModal de novo, sem fechar) pra refletir o chip marcado/
+// desmarcado e o contador, sem mexer no resto da tela.
+function escalaDomModalBody(myAnalistas){
+  const sel = uiState.escalaDomSelecionados;
+  return `<h3>Quem foi escalado pra trabalhar</h3>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+      <button type="button" class="btn" id="btnEscalaDomModalTodos" style="padding:4px 10px;font-size:11.5px;">Selecionar todos</button>
+      <button type="button" class="btn" id="btnEscalaDomModalLimpar" style="padding:4px 10px;font-size:11.5px;">Limpar</button>
+      <span class="help-text" style="margin:0 0 0 auto;">${sel.length} selecionado${sel.length===1?'':'s'}</span>
+    </div>
+    <div class="escaladom-grid">
+      ${myAnalistas.map(a=>`<label class="escaladom-chip ${sel.includes(a.id)?'checked':''}"><input type="checkbox" class="escalaDomModalChk" value="${a.id}" ${sel.includes(a.id)?'checked':''}> ${escapeHtml(a.name)}</label>`).join('')
+        || '<div class="help-text" style="margin:6px 8px;">Nenhum analista cadastrado</div>'}
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+      <button class="btn btn-brand" id="btnFecharEscalaDomModal">Fechar</button>
+    </div>`;
+}
+function wireEscalaDomModal(myAnalistas){
+  const reabrir = ()=>{ openModal(escalaDomModalBody(myAnalistas)); wireEscalaDomModal(myAnalistas); };
+  document.getElementById('btnEscalaDomModalTodos').onclick = ()=>{ uiState.escalaDomSelecionados = myAnalistas.map(a=>a.id); reabrir(); };
+  document.getElementById('btnEscalaDomModalLimpar').onclick = ()=>{ uiState.escalaDomSelecionados = []; reabrir(); };
+  document.querySelectorAll('.escalaDomModalChk').forEach(chk=>{
+    chk.addEventListener('change', ()=>{
+      const arr = uiState.escalaDomSelecionados;
+      if(chk.checked){ if(!arr.includes(chk.value)) arr.push(chk.value); }
+      else { uiState.escalaDomSelecionados = arr.filter(x=>x!==chk.value); }
+      reabrir();
+    });
+  });
+  document.getElementById('btnFecharEscalaDomModal').onclick = ()=>{ closeModal(); renderMain(); };
+}
+
 function bindMainEvents(){
   const main = document.getElementById('mainArea');
 
@@ -769,24 +806,11 @@ function bindMainEvents(){
   const progDate = document.getElementById('progDateSel');
   if(progDate) progDate.addEventListener('change', ()=>{ uiState.progDate = progDate.value; renderMain(); });
 
-  const btnEscalaDomTodos = document.getElementById('btnEscalaDomTodos');
-  if(btnEscalaDomTodos) btnEscalaDomTodos.addEventListener('click', ()=>{
+  const btnAbrirEscalaDomAnalistas = document.getElementById('btnAbrirEscalaDomAnalistas');
+  if(btnAbrirEscalaDomAnalistas) btnAbrirEscalaDomAnalistas.addEventListener('click', ()=>{
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
-    uiState.escalaDomSelecionados = myAnalistas.map(a=>a.id);
-    renderMain();
-  });
-  const btnEscalaDomLimpar = document.getElementById('btnEscalaDomLimpar');
-  if(btnEscalaDomLimpar) btnEscalaDomLimpar.addEventListener('click', ()=>{
-    uiState.escalaDomSelecionados = [];
-    renderMain();
-  });
-  main.querySelectorAll('.escalaDomChk').forEach(chk=>{
-    chk.addEventListener('change', ()=>{
-      const arr = uiState.escalaDomSelecionados;
-      if(chk.checked){ if(!arr.includes(chk.value)) arr.push(chk.value); }
-      else { uiState.escalaDomSelecionados = arr.filter(x=>x!==chk.value); }
-      renderMain();
-    });
+    openModal(escalaDomModalBody(myAnalistas));
+    wireEscalaDomModal(myAnalistas);
   });
 
   const escalaDomDataInput = document.getElementById('escalaDomDataInput');
