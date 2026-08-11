@@ -374,6 +374,7 @@ function starDisplay(n){
 
 
 function getDaySlots(analistaId, dateStr){
+  const me = userById(analistaId);
   const bmEntries = DB.baseMestra.filter(b=>b.analistaId===analistaId && bmRodaNoDia(b, dateStr));
   const slots = bmEntries.map(bm=>{
     const aus = DB.ausencias.find(a=>a.baseMestraId===bm.id && a.data===dateStr);
@@ -383,7 +384,13 @@ function getDaySlots(analistaId, dateStr){
     }
     return {...bm, isOff:false, responsavelNome: bm.titular, responsavelId: bm.analistaId, isSuplente:false};
   });
-  const adhoc = DB.suplencias.filter(s=>s.analistaOriginalId===analistaId && s.dataCobertura===dateStr)
+  // Exclui a cobertura avulsa em que o próprio titular é quem cobre (ex.:
+  // Gerar Escala de Domingo priorizando a carteira própria de quem já foi
+  // escalado) — senão ele via aparecer duas vezes na própria agenda: um
+  // card "Folgando" aqui e outro "Cobrindo" logo abaixo (coberturaAdhoc)
+  // pra a MESMA operação, quando na real ele só está roteirizando o
+  // próprio hub normalmente.
+  const adhoc = DB.suplencias.filter(s=>s.analistaOriginalId===analistaId && s.dataCobertura===dateStr && !(me && normalizarNome(s.suplente)===normalizarNome(me.name)))
     .map(s=>({id:s.id, operacao:s.operacao, ciclo:s.ciclo, horaInicio:s.horaInicio, horaFim:s.horaFim, isOff:true, tipo:'cobertura', responsavelNome:s.suplente, responsavelId:null, isSuplente:true}));
 
   // As duas listas acima só aparecem na agenda do TITULAR (a operação some
@@ -398,7 +405,6 @@ function getDaySlots(analistaId, dateStr){
     return {...bm, isOff:false, isCobertura:true, tipo:a.tipo, responsavelNome: titular?.name || bm.titular, responsavelId: bm.analistaId, isSuplente:false};
   }).filter(Boolean);
 
-  const me = userById(analistaId);
   const coberturaAdhoc = me ? DB.suplencias.filter(s=>s.suplente===me.name && s.dataCobertura===dateStr).map(s=>{
     const titular = userById(s.analistaOriginalId);
     return {id:s.id, operacao:s.operacao, ciclo:s.ciclo, horaInicio:s.horaInicio, horaFim:s.horaFim, isOff:false, isCobertura:true, tipo:'cobertura', responsavelNome: titular?.name || '—', responsavelId: s.analistaOriginalId||null, isSuplente:false};
