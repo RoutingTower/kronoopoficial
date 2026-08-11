@@ -1254,7 +1254,9 @@ function bindMainEvents(){
     btn.addEventListener('click', ()=>{
       const b = DB.baseMestra.find(x=>x.id===btn.dataset.editarMestra);
       if(!b) return;
+      const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
       openModal(`<h3>Editar operação fixa</h3>
+        <div class="field"><label>Analista (titular)</label><select id="fEditAnalista">${myAnalistas.map(a=>`<option value="${a.id}" ${a.id===b.analistaId?'selected':''}>${escapeHtml(a.name)}</option>`).join('')}</select></div>
         <div class="field"><label>Operação (sigla)</label><input id="fEditOp" value="${b.operacao}"></div>
         <div class="field"><label>Ciclo</label><input id="fEditCiclo" value="${b.ciclo}"></div>
         <div class="grid-2"><div class="field"><label>Início</label><select id="fEditHi">${HOURS.map(h=>`<option ${h===b.horaInicio?'selected':''}>${h}</option>`).join('')}</select></div>
@@ -1272,6 +1274,14 @@ function bindMainEvents(){
         </div>`);
       const cancelBtn = document.querySelector('[data-modal-cancel]');
       if(cancelBtn) cancelBtn.onclick = closeModal;
+      const analistaSelect = document.getElementById('fEditAnalista');
+      // Registros órfãos (analistaId nulo, titular só em texto — ver
+      // base_mestra.analista_id no schema) não têm uma opção correspondente
+      // no <select>, então ele cai no primeiro item por padrão. Só manda
+      // analistaId/titular na hora de salvar se a pessoa REALMENTE mexeu no
+      // campo — senão um "Salvar" sem tocar nesse dropdown reatribuiria a
+      // operação pra quem calhou de ser a primeira da lista.
+      const analistaOriginal = analistaSelect.value;
       document.getElementById('confirmEditarMestra').onclick = async ()=>{
         const diasTodos = Array.from(document.querySelectorAll('.fEditMestraDia')).map(c=>c.value);
         const diasMarcados = Array.from(document.querySelectorAll('.fEditMestraDia:checked')).map(c=>c.value);
@@ -1284,6 +1294,10 @@ function bindMainEvents(){
           dataInicio: document.getElementById('fEditDi').value,
           dataFim: document.getElementById('fEditDf').value,
         };
+        if(analistaSelect.value !== analistaOriginal){
+          patch.analistaId = analistaSelect.value;
+          patch.titular = userById(analistaSelect.value)?.name || '';
+        }
         try{
           const atualizado = await apiUpdateBaseMestra(b.id, patch);
           DB.baseMestra = DB.baseMestra.map(x=>x.id===b.id ? atualizado : x);

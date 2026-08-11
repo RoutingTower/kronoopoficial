@@ -53,16 +53,33 @@ async function assertDonoDaEquipe(req, existing) {
 async function updateBaseMestra(req, res) {
   const existing = await supabaseService.getById(COLLECTION, req.params.id);
   if (!existing) return res.status(404).json({ error: "not_found" });
+  const caller = await getCaller(req);
   if (!(await assertDonoDaEquipe(req, existing))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode gerenciar a base mestra da sua equipe." });
   }
 
+  // Trocar o titular (analistaId) é diferente de editar horário/ciclo: o
+  // novo dono também precisa ser da mesma equipe do supervisor, senão
+  // ele conseguiria "empurrar" uma operação pra fora do próprio time —
+  // mesma checagem de createBaseMestra, só que aplicada ao NOVO analistaId.
+  if (req.body.analistaId !== undefined && req.body.analistaId !== existing.analistaId) {
+    const novoSupervisorId = await supervisorIdDoAnalista(req.body.analistaId);
+    if (!caller?.isAdmin && (caller?.role !== "supervisor" || novoSupervisorId !== caller.id)) {
+      return res.status(403).json({ error: "forbidden", message: "O novo titular também precisa ser da sua equipe." });
+    }
+  }
+
   const patch = {};
-  for (const key of ["operacao", "ciclo", "horaInicio", "horaFim", "titular", "dataInicio", "dataFim", "dias"]) {
+  for (const key of ["analistaId", "operacao", "ciclo", "horaInicio", "horaFim", "titular", "dataInicio", "dataFim", "dias"]) {
     if (req.body[key] !== undefined) patch[key] = req.body[key];
   }
   const updated = await supabaseService.update(COLLECTION, req.params.id, patch);
-  await notificar(existing.analistaId, "agenda", `Uma operação da sua agenda foi alterada: ${updated.operacao} (${updated.horaInicio}–${updated.horaFim}).`);
+  if (patch.analistaId && patch.analistaId !== existing.analistaId) {
+    await notificar(existing.analistaId, "agenda", `A operação ${existing.operacao} (${existing.horaInicio}–${existing.horaFim}) saiu da sua agenda — passou para outro titular.`);
+    await notificar(updated.analistaId, "agenda", `Uma operação fixa foi transferida para você: ${updated.operacao} (${updated.horaInicio}–${updated.horaFim}).`);
+  } else {
+    await notificar(existing.analistaId, "agenda", `Uma operação da sua agenda foi alterada: ${updated.operacao} (${updated.horaInicio}–${updated.horaFim}).`);
+  }
   res.json(updated);
 }
 
