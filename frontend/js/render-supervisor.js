@@ -266,7 +266,17 @@ function supGerarEscalaDomingo(myAnalistas){
   const res = uiState.escalaDomResultado;
 
   let resultsHtml = '';
-  if(res && res.data===dataStr){
+  if(res && res.data===dataStr && res.linhas.length===0){
+    const idsEquipe = new Set(myAnalistas.map(a=>a.id));
+    const datasFim = DB.baseMestra.filter(b=>b.analistaId && idsEquipe.has(b.analistaId)).map(b=>b.dataFim).sort();
+    const ultima = datasFim[datasFim.length-1];
+    resultsHtml = `<div class="card" style="margin-top:18px;margin-bottom:22px;">
+      <div class="section-title">Proposta de escala — ${dataStr}</div>
+      <div class="help-text" style="color:var(--danger,#e05252);">
+        ⚠️ Nenhuma operação fixa da sua equipe está ativa em ${dataStr}${ultima ? ` — a última operação fixa cadastrada termina em ${ultima}` : ''}. Atualize a Base Mestra (Operações Fixas) pra estender o período antes de gerar a escala.
+      </div>
+    </div>`;
+  } else if(res && res.data===dataStr){
     const porEscalado = new Map(res.escalados.map(id=>[id, 0]));
     res.linhas.forEach(l=>{ if(l.escaladoId) porEscalado.set(l.escaladoId, (porEscalado.get(l.escaladoId)||0)+1); });
     const resumo = res.escalados.map(id=>{
