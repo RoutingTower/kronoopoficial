@@ -68,6 +68,13 @@ let uiState = {
   domingosMes: todayISO(),
   particularidadesFiltro: { operacao: '', analista: 'all' },
   sugerir: null, inboxSelected: null,
+  // Gerar Escala de Domingo (ver gerarEscalaDomingo em utils.js): data +
+  // quem foi escalado pra trabalhar, e o resultado (proposta editável)
+  // depois de clicar em "Gerar escala".
+  escalaDomData: null,
+  escalaDomSelecionados: [],
+  escalaDomDropdownOpen: false,
+  escalaDomResultado: null,
   // Linhas de importação em massa (Excel) cujo nome de analista não bateu
   // com ninguém da equipe — { tipo:'basemestra'|'suplencias', items:[...] }.
   // Mostrado como banner no topo da tela até o supervisor resolver ou

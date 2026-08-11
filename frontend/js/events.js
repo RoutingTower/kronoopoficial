@@ -769,6 +769,55 @@ function bindMainEvents(){
   const progDate = document.getElementById('progDateSel');
   if(progDate) progDate.addEventListener('change', ()=>{ uiState.progDate = progDate.value; renderMain(); });
 
+  bindMultiselect(main, 'btnEscalaDomToggle', 'escalaDomTodos', 'escalaDomChk', uiState, 'escalaDomSelecionados', 'escalaDomDropdownOpen');
+
+  const escalaDomDataInput = document.getElementById('escalaDomDataInput');
+  if(escalaDomDataInput) escalaDomDataInput.addEventListener('change', ()=>{
+    uiState.escalaDomData = escalaDomDataInput.value;
+    uiState.escalaDomResultado = null;
+    renderMain();
+  });
+
+  const btnGerarEscalaDom = document.getElementById('btnGerarEscalaDom');
+  if(btnGerarEscalaDom) btnGerarEscalaDom.addEventListener('click', ()=>{
+    const selecionados = uiState.escalaDomSelecionados;
+    if(selecionados.length===0){ alert('Selecione ao menos um analista escalado pra trabalhar nesse domingo.'); return; }
+    const dataStr = uiState.escalaDomData;
+    const { escalados, naoCobertos } = gerarEscalaDomingo(selecionados, dataStr);
+    const linhas = [
+      ...escalados.flatMap(e=>e.assigned.map(h=>({...h, escaladoId:e.id}))),
+      ...naoCobertos.map(h=>({...h, escaladoId:''})),
+    ].sort((a,b)=>a.startMs-b.startMs);
+    uiState.escalaDomResultado = { data: dataStr, escalados: selecionados, linhas };
+    renderMain();
+  });
+  main.querySelectorAll('[data-escaladom-idx]').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      const idx = parseInt(sel.dataset.escaladomIdx,10);
+      uiState.escalaDomResultado.linhas[idx].escaladoId = sel.value;
+      renderMain();
+    });
+  });
+  const btnConfirmarEscalaDom = document.getElementById('btnConfirmarEscalaDom');
+  if(btnConfirmarEscalaDom) btnConfirmarEscalaDom.addEventListener('click', async ()=>{
+    const res = uiState.escalaDomResultado;
+    const cobertas = res.linhas.filter(l=>l.escaladoId);
+    let ok=0, fail=0;
+    openProgressModal('Lançando escala de domingo...');
+    for(const [idx, l] of cobertas.entries()){
+      const entrada = {operacao:l.operacao, ciclo:l.ciclo, horaInicio:l.horaInicio, horaFim:l.horaFim,
+        suplente:userById(l.escaladoId)?.name||'', dataCobertura:res.data,
+        analistaOriginalId: l.analistaId || l.escaladoId, tipo:'folga'};
+      try{ DB.suplencias.push(await apiCreateSuplencia(entrada)); ok++; }
+      catch(e){ console.error('KronoOP: falha ao lançar cobertura da escala de domingo.', e); fail++; }
+      updateProgressModal(idx+1, cobertas.length);
+    }
+    closeModal();
+    uiState.escalaDomResultado = null;
+    renderMain();
+    alert(`${ok} cobertura(s) lançada(s) com sucesso.${fail?` ${fail} falharam.`:''}`);
+  });
+
   const btnGerarSugestao = document.getElementById('btnGerarSugestao');
   if(btnGerarSugestao) btnGerarSugestao.addEventListener('click', ()=>{
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);

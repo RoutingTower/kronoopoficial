@@ -9,7 +9,7 @@ function renderSupervisor(){
   else if(activeNavKey==='spr') content = supSPR();
   else if(activeNavKey==='resultadospr') content = supResultadoSPR(myAnalistas);
   else if(activeNavKey==='tempoexecucao') content = supTempoExecucao(myAnalistas);
-  else if(activeNavKey==='suplencias') content = renderImportPendentesBanner('suplencias', myAnalistas) + supSugerirSuplente(myAnalistas) + supSuplencias(myAnalistas);
+  else if(activeNavKey==='suplencias') content = renderImportPendentesBanner('suplencias', myAnalistas) + supGerarEscalaDomingo(myAnalistas) + supSugerirSuplente(myAnalistas) + supSuplencias(myAnalistas);
   else if(activeNavKey==='programacao') content = supProgramacao(myAnalistas);
   else if(activeNavKey==='grade') content = supGrade(myAnalistas);
   else if(activeNavKey==='domingos') content = supControleDomingos(myAnalistas);
@@ -234,6 +234,87 @@ function supSuplencias(myAnalistas){
   ${rows.map(s=>`<tr><td>${tipoBadge(s.tipo)}</td><td>${s.operacao}</td><td>${s.ciclo||'—'}</td><td class="mono">${getSPR(session.userId, s.operacao, s.ciclo) ?? '—'}</td><td class="mono">${s.horaInicio}–${s.horaFim}</td><td>${s.folgandoNome}</td><td>${s.suplenteNome}</td><td class="mono">${s.data}</td>
   <td style="text-align:right;white-space:nowrap;"><button class="btn" data-editar-cobertura="${s.id}" data-cobertura-tipo="${s.source}">Editar</button> <button class="btn btn-danger" data-excluir-cobertura="${s.id}" data-cobertura-tipo="${s.source}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="9" class="empty">Nenhuma cobertura registrada</td></tr>'}
   </tbody></table></div>`;
+}
+
+
+// Todo domingo, os hubs 7x7 continuam precisando de titular mesmo com o
+// time inteiro de folga — hoje isso é escolhido e distribuído manualmente.
+// Aqui o supervisor só informa quem foi escalado pra trabalhar naquele
+// domingo; o sistema propõe a escala inteira (gerarEscalaDomingo, ver
+// utils.js): até 5 operações por pessoa, sem estourar 8h de turno,
+// priorizando a carteira própria de cada um. A proposta fica editável
+// (dropdown por linha) antes de confirmar — mesmo espírito do Sugerir
+// Suplente logo abaixo, só que pro domingo inteiro de uma vez.
+function escalaDomAnalistaPicker(myAnalistas){
+  const sel = uiState.escalaDomSelecionados;
+  return `<div class="multiselect">
+      <button type="button" class="multiselect-btn" id="btnEscalaDomToggle">
+        <span>${sel.length===0 ? 'Selecionar quem foi escalado' : `${sel.length} analista(s) escalado(s)`}</span>
+        <span>▾</span>
+      </button>
+      ${uiState.escalaDomDropdownOpen ? `
+      <div class="multiselect-panel">
+        <label><input type="checkbox" id="escalaDomTodos" ${sel.length===0?'checked':''}> <b>Nenhum (limpar)</b></label>
+        <div class="msep"></div>
+        ${myAnalistas.map(a=>`<label><input type="checkbox" class="escalaDomChk" value="${a.id}" ${sel.includes(a.id)?'checked':''}> ${escapeHtml(a.name)}</label>`).join('') || '<div class="help-text" style="margin:6px 8px;">Nenhum analista cadastrado</div>'}
+      </div>` : ''}
+    </div>`;
+}
+
+function supGerarEscalaDomingo(myAnalistas){
+  if(!uiState.escalaDomData) uiState.escalaDomData = proximoDomingoISO();
+  const dataStr = uiState.escalaDomData;
+  const res = uiState.escalaDomResultado;
+
+  let resultsHtml = '';
+  if(res && res.data===dataStr){
+    const porEscalado = new Map(res.escalados.map(id=>[id, 0]));
+    res.linhas.forEach(l=>{ if(l.escaladoId) porEscalado.set(l.escaladoId, (porEscalado.get(l.escaladoId)||0)+1); });
+    const resumo = res.escalados.map(id=>{
+      const n = porEscalado.get(id)||0;
+      return `<span class="op-tag" style="${n===0?'color:var(--danger,#e05252);':''}">${escapeHtml(userById(id)?.name||'—')}: ${n} op(s)</span>`;
+    }).join(' ');
+    const naoCobertos = res.linhas.filter(l=>!l.escaladoId).length;
+
+    resultsHtml = `<div class="card" style="margin-top:18px;margin-bottom:22px;">
+      <div class="section-title">Proposta de escala — ${dataStr}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">${resumo}</div>
+      ${naoCobertos>0 ? `<div class="help-text" style="color:var(--danger,#e05252);">⚠️ ${naoCobertos} operação(ões) não coube em ninguém (capacidade ou janela de 8h esgotada) — ajuste manualmente abaixo ou escale mais gente.</div>` : ''}
+      <div style="overflow-x:auto;">
+      <table><thead><tr><th>Horário</th><th>Operação</th><th>Ciclo</th><th>Quem cobre</th></tr></thead><tbody>
+      ${res.linhas.map((l,idx)=>{
+        const propria = l.analistaId && l.analistaId===l.escaladoId;
+        return `<tr ${!l.escaladoId?'style="background:rgba(224,82,82,0.08);"':''}>
+          <td class="mono">${l.horaInicio}–${l.horaFim}</td>
+          <td>${escapeHtml(l.operacao)}</td>
+          <td>${escapeHtml(l.ciclo||'')}</td>
+          <td><select data-escaladom-idx="${idx}">
+            <option value="">— não cobrir —</option>
+            ${res.escalados.map(id=>`<option value="${id}" ${l.escaladoId===id?'selected':''}>${escapeHtml(userById(id)?.name||'—')}${id===l.analistaId?' (própria)':''}</option>`).join('')}
+          </select>${propria?' 🏠':''}</td>
+        </tr>`;
+      }).join('')}
+      </tbody></table>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+        <button class="btn btn-brand" id="btnConfirmarEscalaDom">Confirmar escala (${res.linhas.filter(l=>l.escaladoId).length} cobertura(s))</button>
+      </div>
+    </div>`;
+  }
+
+  return `
+  <div class="section-title">Gerar Escala de Domingo</div>
+  <div class="help-text">Informe a data e quem foi escalado pra trabalhar. O sistema monta a escala do dia inteiro: até 5 operações por pessoa, priorizando a carteira própria de cada um (🏠) e completando com hubs de quem não vai trabalhar, sem passar de 8h de turno.</div>
+  <div class="card" style="margin-bottom:22px;">
+    <div class="grid-2">
+      <div class="field" style="margin-bottom:0;"><label>Data</label><input type="date" id="escalaDomDataInput" value="${dataStr}"></div>
+      <div class="field" style="margin-bottom:0;">${escalaDomAnalistaPicker(myAnalistas)}</div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+      <button class="btn btn-brand" id="btnGerarEscalaDom">Gerar escala</button>
+    </div>
+  </div>
+  ${resultsHtml}`;
 }
 
 

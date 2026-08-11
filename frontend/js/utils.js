@@ -241,6 +241,15 @@ function isDomingo(dateStr){
   return WEEKDAYS[new Date(dateStr+'T00:00:00').getDay()]==='dom';
 }
 
+// Próximo domingo a partir de uma data (ou hoje, se veio de folga) — hoje
+// mesmo se hoje já for domingo. Usado como valor padrão do Gerar Escala de
+// Domingo.
+function proximoDomingoISO(fromDateStr){
+  let d = fromDateStr || todayISO();
+  while(!isDomingo(d)) d = addDaysISO(d, 1);
+  return d;
+}
+
 // Analista escalado em plantão numa data — reaproveita o cadastro de
 // Plantão da aba Eventos (DB.plantoes: data + cargo + nome do plantonista,
 // ver supPlantao()/events.js). Esse cadastro nasceu pra cobrir a AUSÊNCIA
@@ -532,6 +541,89 @@ function candidatosParaSlot(myAnalistas, titularId, bm, dataStr){
   }).filter(Boolean);
   candidatos.sort((x,y)=> x.opsHoje-y.opsHoje || x.coberturasNoMes-y.coberturasNoMes || x.name.localeCompare(y.name));
   return candidatos;
+}
+
+
+// Todos os hubs (Base Mestra) que rodam numa data, com o horário já
+// convertido pra timestamp real (cruza meia-noite corretamente pra
+// turnos de madrugada, ver slotTimestamp) — usado pelo Gerar Escala de
+// Domingo abaixo.
+function hubsParaData(dateStr){
+  return DB.baseMestra.filter(b=>bmRodaNoDia(b, dateStr)).map(b=>{
+    const startMs = slotTimestamp(dateStr, b.horaInicio);
+    const durMs = calcularDuracaoManual(b.horaInicio, b.horaFim)*1000;
+    return { bmId:b.id, analistaId:b.analistaId, titular:b.titular, operacao:b.operacao, ciclo:b.ciclo,
+      horaInicio:b.horaInicio, horaFim:b.horaFim, startMs, endMs:startMs+durMs };
+  });
+}
+
+const ESCALA_DOMINGO_MAX_OPS = 5;
+const ESCALA_DOMINGO_MAX_JORNADA_MS = 8*60*60*1000;
+
+// Gera uma proposta de escala de domingo: recebe quem foi escalado pra
+// trabalhar (escaladoIds) numa data e distribui entre eles os hubs que
+// precisam de cobertura nessa data — no máximo 5 operações por pessoa, sem
+// horários sobrepostos, e sem passar de 8h entre o início da primeira e o
+// fim da última operação da pessoa (a janela do turno de domingo).
+//
+// Prioridade 1: cada escalado recebe as operações que já são da carteira
+// dele (Base Mestra), se caírem nessa data — são as que ele já conhece.
+// Prioridade 2: o que sobra é distribuído priorizando quem tem menos
+// operações até agora (pra fechar todo mundo perto de 5, em vez de
+// sobrecarregar os primeiros), usando o encaixe de horário mais justo
+// (menor crescimento da janela do turno) como critério de desempate.
+// Hubs que não couberem em ninguém (capacidade ou janela de horário
+// esgotada) voltam em naoCobertos, pro supervisor resolver manualmente.
+function gerarEscalaDomingo(escaladoIds, dateStr){
+  const hubs = hubsParaData(dateStr);
+  const jaCoberto = new Set(
+    DB.suplencias.filter(s=>s.dataCobertura===dateStr)
+      .map(s=>`${s.operacao}|${s.ciclo}|${s.horaInicio}|${s.horaFim}`)
+  );
+  const pendentes = hubs.filter(h=>!jaCoberto.has(`${h.operacao}|${h.ciclo}|${h.horaInicio}|${h.horaFim}`));
+
+  const escalados = escaladoIds.map(id=>{
+    const u = userById(id);
+    return { id, name: u?.name || '—', assigned: [], minStart: null, maxEnd: null };
+  });
+  const porId = new Map(escalados.map(e=>[e.id, e]));
+
+  function cabe(e, hub){
+    if(e.assigned.length >= ESCALA_DOMINGO_MAX_OPS) return false;
+    if(e.assigned.some(a=>rangesOverlap(a.startMs, a.endMs, hub.startMs, hub.endMs))) return false;
+    const novoMin = e.minStart===null ? hub.startMs : Math.min(e.minStart, hub.startMs);
+    const novoMax = e.maxEnd===null ? hub.endMs : Math.max(e.maxEnd, hub.endMs);
+    return (novoMax - novoMin) <= ESCALA_DOMINGO_MAX_JORNADA_MS;
+  }
+  function atribuir(e, hub){
+    e.assigned.push(hub);
+    e.minStart = e.minStart===null ? hub.startMs : Math.min(e.minStart, hub.startMs);
+    e.maxEnd = e.maxEnd===null ? hub.endMs : Math.max(e.maxEnd, hub.endMs);
+  }
+
+  const restantes = [];
+  pendentes.forEach(hub=>{
+    const dono = hub.analistaId && porId.get(hub.analistaId);
+    if(dono && cabe(dono, hub)) atribuir(dono, hub);
+    else restantes.push(hub);
+  });
+
+  restantes.sort((a,b)=>a.startMs-b.startMs);
+  const naoCobertos = [];
+  restantes.forEach(hub=>{
+    const elegiveis = escalados.filter(e=>cabe(e, hub));
+    if(elegiveis.length===0){ naoCobertos.push(hub); return; }
+    elegiveis.sort((a,b)=>{
+      if(a.assigned.length !== b.assigned.length) return a.assigned.length - b.assigned.length;
+      const spanA = a.minStart===null ? 0 : Math.max(a.maxEnd, hub.endMs) - Math.min(a.minStart, hub.startMs);
+      const spanB = b.minStart===null ? 0 : Math.max(b.maxEnd, hub.endMs) - Math.min(b.minStart, hub.startMs);
+      return spanA - spanB;
+    });
+    atribuir(elegiveis[0], hub);
+  });
+
+  escalados.forEach(e=> e.assigned.sort((a,b)=>a.startMs-b.startMs));
+  return { escalados, naoCobertos };
 }
 
 
