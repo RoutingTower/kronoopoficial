@@ -73,7 +73,6 @@ let uiState = {
   // depois de clicar em "Gerar escala".
   escalaDomData: null,
   escalaDomSelecionados: [],
-  escalaDomDropdownOpen: false,
   escalaDomResultado: null,
   // Linhas de importação em massa (Excel) cujo nome de analista não bateu
   // com ninguém da equipe — { tipo:'basemestra'|'suplencias', items:[...] }.

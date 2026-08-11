@@ -245,20 +245,25 @@ function supSuplencias(myAnalistas){
 // priorizando a carteira própria de cada um. A proposta fica editável
 // (dropdown por linha) antes de confirmar — mesmo espírito do Sugerir
 // Suplente logo abaixo, só que pro domingo inteiro de uma vez.
+// Picker sempre visível (sem dropdown pra abrir/fechar) — escolher 10-14
+// pessoas dentro de um painel flutuante de 260px de altura era o que
+// deixava isso ruim de manusear. Chips clicáveis + atalhos "Todos"/"Limpar"
+// deixam a seleção inteira visível e editável de uma vez.
 function escalaDomAnalistaPicker(myAnalistas){
   const sel = uiState.escalaDomSelecionados;
-  return `<div class="multiselect">
-      <button type="button" class="multiselect-btn" id="btnEscalaDomToggle">
-        <span>${sel.length===0 ? 'Selecionar quem foi escalado' : `${sel.length} analista(s) escalado(s)`}</span>
-        <span>▾</span>
-      </button>
-      ${uiState.escalaDomDropdownOpen ? `
-      <div class="multiselect-panel">
-        <label><input type="checkbox" id="escalaDomTodos" ${sel.length===0?'checked':''}> <b>Nenhum (limpar)</b></label>
-        <div class="msep"></div>
-        ${myAnalistas.map(a=>`<label><input type="checkbox" class="escalaDomChk" value="${a.id}" ${sel.includes(a.id)?'checked':''}> ${escapeHtml(a.name)}</label>`).join('') || '<div class="help-text" style="margin:6px 8px;">Nenhum analista cadastrado</div>'}
-      </div>` : ''}
-    </div>`;
+  return `<div class="field" style="margin-bottom:0;">
+    <label style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
+      <span>Quem foi escalado pra trabalhar (${sel.length} selecionado${sel.length===1?'':'s'})</span>
+      <span style="display:flex;gap:6px;">
+        <button type="button" class="btn" id="btnEscalaDomTodos" style="padding:4px 10px;font-size:11.5px;">Selecionar todos</button>
+        <button type="button" class="btn" id="btnEscalaDomLimpar" style="padding:4px 10px;font-size:11.5px;">Limpar</button>
+      </span>
+    </label>
+    <div class="escaladom-grid">
+      ${myAnalistas.map(a=>`<label class="escaladom-chip ${sel.includes(a.id)?'checked':''}"><input type="checkbox" class="escalaDomChk" value="${a.id}" ${sel.includes(a.id)?'checked':''}> ${escapeHtml(a.name)}</label>`).join('')
+        || '<div class="help-text" style="margin:6px 8px;">Nenhum analista cadastrado</div>'}
+    </div>
+  </div>`;
 }
 
 function supGerarEscalaDomingo(myAnalistas){
@@ -306,10 +311,8 @@ function supGerarEscalaDomingo(myAnalistas){
   <div class="section-title">Gerar Escala de Domingo</div>
   <div class="help-text">Informe a data e quem foi escalado pra trabalhar. O sistema monta a escala do dia inteiro: até 5 operações por pessoa, priorizando a carteira própria de cada um (🏠), equilibrando o total entre todos e variando o estado (UF) dos hubs extras, sem passar de 8h de turno.</div>
   <div class="card" style="margin-bottom:22px;">
-    <div class="grid-2">
-      <div class="field" style="margin-bottom:0;"><label>Data</label><input type="date" id="escalaDomDataInput" value="${dataStr}"></div>
-      <div class="field" style="margin-bottom:0;">${escalaDomAnalistaPicker(myAnalistas)}</div>
-    </div>
+    <div class="field" style="max-width:220px;"><label>Data</label><input type="date" id="escalaDomDataInput" value="${dataStr}"></div>
+    ${escalaDomAnalistaPicker(myAnalistas)}
     <div style="display:flex;justify-content:flex-end;margin-top:14px;">
       <button class="btn btn-brand" id="btnGerarEscalaDom">Gerar escala</button>
     </div>

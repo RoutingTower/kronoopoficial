@@ -769,7 +769,25 @@ function bindMainEvents(){
   const progDate = document.getElementById('progDateSel');
   if(progDate) progDate.addEventListener('change', ()=>{ uiState.progDate = progDate.value; renderMain(); });
 
-  bindMultiselect(main, 'btnEscalaDomToggle', 'escalaDomTodos', 'escalaDomChk', uiState, 'escalaDomSelecionados', 'escalaDomDropdownOpen');
+  const btnEscalaDomTodos = document.getElementById('btnEscalaDomTodos');
+  if(btnEscalaDomTodos) btnEscalaDomTodos.addEventListener('click', ()=>{
+    const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
+    uiState.escalaDomSelecionados = myAnalistas.map(a=>a.id);
+    renderMain();
+  });
+  const btnEscalaDomLimpar = document.getElementById('btnEscalaDomLimpar');
+  if(btnEscalaDomLimpar) btnEscalaDomLimpar.addEventListener('click', ()=>{
+    uiState.escalaDomSelecionados = [];
+    renderMain();
+  });
+  main.querySelectorAll('.escalaDomChk').forEach(chk=>{
+    chk.addEventListener('change', ()=>{
+      const arr = uiState.escalaDomSelecionados;
+      if(chk.checked){ if(!arr.includes(chk.value)) arr.push(chk.value); }
+      else { uiState.escalaDomSelecionados = arr.filter(x=>x!==chk.value); }
+      renderMain();
+    });
+  });
 
   const escalaDomDataInput = document.getElementById('escalaDomDataInput');
   if(escalaDomDataInput) escalaDomDataInput.addEventListener('change', ()=>{
