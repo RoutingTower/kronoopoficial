@@ -320,6 +320,11 @@ function bindMainEvents(){
       const sprMeta = btn.dataset.sprMeta!=='' ? Number(btn.dataset.sprMeta) : null;
       const manual = btn.dataset.manual === '1';
       let estrelas = 0;
+      // Só fecha pelo "Cancelar" ou enviando de verdade — texto de
+      // observação (mínimo 150 caracteres) é fácil de perder num clique
+      // sem querer fora do modal (mesmo motivo da Particularidade,
+      // modalLocked, ver ui.js/main.js).
+      modalLocked = true;
       openModal(`
         <h3>Finalizar operação — ${op} (${hora})</h3>
         <div class="help-text">Este é o Raio-X da operação: avalie com estrelas, informe o SPR lançado e descreva o que aconteceu. A observação precisa de no mínimo ${RAIOX_MIN_OBS_LEN} caracteres para fechar — tudo isso é obrigatório para finalizar, a não ser que marque "Sem roteirização" abaixo.</div>
