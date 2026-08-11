@@ -468,14 +468,20 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .multiselect-panel label:hover{background:var(--bg-2);}
 .multiselect-panel .msep{border-top:1px solid var(--border);margin:4px 0;}
 
-/* Escala de Domingo (render-supervisor.js): grid de chips clicáveis pra
-   escolher quem foi escalado, sempre visível — troca o dropdown-painel
-   pequeno do .multiselect, ruim pra selecionar 10-14 pessoas de uma vez. */
-.escaladom-grid{display:flex;flex-wrap:wrap;gap:8px;max-height:280px;overflow-y:auto;padding:4px 2px;margin-top:8px;}
-.escaladom-chip{display:flex;align-items:center;gap:7px;padding:7px 12px;border:1px solid var(--border);border-radius:100px;background:var(--panel);font-size:12.5px;font-weight:400;cursor:pointer;user-select:none;transition:border-color .15s,background-color .15s,color .15s;}
-.escaladom-chip:hover{border-color:var(--text-muted);}
-.escaladom-chip.checked{background:rgba(238,77,45,0.1);border-color:var(--brand);color:var(--brand);font-weight:600;}
-.escaladom-chip input{accent-color:var(--brand);margin:0;width:13px;height:13px;}
+/* Escala de Domingo (events.js, modal "Quem foi escalado pra trabalhar"):
+   duas caixas — Disponíveis / Escalados — clicar no nome move de um lado
+   pro outro, com busca por nome no topo. Troca tanto o dropdown apertado
+   quanto o grid de chips (as duas tentativas anteriores) pra selecionar
+   10-14 pessoas de forma mais rápida de enxergar e mexer. */
+.escaladom-dual{display:flex;gap:14px;}
+.escaladom-col{flex:1;min-width:0;}
+.escaladom-col-title{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;font-weight:600;}
+.escaladom-list{border:1px solid var(--border);border-radius:9px;background:var(--bg-2);max-height:320px;overflow-y:auto;padding:4px;}
+.escaladom-item{display:block;width:100%;text-align:left;padding:8px 10px;border:none;background:transparent;color:var(--text);font-size:12.5px;border-radius:6px;cursor:pointer;font-family:inherit;}
+.escaladom-item:hover{background:var(--panel-2);}
+.escaladom-item.checked{background:rgba(238,77,45,0.1);color:var(--brand);font-weight:600;}
+.escaladom-item.checked:hover{background:rgba(238,77,45,0.16);}
+@media (max-width:480px){ .escaladom-dual{flex-direction:column;} }
 
 /* Card com destaque de cor (ex.: seção "Em Folga" em Métricas). */
 .highlight-card{border-radius:var(--radius);padding:16px 18px;margin-bottom:20px;background:rgba(184,134,11,0.07);border:1px solid rgba(184,134,11,0.3);}

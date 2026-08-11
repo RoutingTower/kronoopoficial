@@ -30,34 +30,56 @@ function bindMultiselect(main, toggleId, todosId, chkClass, filtro, key, openKey
 // demais na tela principal. Cada toggle re-renderiza só o CONTEÚDO do
 // modal (openModal de novo, sem fechar) pra refletir o chip marcado/
 // desmarcado e o contador, sem mexer no resto da tela.
+// Duas caixas (Disponíveis / Escalados, ver .escaladom-dual no CSS) — clicar
+// no nome move de um lado pro outro. Só a busca + clique num nome
+// re-renderizam as DUAS LISTAS (escalaDomRenderLists), nunca o modal
+// inteiro — re-montar tudo a cada tecla digitada perderia o foco/cursor do
+// campo de busca.
 function escalaDomModalBody(myAnalistas){
-  const sel = uiState.escalaDomSelecionados;
   return `<h3>Quem foi escalado pra trabalhar</h3>
+    <div class="field" style="margin-bottom:10px;"><input type="text" id="escalaDomBusca" placeholder="Buscar por nome..."></div>
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
       <button type="button" class="btn" id="btnEscalaDomModalTodos" style="padding:4px 10px;font-size:11.5px;">Selecionar todos</button>
       <button type="button" class="btn" id="btnEscalaDomModalLimpar" style="padding:4px 10px;font-size:11.5px;">Limpar</button>
-      <span class="help-text" style="margin:0 0 0 auto;">${sel.length} selecionado${sel.length===1?'':'s'}</span>
+      <span class="help-text" id="escalaDomContador" style="margin:0 0 0 auto;"></span>
     </div>
-    <div class="escaladom-grid">
-      ${myAnalistas.map(a=>`<label class="escaladom-chip ${sel.includes(a.id)?'checked':''}"><input type="checkbox" class="escalaDomModalChk" value="${a.id}" ${sel.includes(a.id)?'checked':''}> ${escapeHtml(a.name)}</label>`).join('')
-        || '<div class="help-text" style="margin:6px 8px;">Nenhum analista cadastrado</div>'}
+    <div class="escaladom-dual">
+      <div class="escaladom-col">
+        <div class="escaladom-col-title">Disponíveis</div>
+        <div class="escaladom-list" id="escalaDomListaDisponiveis"></div>
+      </div>
+      <div class="escaladom-col">
+        <div class="escaladom-col-title">Escalados</div>
+        <div class="escaladom-list" id="escalaDomListaEscalados"></div>
+      </div>
     </div>
     <div style="display:flex;justify-content:flex-end;margin-top:14px;">
       <button class="btn btn-brand" id="btnFecharEscalaDomModal">Fechar</button>
     </div>`;
 }
-function wireEscalaDomModal(myAnalistas){
-  const reabrir = ()=>{ openModal(escalaDomModalBody(myAnalistas)); wireEscalaDomModal(myAnalistas); };
-  document.getElementById('btnEscalaDomModalTodos').onclick = ()=>{ uiState.escalaDomSelecionados = myAnalistas.map(a=>a.id); reabrir(); };
-  document.getElementById('btnEscalaDomModalLimpar').onclick = ()=>{ uiState.escalaDomSelecionados = []; reabrir(); };
-  document.querySelectorAll('.escalaDomModalChk').forEach(chk=>{
-    chk.addEventListener('change', ()=>{
-      const arr = uiState.escalaDomSelecionados;
-      if(chk.checked){ if(!arr.includes(chk.value)) arr.push(chk.value); }
-      else { uiState.escalaDomSelecionados = arr.filter(x=>x!==chk.value); }
-      reabrir();
-    });
+function escalaDomRenderLists(myAnalistas){
+  const sel = uiState.escalaDomSelecionados;
+  const busca = normalizarNome(document.getElementById('escalaDomBusca')?.value || '');
+  const bate = a => !busca || normalizarNome(a.name).includes(busca);
+  const disponiveis = myAnalistas.filter(a=>!sel.includes(a.id) && bate(a));
+  const escalados = myAnalistas.filter(a=>sel.includes(a.id) && bate(a));
+  document.getElementById('escalaDomListaDisponiveis').innerHTML = disponiveis.map(a=>`<button type="button" class="escaladom-item" data-id="${a.id}">${escapeHtml(a.name)}</button>`).join('')
+    || '<div class="help-text" style="padding:8px;">Ninguém encontrado</div>';
+  document.getElementById('escalaDomListaEscalados').innerHTML = escalados.map(a=>`<button type="button" class="escaladom-item checked" data-id="${a.id}">${escapeHtml(a.name)}</button>`).join('')
+    || '<div class="help-text" style="padding:8px;">Ninguém ainda</div>';
+  document.getElementById('escalaDomContador').textContent = `${sel.length} selecionado${sel.length===1?'':'s'}`;
+  document.querySelectorAll('#escalaDomListaDisponiveis .escaladom-item').forEach(btn=>{
+    btn.onclick = ()=>{ if(!sel.includes(btn.dataset.id)) sel.push(btn.dataset.id); escalaDomRenderLists(myAnalistas); };
   });
+  document.querySelectorAll('#escalaDomListaEscalados .escaladom-item').forEach(btn=>{
+    btn.onclick = ()=>{ uiState.escalaDomSelecionados = sel.filter(id=>id!==btn.dataset.id); escalaDomRenderLists(myAnalistas); };
+  });
+}
+function wireEscalaDomModal(myAnalistas){
+  escalaDomRenderLists(myAnalistas);
+  document.getElementById('escalaDomBusca').addEventListener('input', ()=> escalaDomRenderLists(myAnalistas));
+  document.getElementById('btnEscalaDomModalTodos').onclick = ()=>{ uiState.escalaDomSelecionados = myAnalistas.map(a=>a.id); escalaDomRenderLists(myAnalistas); };
+  document.getElementById('btnEscalaDomModalLimpar').onclick = ()=>{ uiState.escalaDomSelecionados = []; escalaDomRenderLists(myAnalistas); };
   document.getElementById('btnFecharEscalaDomModal').onclick = ()=>{ closeModal(); renderMain(); };
 }
 
@@ -809,7 +831,7 @@ function bindMainEvents(){
   const btnAbrirEscalaDomAnalistas = document.getElementById('btnAbrirEscalaDomAnalistas');
   if(btnAbrirEscalaDomAnalistas) btnAbrirEscalaDomAnalistas.addEventListener('click', ()=>{
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
-    openModal(escalaDomModalBody(myAnalistas));
+    openModalLarge(escalaDomModalBody(myAnalistas));
     wireEscalaDomModal(myAnalistas);
   });
 
