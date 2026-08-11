@@ -620,7 +620,8 @@ function bindMainEvents(){
   // mesmo modal pros dois, só muda o tipo gravado.
   function abrirModalNovaSuplencia(tipo){
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
-    const titulo = tipo==='ferias' ? 'Nova cobertura avulsa — Férias' : 'Nova cobertura avulsa';
+    const ferias = tipo==='ferias';
+    const titulo = ferias ? 'Nova cobertura avulsa — Férias' : 'Nova cobertura avulsa';
     openModal(`<h3>${titulo}</h3>
       <div class="field"><label>Analista original (quem está sendo coberto)</label><select id="fOrig">${myAnalistas.map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}</select></div>
       <div class="field"><label>Suplente</label><select id="fSup">${myAnalistas.map(a=>`<option value="${a.name}">${a.name}</option>`).join('')}</select></div>
@@ -628,7 +629,12 @@ function bindMainEvents(){
       <div class="field"><label>Ciclo</label><input id="fCiclo2" value="T3"></div></div>
       <div class="grid-2"><div class="field"><label>Início</label><select id="fHi2">${HOURS.map(h=>`<option>${h}</option>`).join('')}</select></div>
       <div class="field"><label>Fim</label><select id="fHf2">${HOURS.map(h=>`<option>${h}</option>`).join('')}</select></div></div>
-      <div class="field"><label>Data da cobertura</label><input type="date" id="fData" value="${todayISO()}"></div>
+      ${ferias ? `<div class="grid-2">
+        <div class="field"><label>Início das férias</label><input type="date" id="fDataIni" value="${todayISO()}"></div>
+        <div class="field"><label>Fim das férias</label><input type="date" id="fDataFim" value="${todayISO()}"></div>
+      </div>
+      <div class="help-text">Lança uma cobertura avulsa por dia, do início ao fim (os dois incluídos).</div>`
+        : `<div class="field"><label>Data da cobertura</label><input type="date" id="fData" value="${todayISO()}"></div>`}
       <div style="display:flex;gap:8px;justify-content:flex-end;">
         <button class="btn" data-modal-cancel>Cancelar</button>
         <button class="btn btn-brand" id="confirmNovaSuplencia">Salvar</button>
@@ -637,14 +643,30 @@ function bindMainEvents(){
     if(cancelBtn) cancelBtn.onclick = closeModal;
     document.getElementById('confirmNovaSuplencia').onclick = async ()=>{
       const analistaOriginalId = document.getElementById('fOrig').value;
-      const entrada = {operacao:document.getElementById('fOp2').value||'OP', ciclo:document.getElementById('fCiclo2').value||'T3',
+      const base = {operacao:document.getElementById('fOp2').value||'OP', ciclo:document.getElementById('fCiclo2').value||'T3',
         horaInicio:document.getElementById('fHi2').value, horaFim:document.getElementById('fHf2').value,
-        suplente:document.getElementById('fSup').value||'—', dataCobertura:document.getElementById('fData').value, analistaOriginalId, tipo};
-      try{
-        const novo = await apiCreateSuplencia(entrada);
-        DB.suplencias.push(novo);
+        suplente:document.getElementById('fSup').value||'—', analistaOriginalId, tipo};
+      if(ferias){
+        const ini = document.getElementById('fDataIni').value, fim = document.getElementById('fDataFim').value;
+        if(!ini || !fim || fim<ini){ alert('Selecione um período de férias válido (fim não pode ser antes do início).'); return; }
+        const datas = [];
+        for(let d=ini; d<=fim; d=addDaysISO(d,1)) datas.push(d);
+        let ok=0, fail=0;
+        openProgressModal('Lançando cobertura de férias...');
+        for(const [idx, dataCobertura] of datas.entries()){
+          try{ DB.suplencias.push(await apiCreateSuplencia({...base, dataCobertura})); ok++; }
+          catch(e){ fail++; }
+          updateProgressModal(idx+1, datas.length);
+        }
         closeModal(); renderMain();
-      }catch(e){ alert('Não foi possível salvar: '+e.message); }
+        if(fail) alert(`${ok} dia(s) lançado(s), ${fail} falharam.`);
+      } else {
+        try{
+          const novo = await apiCreateSuplencia({...base, dataCobertura:document.getElementById('fData').value});
+          DB.suplencias.push(novo);
+          closeModal(); renderMain();
+        }catch(e){ alert('Não foi possível salvar: '+e.message); }
+      }
     };
   }
   const btnNovaSuplencia = document.getElementById('btnNovaSuplencia');
@@ -1393,8 +1415,23 @@ function bindMainEvents(){
       if(tipo==='ausencia'){
         const a = DB.ausencias.find(x=>x.id===id);
         if(!a) return;
+        // "Folgando" é o titular fixo (analistaId) — trocar isso é trocar a
+        // baseMestra inteira (o titular E a operação fixa dele juntos, não
+        // só o nome), então o segundo select sempre lista as operações
+        // fixas do analista escolhido que rodam na data escolhida (mesma
+        // regra de bmRodaNoDia usada na Programação/Grade).
+        const opcoesOperacao = (analistaId, dataStr, selecionadoId)=>{
+          const opcoes = DB.baseMestra.filter(b=>b.analistaId===analistaId && bmRodaNoDia(b, dataStr));
+          if(opcoes.length===0) return '<option value="">Nenhuma operação fixa nesse dia</option>';
+          return opcoes.map(b=>`<option value="${b.id}" ${b.id===selecionadoId?'selected':''}>${escapeHtml(b.operacao)} (${escapeHtml(b.ciclo)}) ${b.horaInicio}–${b.horaFim}</option>`).join('');
+        };
         openModal(`<h3>Editar folga/férias</h3>
-          <div class="help-text">${escapeHtml(userById(a.analistaId)?.name||'—')} — ${escapeHtml(a.operacao)} (${escapeHtml(a.ciclo||'')}) ${a.horaInicio}–${a.horaFim}</div>
+          <div class="grid-2">
+            <div class="field"><label>Folgando (titular)</label><select id="fEditAusAnalista">
+              ${myAnalistas.map(u=>`<option value="${u.id}" ${u.id===a.analistaId?'selected':''}>${escapeHtml(u.name)}</option>`).join('')}
+            </select></div>
+            <div class="field"><label>Operação</label><select id="fEditAusOperacao">${opcoesOperacao(a.analistaId, a.data, a.baseMestraId)}</select></div>
+          </div>
           <div class="field"><label>Tipo</label><select id="fEditAusTipo">
             <option value="folga" ${a.tipo==='folga'?'selected':''}>Folga</option>
             <option value="ferias" ${a.tipo==='ferias'?'selected':''}>Férias</option>
@@ -1410,13 +1447,29 @@ function bindMainEvents(){
           </div>`);
         const cancelBtn = document.querySelector('[data-modal-cancel]');
         if(cancelBtn) cancelBtn.onclick = closeModal;
+        const analistaEl = document.getElementById('fEditAusAnalista');
+        const operacaoEl = document.getElementById('fEditAusOperacao');
+        const dataEl = document.getElementById('fEditAusData');
+        // Trocar o analista OU a data muda quais operações fixas valem —
+        // reconstrói o select de operação nos dois casos.
+        const atualizarOperacoes = ()=>{ operacaoEl.innerHTML = opcoesOperacao(analistaEl.value, dataEl.value, null); };
+        analistaEl.addEventListener('change', atualizarOperacoes);
+        dataEl.addEventListener('change', atualizarOperacoes);
         document.getElementById('confirmEditarAusencia').onclick = async ()=>{
+          const bm = DB.baseMestra.find(x=>x.id===operacaoEl.value);
+          if(!bm){ alert('Selecione uma operação válida.'); return; }
           const suplenteId = document.getElementById('fEditAusSup').value || null;
           const patch = {
+            analistaId: analistaEl.value,
+            baseMestraId: bm.id,
+            operacao: bm.operacao,
+            ciclo: bm.ciclo,
+            horaInicio: bm.horaInicio,
+            horaFim: bm.horaFim,
             tipo: document.getElementById('fEditAusTipo').value,
             suplenteId,
             suplenteNome: suplenteId ? (userById(suplenteId)?.name || '') : '',
-            data: document.getElementById('fEditAusData').value,
+            data: dataEl.value,
           };
           try{
             const atualizado = await apiUpdateAusencia(a.id, patch);
