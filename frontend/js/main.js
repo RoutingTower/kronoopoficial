@@ -119,22 +119,25 @@ KronoAuth.onAuthStateChanged(async (user)=>{
   }
 });
 
-// Atualização automática do DB em memória a cada 2h — sem isso, uma aba
+// Atualização automática do DB em memória a cada 10min — sem isso, uma aba
 // que fica aberta o turno inteiro só vê o que existia no momento do login
 // (loadDB só roda ali, ver onAuthStateChanged acima), ficando cega a
 // mudanças feitas por outra pessoa. Mesmo efeito do botão "Atualizar dados
 // agora" (Configurações), só que sozinho. Silenciosa em caso de falha —
 // só loga e tenta de novo no próximo ciclo, sem interromper quem tiver
-// usando a tela.
+// usando a tela. Com modal aberto (alguém preenchendo Raio-X, compondo um
+// comunicado etc.), só atualiza os dados em memória e pula o renderMain —
+// um redesenho da tela nessa hora perderia o que a pessoa tava digitando.
 setInterval(async ()=>{
   if(!session) return;
   try{
     await loadDB();
-    renderMain();
+    const modalAberto = document.getElementById('modalBg')?.style.display === 'flex';
+    if(!modalAberto) renderMain();
   }catch(e){
     console.error('KronoOP: falha na atualização automática periódica.', e);
   }
-}, 2*60*60*1000);
+}, 10*60*1000);
 
 // Cronômetro ao vivo do card de operação (Tempo de Execução, ver
 // render-analista.js) — só atualiza o texto do timer a cada segundo, sem
