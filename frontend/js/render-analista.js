@@ -563,7 +563,8 @@ function analistaFormularioCardHtml(f){
   }
 
   if(f.tipo==='reconhecimento_mensal'){
-    const colegas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId && u.id!==session.userId);
+    const meuSupervisorId = userById(session.userId)?.supervisorId;
+    const colegas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===meuSupervisorId && u.id!==session.userId);
     return `<div class="card">${cabecalho}
       <div class="grid-2" style="margin-top:10px;">
         <div class="field"><label>Quem você indica</label>
