@@ -2136,6 +2136,23 @@ function bindMainEvents(){
     });
   });
 
+  // Excluir só funciona pra cadastro sem histórico nenhum (banco recusa por
+  // FK — ver deleteUser, backend). Pra analista com Raio-X/cronômetro/
+  // notificações já registrados, o caminho é desativar: some da equipe
+  // ativa sem apagar nada do que já aconteceu.
+  main.querySelectorAll('[data-toggle-ativo]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const u = userById(btn.dataset.toggleAtivo);
+      if(!u) return;
+      const novoAtivo = !u.active;
+      if(!confirm(`${novoAtivo?'Ativar':'Desativar'} ${u.name}?`)) return;
+      try{
+        const atualizado = await apiUpdateUser(u.id, { active: novoAtivo });
+        DB.users = DB.users.map(x=>x.id===u.id ? atualizado : x);
+        renderMain();
+      }catch(e){ alert('Não foi possível atualizar: '+e.message); }
+    });
+  });
   main.querySelectorAll('[data-excluir-analista]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       const u = userById(btn.dataset.excluirAnalista);

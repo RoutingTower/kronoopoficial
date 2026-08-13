@@ -102,6 +102,7 @@ function supCadastros(myAnalistas){
       <td style="text-align:right;white-space:nowrap;">
         <button class="btn" data-editar-analista="${a.id}">Editar</button>
         <button class="btn" data-resetpw="${a.id}">Resetar senha</button>
+        <button class="btn" data-toggle-ativo="${a.id}">${a.active?'Desativar':'Ativar'}</button>
         <button class="btn btn-danger" data-excluir-analista="${a.id}">Excluir</button>
       </td>
     </tr>`).join('') || '<tr><td colspan="5" class="empty">Nenhum analista cadastrado</td></tr>'}

@@ -133,7 +133,21 @@ async function deleteUser(req, res) {
     return res.status(403).json({ error: "forbidden", message: "Você não tem permissão para excluir este usuário." });
   }
 
-  await supabaseService.remove(COLLECTION, req.params.id);
+  try {
+    await supabaseService.remove(COLLECTION, req.params.id);
+  } catch (err) {
+    // 23503 = violação de FK (Postgres) — analista já tem Raio-X, cronômetro,
+    // notificações etc. apontando pra ele. Excluir de verdade apagaria
+    // histórico real; a saída é desativar (ver toggle Ativar/Desativar,
+    // frontend/js/render-supervisor.js), que só tira ele da equipe ativa.
+    if (err.code === "23503") {
+      return res.status(409).json({
+        error: "conflict",
+        message: `${existing.name} já tem histórico registrado no Kronos (Raio-X, cronômetro, notificações etc.) e não pode ser excluído. Use "Desativar" pra tirá-lo da equipe sem perder esse histórico.`,
+      });
+    }
+    throw err;
+  }
   await supabaseService.getAuth().deleteUser(req.params.id).catch(() => {});
   res.status(204).send();
 }
