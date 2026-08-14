@@ -49,64 +49,14 @@ function renderExecucaoActions(it, dateStr, analistaId, sprMeta, souEu){
 // (origem:self), não algo que deva aparecer na visão do supervisor.
 // opFiltro (fixa/cobertura/folga) também só vem preenchido da própria
 // Programação do analista — ver categoriaOperacao() em utils.js.
-function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
-  const supervisorId = userById(analistaId)?.supervisorId;
-  let slots = filtrarSlotsAgenda(analistaId, dateStr, opFiltro);
-  const reunioes = getReunioesForDate(analistaId, dateStr);
-  const lembretesDoDia = showLembretes ? getLembretesForAnalista(analistaId).filter(l=>(l.data||todayISO())===dateStr) : [];
-  const semHora = lembretesDoDia.filter(l=>!l.hora);
-  const semHoraCol = showLembretes ? `<div class="flash-col"><div class="flash-time">Sem hora</div>${semHora.length===0 ? `<div class="flash-card off"><div style="color:var(--text-faint);font-size:12px;">Sem lembrete</div></div>` : semHora.map(lembreteCardHTML).join('')}</div>` : '';
-
-  // Linha do tempo estilo Google Agenda: só faz sentido "agora" quando o
-  // turno DESSA data está rolando neste exato momento — turno futuro
-  // (ainda não começou) ou passado (navegando pra um dia anterior) não tem
-  // "agora" pra marcar, então a tira nem aparece.
-  const turnoInicio = slotTimestamp(dateStr, HOURS[0]);
-  const turnoFim = slotTimestamp(dateStr, HOURS[HOURS.length-1]) + 60*60*1000;
-  const agora = Date.now();
-  const turnoAtivo = agora>=turnoInicio && agora<turnoFim;
-  const horaAtual = turnoAtivo ? HOURS.find(h=> agora>=slotTimestamp(dateStr,h) && agora<slotTimestamp(dateStr,h)+60*60*1000) : null;
-
-  // A tira vive dentro do MESMO .flash-outer que rola junto com .flash-row
-  // — por isso o offset é calculado em px batendo com min-width/gap de
-  // .flash-col no CSS (220px + 14px), não em % do container (que desalinha
-  // com "Sem hora" no meio e o scroll independente que existia antes).
-  const FLASH_COL_W = 220, FLASH_GAP = 14, FLASH_STEP = FLASH_COL_W + FLASH_GAP;
-  const semHoraOffsetPx = showLembretes ? FLASH_STEP : 0;
-  const trackWidthPx = HOURS.length*FLASH_COL_W + (HOURS.length-1)*FLASH_GAP;
-  let dotOffsetPx = 0;
-  if(turnoAtivo){
-    const idx = HOURS.indexOf(horaAtual);
-    const fracNaHora = Math.min(1, Math.max(0, (agora - slotTimestamp(dateStr,horaAtual)) / (60*60*1000)));
-    dotOffsetPx = idx*FLASH_STEP + fracNaHora*FLASH_COL_W;
-  }
-  const timelineHtml = turnoAtivo ? `
-  <div class="timeline-overlay-wrap" style="margin-left:${semHoraOffsetPx}px;width:${trackWidthPx}px;">
-    <div class="timeline-track">
-      <div class="timeline-fill" style="width:${dotOffsetPx}px;"></div>
-      <div class="timeline-now" style="left:${dotOffsetPx}px;" title="Agora: ${new Date(agora).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}"></div>
-    </div>
-  </div>` : '';
-
-  return `<div class="flash-outer">` + timelineHtml + `<div class="flash-row">` + semHoraCol + HOURS.map(hour=>{
-    const isAgora = hour===horaAtual;
-    // Sem id de propósito: "Todos os analistas" (supProgramacao) renderiza
-    // essa função várias vezes na mesma página, um id fixo duplicaria — o
-    // auto-scroll (ui.js, renderMain) usa a classe e rola cada linha.
-    const colAttrs = `class="flash-col${isAgora?' flash-col-agora':''}"`;
-    const items = slots.filter(s=>s.horaInicio===hour);
-    // Reunião casa com a coluna pelo prefixo da hora (ex.: "19:20" cai na
-    // coluna "19:00") — o horário de início dela é livre de 20 em 20
-    // minutos (ver REUNIAO_HORAS em state.js), mais granular que as colunas
-    // do kanban, que seguem HOURS (hora a hora).
-    const rns = reunioes.filter(r=>r.hora.slice(0,2)===hour.slice(0,2));
-    const lembretes = lembretesDoDia.filter(l=>l.hora===hour);
-    const horaLabel = `${hour}${isAgora ? ' <span class="timeline-badge-agora">agora</span>' : ''}`;
-    if(items.length===0 && rns.length===0 && lembretes.length===0){
-      return `<div ${colAttrs}><div class="flash-time">${horaLabel}</div><div class="flash-card off"><div style="color:var(--text-faint);font-size:12px;">Sem operação</div></div></div>`;
-    }
-    let cardsHtml = items.map(it=>{
-      const status = computeStatus(hour, dateStr, analistaId, it.operacao, it.isOff);
+// Constrói os cards (operação + reunião + lembrete) de UMA hora — extraído
+// pra ser reaproveitado tanto pelo kanban horizontal quanto pela lista
+// vertical (ver renderFlashcardRow abaixo), sem duplicar a lógica de
+// status/execução/particularidade.
+function buildHourCardsHtml(items, rns, lembretes, ctx){
+  const {analistaId, dateStr, supervisorId} = ctx;
+  let cardsHtml = items.map(it=>{
+      const status = computeStatus(it.horaInicio, dateStr, analistaId, it.operacao, it.isOff);
       const spr = getSPR(supervisorId, it.operacao, it.ciclo);
       // "Ciente" da particularidade é por analista+operação+data (uma
       // cobertura específica), não pela nota em si (que é compartilhada) —
@@ -164,9 +114,99 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
       </div>` : ''}
     </div>`;
     }).join('');
-    cardsHtml += lembretes.map(lembreteCardHTML).join('');
-    return `<div ${colAttrs}><div class="flash-time">${horaLabel}</div>${cardsHtml}</div>`;
-  }).join('') + `</div></div>`;
+  cardsHtml += lembretes.map(lembreteCardHTML).join('');
+  return cardsHtml;
+}
+
+// Kanban horizontal tradicional (uma coluna por hora) OU lista vertical
+// (uma linha por horário com conteúdo), alternável por
+// uiState.analistaDiariaLayout — ver toggle em renderAnalista(). Nos dois
+// casos, horas sem nada (operação/reunião/lembrete) somem da tela em vez
+// de virar coluna "Sem operação" à toa; a hora atual fica sempre visível
+// enquanto o turno estiver rolando, mesmo vazia, pra ancorar a linha
+// "agora" e deixar claro que não tem nada previsto pra esse momento.
+function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
+  const supervisorId = userById(analistaId)?.supervisorId;
+  let slots = filtrarSlotsAgenda(analistaId, dateStr, opFiltro);
+  const reunioes = getReunioesForDate(analistaId, dateStr);
+  const lembretesDoDia = showLembretes ? getLembretesForAnalista(analistaId).filter(l=>(l.data||todayISO())===dateStr) : [];
+  const semHora = lembretesDoDia.filter(l=>!l.hora);
+  const mostrarSemHora = showLembretes && semHora.length>0;
+  const semHoraCol = mostrarSemHora ? `<div class="flash-col"><div class="flash-time">Sem hora</div>${semHora.map(lembreteCardHTML).join('')}</div>` : '';
+
+  // Linha do tempo estilo Google Agenda: só faz sentido "agora" quando o
+  // turno DESSA data está rolando neste exato momento — turno futuro
+  // (ainda não começou) ou passado (navegando pra um dia anterior) não tem
+  // "agora" pra marcar, então a tira nem aparece.
+  const turnoInicio = slotTimestamp(dateStr, HOURS[0]);
+  const turnoFim = slotTimestamp(dateStr, HOURS[HOURS.length-1]) + 60*60*1000;
+  const agora = Date.now();
+  const turnoAtivo = agora>=turnoInicio && agora<turnoFim;
+  const horaAtual = turnoAtivo ? HOURS.find(h=> agora>=slotTimestamp(dateStr,h) && agora<slotTimestamp(dateStr,h)+60*60*1000) : null;
+
+  const ctx = {analistaId, dateStr, supervisorId};
+  const horasInfo = HOURS.map(hour=>{
+    const items = slots.filter(s=>s.horaInicio===hour);
+    // Reunião casa com a coluna pelo prefixo da hora (ex.: "19:20" cai na
+    // coluna "19:00") — o horário de início dela é livre de 20 em 20
+    // minutos (ver REUNIAO_HORAS em state.js), mais granular que as colunas
+    // do kanban, que seguem HOURS (hora a hora).
+    const rns = reunioes.filter(r=>r.hora.slice(0,2)===hour.slice(0,2));
+    const lembretes = lembretesDoDia.filter(l=>l.hora===hour);
+    const temConteudo = items.length>0 || rns.length>0 || lembretes.length>0;
+    return { hour, temConteudo, isAgora: hour===horaAtual, cardsHtml: temConteudo ? buildHourCardsHtml(items, rns, lembretes, ctx) : '' };
+  });
+  const horasVisiveis = horasInfo.filter(h=>h.temConteudo || h.isAgora);
+
+  if(uiState.analistaDiariaLayout==='lista'){
+    const linhas = horasVisiveis.filter(h=>h.temConteudo).map(h=>`
+      <div class="flash-list-row${h.isAgora?' flash-col-agora':''}">
+        <div class="flash-time">${h.hour}${h.isAgora ? ' <span class="timeline-badge-agora">agora</span>' : ''}</div>
+        <div class="flash-list-cards">${h.cardsHtml}</div>
+      </div>`).join('');
+    const semHoraLista = mostrarSemHora ? `<div class="flash-list-row"><div class="flash-time">Sem hora</div><div class="flash-list-cards">${semHora.map(lembreteCardHTML).join('')}</div></div>` : '';
+    const vazio = !linhas && !mostrarSemHora;
+    return `<div class="flash-list">${semHoraLista}${linhas || (vazio ? '<div class="empty">Nada previsto pra esse dia.</div>' : '')}</div>`;
+  }
+
+  // A tira "agora" vive dentro do MESMO .flash-outer que rola junto com
+  // .flash-row — por isso o offset é calculado em px batendo com
+  // min-width/gap de .flash-col no CSS (220px + 14px), não em % do
+  // container (que desalinha com "Sem hora" no meio). Usa o índice dentro
+  // de horasVisiveis (não HOURS) porque colunas vazias agora somem —
+  // senão a bolinha "agora" cairia na posição errada.
+  const FLASH_COL_W = 220, FLASH_GAP = 14, FLASH_STEP = FLASH_COL_W + FLASH_GAP;
+  const semHoraOffsetPx = mostrarSemHora ? FLASH_STEP : 0;
+  const trackWidthPx = horasVisiveis.length*FLASH_COL_W + Math.max(0, horasVisiveis.length-1)*FLASH_GAP;
+  let dotOffsetPx = 0;
+  if(turnoAtivo){
+    const idx = horasVisiveis.findIndex(h=>h.hour===horaAtual);
+    if(idx>=0){
+      const fracNaHora = Math.min(1, Math.max(0, (agora - slotTimestamp(dateStr,horaAtual)) / (60*60*1000)));
+      dotOffsetPx = idx*FLASH_STEP + fracNaHora*FLASH_COL_W;
+    }
+  }
+  const timelineHtml = turnoAtivo ? `
+  <div class="timeline-overlay-wrap" style="margin-left:${semHoraOffsetPx}px;width:${trackWidthPx}px;">
+    <div class="timeline-track">
+      <div class="timeline-fill" style="width:${dotOffsetPx}px;"></div>
+      <div class="timeline-now" style="left:${dotOffsetPx}px;" title="Agora: ${new Date(agora).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}"></div>
+    </div>
+  </div>` : '';
+
+  const colunas = horasVisiveis.map(h=>{
+    const horaLabel = `${h.hour}${h.isAgora ? ' <span class="timeline-badge-agora">agora</span>' : ''}`;
+    const colAttrs = `class="flash-col${h.isAgora?' flash-col-agora':''}"`;
+    if(!h.temConteudo){
+      return `<div ${colAttrs}><div class="flash-time">${horaLabel}</div><div class="flash-card off"><div style="color:var(--text-faint);font-size:12px;">Sem operação</div></div></div>`;
+    }
+    return `<div ${colAttrs}><div class="flash-time">${horaLabel}</div>${h.cardsHtml}</div>`;
+  }).join('');
+  if(!colunas && !mostrarSemHora){
+    return `<div class="flash-outer"><div class="empty">Nada previsto pra esse dia.</div></div>`;
+  }
+
+  return `<div class="flash-outer">${timelineHtml}<div class="flash-row">${semHoraCol}${colunas}</div></div>`;
 }
 
 
@@ -346,10 +386,16 @@ function renderAnalista(){
       <h1 class="page-title">Programação</h1>
       <div class="page-desc">Flashcards da sua rota — visão ${uiState.analistaView==='diaria'?'diária':uiState.analistaView==='semanal'?'semanal':'mensal'}</div>
     </div>
-    <div class="toggle-group" data-scope="analista">
-      <button data-view="diaria" class="${uiState.analistaView==='diaria'?'active':''}">Diária</button>
-      <button data-view="semanal" class="${uiState.analistaView==='semanal'?'active':''}">Semanal</button>
-      <button data-view="mensal" class="${uiState.analistaView==='mensal'?'active':''}">Mensal</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <div class="toggle-group" data-scope="analista">
+        <button data-view="diaria" class="${uiState.analistaView==='diaria'?'active':''}">Diária</button>
+        <button data-view="semanal" class="${uiState.analistaView==='semanal'?'active':''}">Semanal</button>
+        <button data-view="mensal" class="${uiState.analistaView==='mensal'?'active':''}">Mensal</button>
+      </div>
+      ${uiState.analistaView==='diaria' ? `<div class="toggle-group" data-scope="analista-layout">
+        <button data-layout="kanban" class="${uiState.analistaDiariaLayout==='kanban'?'active':''}" title="Colunas por horário, rolagem horizontal">▤ Kanban</button>
+        <button data-layout="lista" class="${uiState.analistaDiariaLayout==='lista'?'active':''}" title="Lista vertical, sem rolagem horizontal">☰ Lista</button>
+      </div>` : ''}
     </div>
   </div>
   <div class="grid-2" style="margin-bottom:14px;">

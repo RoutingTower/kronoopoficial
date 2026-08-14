@@ -344,6 +344,18 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .flash-col-agora::before{content:'';position:absolute;top:-6px;left:-7px;right:-7px;bottom:-2px;border:1.5px dashed var(--brand);border-radius:12px;pointer-events:none;opacity:0.55;}
 .flash-col-agora .flash-time{color:var(--brand);font-weight:700;}
 .timeline-badge-agora{font-size:9px;background:var(--brand);color:var(--brand-ink);padding:1px 6px;border-radius:20px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;vertical-align:middle;margin-left:4px;}
+
+/* Visão Lista da Programação Diária (alternativa ao kanban horizontal
+   acima) — uma linha por horário com conteúdo, sem rolagem lateral. Reusa
+   .flash-card/.flash-col-agora, só troca o container. */
+.flash-list{display:flex;flex-direction:column;gap:2px;}
+.flash-list-row{display:flex;gap:16px;padding:12px 4px;border-bottom:1px solid var(--border);}
+.flash-list-row:last-child{border-bottom:none;}
+.flash-list-row .flash-time{min-width:44px;flex-shrink:0;margin-top:3px;margin-bottom:0;}
+.flash-list-row.flash-col-agora::before{left:-4px;right:-4px;top:0;bottom:0;border-radius:9px;}
+.flash-list-cards{display:flex;flex-direction:column;gap:10px;flex:1;min-width:0;}
+.flash-list-cards .flash-card{margin-bottom:0;}
+@media (max-width:640px){ .flash-list-row{flex-direction:column;gap:6px;} .flash-list-row .flash-time{min-width:0;} }
 .badge-alerta-ciente{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--alert);margin-left:6px;vertical-align:middle;box-shadow:0 0 0 2px rgba(217,54,46,0.25);}
 
 /* Tempo de Execução: cronômetro ao vivo no flashcard (Iniciar/Finalizar) —

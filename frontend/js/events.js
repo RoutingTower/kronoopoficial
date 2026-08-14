@@ -232,6 +232,9 @@ function bindMainEvents(){
   main.querySelectorAll('.toggle-group[data-scope="analista"] [data-view]').forEach(el=>{
     el.addEventListener('click', ()=>{ uiState.analistaView = el.dataset.view; renderMain(); });
   });
+  main.querySelectorAll('.toggle-group[data-scope="analista-layout"] [data-layout]').forEach(el=>{
+    el.addEventListener('click', ()=>{ uiState.analistaDiariaLayout = el.dataset.layout; renderMain(); });
+  });
   main.querySelectorAll('.toggle-group[data-scope="sup"] [data-view]').forEach(el=>{
     el.addEventListener('click', ()=>{ uiState.progView = el.dataset.view; renderMain(); });
   });

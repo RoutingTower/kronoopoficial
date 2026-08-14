@@ -33,6 +33,9 @@ let session = null;
 
 let uiState = {
   analistaView:'diaria', analistaDate: hojeAgendaISO(), analistaOpFiltro: 'all',
+  // Kanban (colunas por horário, rolagem horizontal) ou lista (linhas
+  // verticais) na visão Diária da Programação — ver renderFlashcardRow.
+  analistaDiariaLayout: 'kanban',
   gradeFilters:{ data: hojeAgendaISO(), hora:'all', analista:'all', op:'all', nome:'all', status:'all' },
   // analistas:[] = "Todos" (supervisor filtra por analista da própria
   // equipe, ver supMetricas). supervisores:[] = "Todos" (coordenador filtra
