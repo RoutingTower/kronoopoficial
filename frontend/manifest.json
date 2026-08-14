@@ -1,0 +1,13 @@
+{
+  "name": "Kronos",
+  "short_name": "Kronos",
+  "description": "Programação, execução e qualidade da roteirização dos hubs.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#15161A",
+  "theme_color": "#EE4D2D",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
