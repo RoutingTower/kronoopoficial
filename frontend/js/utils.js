@@ -229,10 +229,10 @@ function getSPR(supervisorId, operacao, ciclo){
 }
 
 function statusPill(status, emojiOnly){
-  const map = { wait:['pill-wait','⏳','A Iniciar'], live:['pill-live','🏃','Em Andamento'], done:['pill-done','✅','Finalizada'], off:['pill-off','🌙','Ausente'], atraso:['pill-atraso','🚨','Não Finalizado'], naoiniciado:['pill-naoiniciado','⚠️','Não Iniciado'] };
-  const [cls,emoji,text] = map[status] || map.wait;
-  if(emojiOnly) return `<span class="pill pill-emoji ${cls}" title="${text}">${emoji}</span>`;
-  return `<span class="pill ${cls}">${emoji} ${text}</span>`;
+  const map = { wait:['pill-wait','clock','A Iniciar'], live:['pill-live','circle-play','Em Andamento'], done:['pill-done','circle-check-big','Finalizada'], off:['pill-off','moon','Ausente'], atraso:['pill-atraso','octagon-alert','Não Finalizado'], naoiniciado:['pill-naoiniciado','clock-alert','Não Iniciado'] };
+  const [cls,ic,text] = map[status] || map.wait;
+  if(emojiOnly) return `<span class="pill pill-emoji ${cls}" title="${text}">${icon(ic,12)}</span>`;
+  return `<span class="pill ${cls}">${icon(ic,12)} ${text}</span>`;
 }
 
 // Categoria visual de um slot de getDaySlots(): fixa (operação normal do
