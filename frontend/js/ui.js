@@ -228,10 +228,13 @@ async function exitApp(){
 }
 
 
+// icon: nome do ícone Lucide (kebab-case, ver icon() em utils.js) — não
+// emoji. Repetido entre papéis diferentes é normal (cada um só vê o
+// próprio menu); dentro do MESMO papel, cada item tem um ícone distinto.
 const NAV = {
-  analista:[ {k:'flashcards', label:'Programação', icon:'🗓️'}, {k:'recados', label:'Caixa de Entrada', icon:'📥'}, {k:'resultadospr', label:'Resultado SPR', icon:'🎯'}, {k:'tempoexecucao', label:'Tempo de Execução', icon:'⏳'}, {k:'formularios', label:'Formulários', icon:'🗳️'}, {k:'feedback', label:'Feedback', icon:'⭐'}, {k:'configuracoes', label:'Configurações', icon:'⚙️'} ],
-  supervisor:[ {k:'cadastros', label:'Cadastros', icon:'👥'}, {k:'basemestra', label:'Operações Fixas', icon:'📌'}, {k:'spr', label:'SPR', icon:'🔢'}, {k:'resultadospr', label:'Resultado SPR', icon:'🎯'}, {k:'tempoexecucao', label:'Tempo de Execução', icon:'⏳'}, {k:'suplencias', label:'Cobertura', icon:'🔁'}, {k:'programacao', label:'Programação Analista', icon:'🗓️'}, {k:'grade', label:'Grade do Dia', icon:'📋'}, {k:'domingos', label:'Controle de Domingos', icon:'📆'}, {k:'reunioes', label:'Eventos', icon:'📅'}, {k:'particularidades', label:'Particularidades', icon:'📝'}, {k:'metricas', label:'Métricas', icon:'📊'}, {k:'transmissao', label:'Caixa de Envio', icon:'📣'}, {k:'ocorrencias', label:'Ocorrências', icon:'🚩'}, {k:'feedbacks', label:'Feedbacks', icon:'⭐'}, {k:'formularios', label:'Formulários', icon:'🗳️'}, {k:'configuracoes', label:'Configurações', icon:'⚙️'} ],
-  coordenador:[ {k:'acessos', label:'Gestão de Acessos', icon:'🔑'}, {k:'dashboard', label:'Dashboard Global', icon:'🌐'}, {k:'comunicados', label:'Comunicados', icon:'📣'}, {k:'painel', label:'Painel Hora a Hora', icon:'⏱️'}, {k:'status', label:'Status Operacional', icon:'📶'}, {k:'anomalias', label:'Ocorrências', icon:'🚩'}, {k:'metricas', label:'Métricas', icon:'📊'}, {k:'resultadospr', label:'Resultado SPR', icon:'🎯'}, {k:'tempoexecucao', label:'Tempo de Execução', icon:'⏳'}, {k:'configuracoes', label:'Configurações', icon:'⚙️'} ],
+  analista:[ {k:'flashcards', label:'Programação', icon:'calendar'}, {k:'recados', label:'Caixa de Entrada', icon:'inbox'}, {k:'resultadospr', label:'Resultado SPR', icon:'target'}, {k:'tempoexecucao', label:'Tempo de Execução', icon:'hourglass'}, {k:'formularios', label:'Formulários', icon:'clipboard-list'}, {k:'feedback', label:'Feedback', icon:'star'}, {k:'configuracoes', label:'Configurações', icon:'settings'} ],
+  supervisor:[ {k:'cadastros', label:'Cadastros', icon:'users'}, {k:'basemestra', label:'Operações Fixas', icon:'map-pin'}, {k:'spr', label:'SPR', icon:'hash'}, {k:'resultadospr', label:'Resultado SPR', icon:'target'}, {k:'tempoexecucao', label:'Tempo de Execução', icon:'hourglass'}, {k:'suplencias', label:'Cobertura', icon:'repeat'}, {k:'programacao', label:'Programação Analista', icon:'calendar'}, {k:'grade', label:'Grade do Dia', icon:'table'}, {k:'domingos', label:'Controle de Domingos', icon:'calendar-days'}, {k:'reunioes', label:'Eventos', icon:'handshake'}, {k:'particularidades', label:'Particularidades', icon:'sticky-note'}, {k:'metricas', label:'Métricas', icon:'bar-chart-3'}, {k:'transmissao', label:'Caixa de Envio', icon:'megaphone'}, {k:'ocorrencias', label:'Ocorrências', icon:'flag'}, {k:'feedbacks', label:'Feedbacks', icon:'star'}, {k:'formularios', label:'Formulários', icon:'clipboard-list'}, {k:'configuracoes', label:'Configurações', icon:'settings'} ],
+  coordenador:[ {k:'acessos', label:'Gestão de Acessos', icon:'key'}, {k:'dashboard', label:'Dashboard Global', icon:'globe'}, {k:'comunicados', label:'Comunicados', icon:'megaphone'}, {k:'painel', label:'Painel Hora a Hora', icon:'timer'}, {k:'status', label:'Status Operacional', icon:'wifi'}, {k:'anomalias', label:'Ocorrências', icon:'flag'}, {k:'metricas', label:'Métricas', icon:'bar-chart-3'}, {k:'resultadospr', label:'Resultado SPR', icon:'target'}, {k:'tempoexecucao', label:'Tempo de Execução', icon:'hourglass'}, {k:'configuracoes', label:'Configurações', icon:'settings'} ],
 };
 
 let activeNavKey = null;
@@ -256,7 +259,8 @@ function buildNav(){
   activeNavKey = items[0].k;
   document.getElementById('navEyebrow').textContent = session.role==='analista'?'Analista':session.role==='supervisor'?'Supervisor':'Coordenador';
   const el = document.getElementById('navItems');
-  el.innerHTML = items.map(it=>`<div class="nav-item ${it.k===activeNavKey?'active':''}" data-k="${it.k}" title="${it.label}"><span class="nav-icon">${it.icon||'•'}</span><span class="nav-label">${it.label}</span><span class="nav-badge" data-badge="${it.k}"></span></div>`).join('');
+  el.innerHTML = items.map(it=>`<div class="nav-item ${it.k===activeNavKey?'active':''}" data-k="${it.k}" title="${it.label}"><span class="nav-icon">${it.icon?icon(it.icon,15):'•'}</span><span class="nav-label">${it.label}</span><span class="nav-badge" data-badge="${it.k}"></span></div>`).join('');
+  if(window.lucide) lucide.createIcons({ root: el });
   el.onclick = e=>{
     const item = e.target.closest('.nav-item'); if(!item) return;
     if(item.classList.contains('nav-item-locked')) return;
@@ -393,6 +397,7 @@ function renderMain(){
   else if(session.role==='supervisor') main.innerHTML = renderSupervisor();
   else if(session.role==='coordenador') main.innerHTML = renderCoordenador();
   bindMainEvents();
+  if(window.lucide) lucide.createIcons({ root: main });
   updateNavBadges();
   if(activeNavKey==='metricas') renderMetricasCharts();
   if(activeNavKey==='ocorrencias' || activeNavKey==='anomalias') renderOcorrenciasCharts();
@@ -461,8 +466,10 @@ function setFormMsg(el, msg, isError){
 
 
 function openModal(html){
-  document.getElementById('modalBody').innerHTML = html;
+  const body = document.getElementById('modalBody');
+  body.innerHTML = html;
   document.getElementById('modalBg').style.display='flex';
+  if(window.lucide) lucide.createIcons({ root: body });
 }
 
 // Variante maior (ver .modal-lg, style.css), centralizada como qualquer

@@ -1,5 +1,13 @@
 /* Funções utilitárias puras: datas, formatação, CSV/Excel, escala do dia. */
 
+// Ícone (Lucide, via CDN — ver index.html) no lugar de emoji solto pelo
+// site, pra um visual mais consistente/profissional. Só vira SVG de
+// verdade depois de lucide.createIcons() rodar — ver renderMain()/
+// buildNav() em ui.js, chamado a cada render — até lá é um <i> vazio.
+function icon(name, size){
+  return `<i data-lucide="${name}" class="ico" style="width:${size||14}px;height:${size||14}px;"></i>`;
+}
+
 // Serializa um Date pra 'YYYY-MM-DD' usando os componentes LOCAIS — nunca
 // .toISOString() aqui, porque ele converte pra UTC: num fuso atrás de UTC
 // (Brasil, UTC-3), isso adianta a data em 1 dia bem nas últimas horas da
