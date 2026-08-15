@@ -178,16 +178,24 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
   const FLASH_COL_W = 220, FLASH_GAP = 14, FLASH_STEP = FLASH_COL_W + FLASH_GAP;
   const semHoraOffsetPx = mostrarSemHora ? FLASH_STEP : 0;
   const trackWidthPx = horasVisiveis.length*FLASH_COL_W + Math.max(0, horasVisiveis.length-1)*FLASH_GAP;
-  let dotOffsetPx = 0;
+  let dotOffsetPx = 0, colBasePx = 0, horaInicioTs = 0;
   if(turnoAtivo){
     const idx = horasVisiveis.findIndex(h=>h.hour===horaAtual);
     if(idx>=0){
-      const fracNaHora = Math.min(1, Math.max(0, (agora - slotTimestamp(dateStr,horaAtual)) / (60*60*1000)));
-      dotOffsetPx = idx*FLASH_STEP + fracNaHora*FLASH_COL_W;
+      colBasePx = idx*FLASH_STEP;
+      horaInicioTs = slotTimestamp(dateStr,horaAtual);
+      const fracNaHora = Math.min(1, Math.max(0, (agora - horaInicioTs) / (60*60*1000)));
+      dotOffsetPx = colBasePx + fracNaHora*FLASH_COL_W;
     }
   }
+  // data-timeline-*: o ponteiro "agora" só recalcula de verdade num
+  // renderMain() inteiro (troca de aba, ação, refresh periódico dos dados)
+  // — sem isso, quem fica parado na tela vê a bolinha congelada, cada vez
+  // mais atrasada em relação ao horário real. setInterval em main.js
+  // recalcula a posição a partir desses atributos sem precisar
+  // re-renderizar nada (mesmo padrão do timer do cronômetro).
   const timelineHtml = turnoAtivo ? `
-  <div class="timeline-overlay-wrap" style="margin-left:${semHoraOffsetPx}px;width:${trackWidthPx}px;">
+  <div class="timeline-overlay-wrap" data-timeline-hora-inicio="${horaInicioTs}" data-timeline-base-px="${colBasePx}" data-timeline-col-w="${FLASH_COL_W}" style="margin-left:${semHoraOffsetPx}px;width:${trackWidthPx}px;">
     <div class="timeline-track">
       <div class="timeline-fill" style="width:${dotOffsetPx}px;"></div>
       <div class="timeline-now" style="left:${dotOffsetPx}px;" title="Agora: ${new Date(agora).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}"></div>

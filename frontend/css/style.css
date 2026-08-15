@@ -343,7 +343,12 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .rte-editable:empty:before{content:attr(data-placeholder);color:var(--text-faint);}
 .flash-outer{overflow-x:auto;padding-bottom:8px;}
 .flash-row{display:flex;gap:14px;}
-.flash-col{min-width:220px;}
+/* width fixo (não só min-width) + flex-shrink:0 garante que a coluna
+   nunca cresce nem encolhe além de 220px — a linha "agora" (JS) calcula a
+   posição em cima desse número exato; content mais largo (nome de
+   operação comprido) quebra linha (ver overflow-wrap em .flash-sigla) em
+   vez de empurrar a coluna, senão a bolinha desalinha das colunas reais. */
+.flash-col{width:220px;flex-shrink:0;}
 .flash-time{font-family:'JetBrains Mono',monospace;color:var(--text-faint);font-size:11px;margin-bottom:6px;}
 .flash-col-agora{position:relative;}
 .flash-col-agora::before{content:'';position:absolute;top:-6px;left:-7px;right:-7px;bottom:-2px;border:1.5px dashed var(--brand);border-radius:12px;pointer-events:none;opacity:0.55;}
@@ -395,7 +400,11 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .flash-card-fixa{border-left-color:var(--done);}
 .flash-card-folga{border-left-color:var(--folga);}
 .flash-card-cobertura{border-left-color:var(--wait);}
-.flash-sigla{font-weight:600;font-size:14.5px;}
+/* overflow-wrap: nome de operação sem espaço (só "_") não tem onde quebrar
+   sozinho — sem isso, um nome comprido força a coluna a crescer além dos
+   220px que o cálculo em px da linha "agora" (renderFlashcardRow) assume,
+   desalinhando a bolinha em relação às colunas de verdade. */
+.flash-sigla{font-weight:600;font-size:14.5px;overflow-wrap:break-word;}
 .flash-meta{color:var(--text-muted);font-size:11.5px;margin-top:3px;}
 .flash-cover{font-size:11px;color:var(--suplente);margin-top:6px;font-weight:600;}
 

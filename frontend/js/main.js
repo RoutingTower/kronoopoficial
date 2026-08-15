@@ -152,3 +152,37 @@ setInterval(()=>{
     if(numEl) numEl.textContent = h>0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   });
 }, 1000);
+
+// Linha "agora" da Programação Diária (ver renderFlashcardRow, render-
+// analista.js) — mesmo problema do cronômetro acima: sem isso, a bolinha
+// fica parada na posição de quando a tela renderizou pela última vez,
+// ficando cada vez mais atrasada em relação ao horário real enquanto quem
+// está com a tela aberta não navega pra lugar nenhum. Só recalcula a
+// posição (sem re-renderizar nada); se a hora já virou (ou o turno já
+// acabou), aí sim precisa de um renderMain() de verdade pra trocar de
+// coluna "agora"/mostrar a próxima hora.
+setInterval(()=>{
+  if(!session) return;
+  document.querySelectorAll('.timeline-overlay-wrap[data-timeline-hora-inicio]').forEach(wrap=>{
+    const horaInicioTs = Number(wrap.dataset.timelineHoraInicio);
+    if(!horaInicioTs) return;
+    const now = Date.now();
+    if(now < horaInicioTs || now >= horaInicioTs + 60*60*1000){
+      // Mesma cautela do refresh periódico de dados (acima): não derruba
+      // um modal aberto (ex.: preenchendo Raio-X) só porque a hora virou.
+      if(document.getElementById('modalBg')?.style.display !== 'flex') renderMain();
+      return;
+    }
+    const basePx = Number(wrap.dataset.timelineBasePx);
+    const colW = Number(wrap.dataset.timelineColW);
+    const frac = Math.min(1, Math.max(0, (now-horaInicioTs)/(60*60*1000)));
+    const px = basePx + frac*colW;
+    const fill = wrap.querySelector('.timeline-fill');
+    const dot = wrap.querySelector('.timeline-now');
+    if(fill) fill.style.width = px+'px';
+    if(dot){
+      dot.style.left = px+'px';
+      dot.title = `Agora: ${new Date(now).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`;
+    }
+  });
+}, 30000);
