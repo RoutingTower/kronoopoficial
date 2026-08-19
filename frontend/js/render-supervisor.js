@@ -239,14 +239,15 @@ function supSuplencias(myAnalistas){
 }
 
 
-// Todo domingo, os hubs 7x7 continuam precisando de titular mesmo com o
-// time inteiro de folga — hoje isso é escolhido e distribuído manualmente.
-// Aqui o supervisor só informa quem foi escalado pra trabalhar naquele
-// domingo; o sistema propõe a escala inteira (gerarEscalaDomingo, ver
-// utils.js): até 5 operações por pessoa, sem estourar 8h de turno,
-// priorizando a carteira própria de cada um. A proposta fica editável
-// (dropdown por linha) antes de confirmar — mesmo espírito do Sugerir
-// Suplente logo abaixo, só que pro domingo inteiro de uma vez.
+// Todo fim de semana (sábado ou domingo), os hubs 7x7 continuam
+// precisando de titular mesmo com o time inteiro de folga — hoje isso é
+// escolhido e distribuído manualmente. Aqui o supervisor só informa a
+// data e quem foi escalado pra trabalhar; o sistema propõe a escala
+// inteira (gerarEscalaFDS, ver utils.js): até 6 operações por pessoa, sem
+// estourar 8h de turno, priorizando a carteira própria de cada um. A
+// proposta fica editável (dropdown por linha) antes de confirmar — mesmo
+// espírito do Sugerir Suplente logo abaixo, só que pro dia inteiro de
+// uma vez.
 // A grade de chips (escaladom-grid) é grande demais pra ficar sempre
 // aberta dentro do card — aqui só um botão-resumo, que abre a seleção
 // numa caixa (modal, ver abrirModalEscalaDomAnalistas em events.js).
@@ -262,7 +263,7 @@ function escalaDomAnalistaPicker(myAnalistas){
 }
 
 function supGerarEscalaDomingo(myAnalistas){
-  if(!uiState.escalaDomData) uiState.escalaDomData = proximoDomingoISO();
+  if(!uiState.escalaDomData) uiState.escalaDomData = proximoFimDeSemanaISO();
   const dataStr = uiState.escalaDomData;
   const res = uiState.escalaDomResultado;
 
@@ -313,8 +314,8 @@ function supGerarEscalaDomingo(myAnalistas){
   }
 
   return `
-  <div class="section-title">Gerar Escala de Domingo</div>
-  <div class="help-text">Informe a data e quem foi escalado pra trabalhar. O sistema monta a escala do dia inteiro: até 5 operações por pessoa, priorizando a carteira própria de cada um (🏠), equilibrando o total entre todos e variando o estado (UF) dos hubs extras, sem passar de 8h de turno.</div>
+  <div class="section-title">Gerar Escala de Fim de Semana</div>
+  <div class="help-text">Informe a data (sábado ou domingo) e quem foi escalado pra trabalhar. O sistema monta a escala do dia inteiro: até 6 operações por pessoa, priorizando a carteira própria de cada um (🏠), equilibrando o total entre todos e variando o estado (UF) dos hubs extras, sem passar de 8h de turno.</div>
   <div class="card" style="margin-bottom:22px;">
     <div class="field" style="max-width:220px;"><label>Data</label><input type="date" id="escalaDomDataInput" value="${dataStr}"></div>
     ${escalaDomAnalistaPicker(myAnalistas)}

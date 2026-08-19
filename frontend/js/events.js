@@ -915,7 +915,7 @@ function bindMainEvents(){
     if(selecionados.length===0){ alert('Selecione ao menos um analista escalado pra trabalhar nesse domingo.'); return; }
     const dataStr = uiState.escalaDomData;
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
-    const { escalados, naoCobertos } = gerarEscalaDomingo(selecionados, dataStr, myAnalistas.map(a=>a.id));
+    const { escalados, naoCobertos } = gerarEscalaFDS(selecionados, dataStr, myAnalistas.map(a=>a.id));
     const linhas = [
       ...escalados.flatMap(e=>e.assigned.map(h=>({...h, escaladoId:e.id}))),
       ...naoCobertos.map(h=>({...h, escaladoId:''})),

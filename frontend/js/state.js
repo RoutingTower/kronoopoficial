@@ -76,9 +76,9 @@ let uiState = {
   domingosMes: todayISO(),
   particularidadesFiltro: { operacao: '', analista: 'all' },
   sugerir: null, inboxSelected: null,
-  // Gerar Escala de Domingo (ver gerarEscalaDomingo em utils.js): data +
-  // quem foi escalado pra trabalhar, e o resultado (proposta editável)
-  // depois de clicar em "Gerar escala".
+  // Gerar Escala de Fim de Semana (ver gerarEscalaFDS em utils.js): data
+  // (sábado ou domingo) + quem foi escalado pra trabalhar, e o resultado
+  // (proposta editável) depois de clicar em "Gerar escala".
   escalaDomData: null,
   escalaDomSelecionados: [],
   escalaDomResultado: null,

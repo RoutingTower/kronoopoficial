@@ -249,12 +249,17 @@ function isDomingo(dateStr){
   return WEEKDAYS[new Date(dateStr+'T00:00:00').getDay()]==='dom';
 }
 
-// Próximo domingo a partir de uma data (ou hoje, se veio de folga) — hoje
-// mesmo se hoje já for domingo. Usado como valor padrão do Gerar Escala de
-// Domingo.
-function proximoDomingoISO(fromDateStr){
+function isFimDeSemana(dateStr){
+  const w = WEEKDAYS[new Date(dateStr+'T00:00:00').getDay()];
+  return w==='dom' || w==='sab';
+}
+
+// Próximo sábado ou domingo a partir de uma data (ou hoje) — hoje mesmo se
+// hoje já cair num deles. Usado como valor padrão do Gerar Escala de Fim
+// de Semana (a mesma escala serve pros dois dias, não só domingo).
+function proximoFimDeSemanaISO(fromDateStr){
   let d = fromDateStr || todayISO();
-  while(!isDomingo(d)) d = addDaysISO(d, 1);
+  while(!isFimDeSemana(d)) d = addDaysISO(d, 1);
   return d;
 }
 
@@ -609,8 +614,8 @@ function candidatosParaSlot(myAnalistas, titularId, bm, dataStr){
 
 
 // UF embutida no nome do hub — sempre "LM Hub_UF_Cidade..." (92/92 hubs
-// reais seguem esse padrão). Usado só pra diversificar a escala de domingo
-// (gerarEscalaDomingo), sem valor de fallback especial se não bater —
+// reais seguem esse padrão). Usado só pra diversificar a escala de fim de
+// semana (gerarEscalaFDS), sem valor de fallback especial se não bater —
 // hubs sem esse padrão simplesmente não contam pra diversidade de ninguém.
 function ufDaOperacao(operacao){
   const m = /^LM Hub_([A-Za-z]{2})_/.exec(operacao||'');
@@ -619,7 +624,7 @@ function ufDaOperacao(operacao){
 
 // Hubs (Base Mestra) que rodam numa data, com o horário já convertido pra
 // timestamp real (cruza meia-noite corretamente pra turnos de madrugada,
-// ver slotTimestamp) — usado pelo Gerar Escala de Domingo abaixo.
+// ver slotTimestamp) — usado pelo Gerar Escala de Fim de Semana abaixo.
 // DB.baseMestra vem SEM filtro de equipe (GET /base-mestra devolve a
 // tabela inteira, todo supervisor — cada tela filtra por myAnalistas na
 // hora de usar). idsEquipe é obrigatório aqui: sem ele, a proposta mistura
@@ -634,27 +639,28 @@ function hubsParaData(dateStr, idsEquipe){
   });
 }
 
-const ESCALA_DOMINGO_MAX_OPS = 5;
-const ESCALA_DOMINGO_MAX_JORNADA_MS = 8*60*60*1000;
+const ESCALA_FDS_MAX_OPS = 6;
+const ESCALA_FDS_MAX_JORNADA_MS = 8*60*60*1000;
 
-// Gera uma proposta de escala de domingo: recebe quem foi escalado pra
+// Gera uma proposta de escala de fim de semana (sábado ou domingo — mesma
+// dinâmica pros dois dias, só muda a data): recebe quem foi escalado pra
 // trabalhar (escaladoIds) numa data e distribui entre eles os hubs que
-// precisam de cobertura nessa data — no máximo 5 operações por pessoa, sem
+// precisam de cobertura nessa data — no máximo 6 operações por pessoa, sem
 // horários sobrepostos, e sem passar de 8h entre o início da primeira e o
-// fim da última operação da pessoa (a janela do turno de domingo).
+// fim da última operação da pessoa (a janela do turno).
 //
 // Prioridade 1: cada escalado recebe as operações que já são da carteira
 // dele (Base Mestra), se caírem nessa data — são as que ele já conhece.
 // Prioridade 2: o que sobra é distribuído priorizando, nessa ordem: (a)
-// quem tem menos operações até agora (pra fechar todo mundo perto de 5,
-// em vez de sobrecarregar os primeiros), (b) UF diferente das que a
-// pessoa já pegou (própria carteira + extras já atribuídos) — evita
+// quem tem menos operações até agora (pra fechar todo mundo perto do
+// limite, em vez de sobrecarregar os primeiros), (b) UF diferente das que
+// a pessoa já pegou (própria carteira + extras já atribuídos) — evita
 // empilhar hub do mesmo estado que ela já roteiriza — e por fim (c) o
 // encaixe de horário mais justo (menor crescimento da janela do turno)
 // como desempate final. Hubs que não couberem em ninguém (capacidade ou
 // janela de horário esgotada) voltam em naoCobertos, pro supervisor
 // resolver manualmente.
-function gerarEscalaDomingo(escaladoIds, dateStr, idsEquipe){
+function gerarEscalaFDS(escaladoIds, dateStr, idsEquipe){
   const hubs = hubsParaData(dateStr, idsEquipe);
   const jaCoberto = new Set(
     DB.suplencias.filter(s=>s.dataCobertura===dateStr)
@@ -669,11 +675,11 @@ function gerarEscalaDomingo(escaladoIds, dateStr, idsEquipe){
   const porId = new Map(escalados.map(e=>[e.id, e]));
 
   function cabe(e, hub){
-    if(e.assigned.length >= ESCALA_DOMINGO_MAX_OPS) return false;
+    if(e.assigned.length >= ESCALA_FDS_MAX_OPS) return false;
     if(e.assigned.some(a=>rangesOverlap(a.startMs, a.endMs, hub.startMs, hub.endMs))) return false;
     const novoMin = e.minStart===null ? hub.startMs : Math.min(e.minStart, hub.startMs);
     const novoMax = e.maxEnd===null ? hub.endMs : Math.max(e.maxEnd, hub.endMs);
-    return (novoMax - novoMin) <= ESCALA_DOMINGO_MAX_JORNADA_MS;
+    return (novoMax - novoMin) <= ESCALA_FDS_MAX_JORNADA_MS;
   }
   function atribuir(e, hub){
     e.assigned.push(hub);
