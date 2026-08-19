@@ -1082,14 +1082,34 @@ function sprResultadoBody(selecionados, picker){
   // dois gráficos "por dia" abaixo, que leem da esquerda pra direita.
   const porDiaAsc = [...porDia].reverse().map(d=>({...d, label:formatarDataCurta(d.data)}));
 
+  // Ranking por SPR Lançado (cada operação finalizada, não agregada) — pro
+  // relatório de fim de turno: quem ficou muito abaixo/acima da meta.
+  // sprMin/sprMax (uiState.sprFiltro) são opcionais e independentes — só
+  // mínimo mostra "120+", só máximo mostra "até X", os dois juntos uma
+  // faixa. Semrotirização não entra (sprRoteirizado fica 0, sem sentido
+  // rankear). Usa doPeriodo (não comMeta) — sem meta cadastrada ainda
+  // aparece no ranking (SPR REF fica "—"), só não teria como comparar.
+  const sprMinNum = flt.sprMin!=='' && flt.sprMin!=null ? Number(flt.sprMin) : null;
+  const sprMaxNum = flt.sprMax!=='' && flt.sprMax!=null ? Number(flt.sprMax) : null;
+  const ranking = doPeriodo
+    .filter(r=>!r.semRoteirizacao && r.sprRoteirizado!=null)
+    .filter(r=> sprMinNum==null || r.sprRoteirizado>=sprMinNum)
+    .filter(r=> sprMaxNum==null || r.sprRoteirizado<=sprMaxNum)
+    .slice()
+    .sort((a,b)=>b.sprRoteirizado-a.sprRoteirizado);
+
   sprChartData = {
     porDiaAsc,
     porHub,
   };
-  sprExportRows = comMeta;
+  sprExportRows = uiState.sprView==='ranking' ? ranking : comMeta;
 
   return `
-  <div class="filter-row" style="margin-bottom:16px;">
+  <div class="filter-row" style="align-items:center;margin-bottom:16px;">
+    <div class="toggle-group" data-scope="spr-view">
+      <button data-sprview="painel" class="${uiState.sprView==='painel'?'active':''}">Painel</button>
+      <button data-sprview="ranking" class="${uiState.sprView==='ranking'?'active':''}">Ranking SPR</button>
+    </div>
     <label style="font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">Início
       <input type="date" data-sprfiltro="inicio" value="${inicio}" max="${fim}">
     </label>
@@ -1104,9 +1124,14 @@ function sprResultadoBody(selecionados, picker){
       <option value="">Semana: todas (${formatarDataCurta(inicio)} a ${formatarDataCurta(fim)})</option>
       ${semanasDisponiveis.map(ws=>`<option value="${ws}" ${flt.semana===ws?'selected':''}>Semana ${formatarDataCurta(ws)}–${formatarDataCurta(addDaysISO(ws,6))}</option>`).join('')}
     </select>
+    ${uiState.sprView==='ranking' ? `
+    <input type="number" data-sprfiltro="sprMin" placeholder="SPR mín. (ex: 120)" value="${escapeHtml(String(flt.sprMin))}" style="width:150px;">
+    <input type="number" data-sprfiltro="sprMax" placeholder="SPR máx." value="${escapeHtml(String(flt.sprMax))}" style="width:120px;">
+    ` : ''}
     ${picker}
     <button class="btn" id="btnExportSPR">⬇ Exportar Excel</button>
   </div>
+  ${uiState.sprView==='ranking' ? sprRankingTableHtml(ranking, flt) : `
   <div class="grid-4" style="margin-bottom:16px;">
     <div class="stat-card"><div class="stat-num">${roteirizadoMedioGeral.toFixed(1)}</div><div class="stat-label">Média SPR Lançado <span style="color:var(--text-faint);">(REF ${metaMedioGeral.toFixed(1)})</span></div></div>
     <div class="stat-card">
@@ -1165,11 +1190,44 @@ function sprResultadoBody(selecionados, picker){
   </tbody></table>
   </div>
   </div>
+  </div>`}`;
+}
+
+// Ranking SPR (sprResultadoBody acima): cada operação finalizada, ordenada
+// por SPR Lançado — pensado pra copiar/exportar rápido no fim do turno.
+// flt.sprMin/flt.sprMax já filtraram "ranking" antes de chegar aqui; o
+// texto do cabeçalho só reflete o que foi aplicado, pra ficar claro no
+// print/relatório qual corte foi usado.
+function sprRankingTableHtml(ranking, flt){
+  const faixaTexto = flt.sprMin!=='' && flt.sprMax!==''
+    ? `entre ${flt.sprMin} e ${flt.sprMax}`
+    : flt.sprMin!=='' ? `${flt.sprMin}+`
+    : flt.sprMax!=='' ? `até ${flt.sprMax}`
+    : 'todas';
+  return `
+  <div class="card">
+  <div class="section-title">Ranking por SPR Lançado <span style="color:var(--text-faint);text-transform:none;letter-spacing:0;">(${ranking.length} operação(ões) · faixa: ${escapeHtml(faixaTexto)})</span></div>
+  <table><thead><tr><th>#</th><th>Operação</th><th>Analista</th><th>Hora</th><th>SPR Lançado</th><th>SPR REF</th><th>Delta</th></tr></thead><tbody>
+  ${ranking.map((r,idx)=>{
+    const delta = r.sprMeta!=null ? r.sprRoteirizado-r.sprMeta : null;
+    return `<tr>
+      <td class="mono" style="color:var(--text-faint);">${idx+1}</td>
+      <td>${escapeHtml(r.operacao)}</td>
+      <td style="cursor:pointer;" data-analista-timeline="${r.analistaId}" title="Ver histórico">${escapeHtml(userById(r.analistaId)?.name||'—')}</td>
+      <td class="mono">${r.data} ${r.hora}</td>
+      <td class="mono" style="font-weight:700;color:${delta==null?'var(--text)':delta>=0?'var(--done)':'var(--alert)'};">${r.sprRoteirizado}</td>
+      <td class="mono">${r.sprMeta!=null ? r.sprMeta : '—'}</td>
+      <td class="mono" style="color:${delta==null?'var(--text-faint)':delta>=0?'var(--done)':'var(--alert)'};">${delta==null?'—':(delta>=0?'+':'')+delta.toFixed(1)}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" class="empty">Nenhuma operação nessa faixa de SPR no período</td></tr>'}
+  </tbody></table>
   </div>`;
 }
 
 function exportarSPR(){
-  const linhas = sprExportRows.map(r=>[userById(r.analistaId)?.name||'—', r.operacao, r.data, r.hora, r.sprRoteirizado, r.sprMeta, (r.sprRoteirizado-r.sprMeta).toFixed(1)]);
+  // sprMeta pode faltar no Ranking (lá não é pré-filtrado por "tem meta",
+  // ver sprResultadoBody) — sem essa checagem o delta virava "NaN" na planilha.
+  const linhas = sprExportRows.map(r=>[userById(r.analistaId)?.name||'—', r.operacao, r.data, r.hora, r.sprRoteirizado, r.sprMeta ?? '—', r.sprMeta!=null ? (r.sprRoteirizado-r.sprMeta).toFixed(1) : '—']);
   exportarRelatorioExcel(`resultado-spr_${uiState.sprFiltro.inicio}_a_${uiState.sprFiltro.fim}.xlsx`, ['Analista','Operação','Data','Hora','SPR Lançado','SPR REF','Delta'], linhas);
 }
 

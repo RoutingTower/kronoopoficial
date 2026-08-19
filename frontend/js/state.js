@@ -57,9 +57,14 @@ let uiState = {
   // Resultado SPR (supResultadoSPR/coordResultadoSPR) — analistas:[] usado
   // pelo supervisor, supervisores:[] pelo coordenador (mesmo padrão de
   // metricasFiltro acima).
-  sprFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), operacao: 'all', semana: '', analistas: [], supervisores: [] },
+  sprFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), operacao: 'all', semana: '', analistas: [], supervisores: [], sprMin: '', sprMax: '' },
   sprAnalistaDropdownOpen: false,
   sprSupervisorDropdownOpen: false,
+  // 'painel' = dashboard de sempre (KPIs/gráficos/tabelas agregadas);
+  // 'ranking' = lista de cada operação finalizada, ordenada por SPR
+  // Lançado — pensado pro relatório de fim de turno (quem ficou muito
+  // abaixo/acima da meta), ver sprResultadoBody em render-supervisor.js.
+  sprView: 'painel',
   tempoFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), operacao: 'all', semana: '', analistas: [], supervisores: [] },
   tempoAnalistaDropdownOpen: false,
   tempoSupervisorDropdownOpen: false,

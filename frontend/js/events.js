@@ -825,6 +825,9 @@ function bindMainEvents(){
       renderMain();
     });
   });
+  main.querySelectorAll('.toggle-group[data-scope="spr-view"] [data-sprview]').forEach(el=>{
+    el.addEventListener('click', ()=>{ uiState.sprView = el.dataset.sprview; renderMain(); });
+  });
 
   // Tempo de Execução (supTempoExecucao/coordTempoExecucao/
   // analistaTempoExecucao) — mesmo padrão do filtro de Resultado SPR acima.
