@@ -716,6 +716,102 @@ function gerarEscalaFDS(escaladoIds, dateStr, idsEquipe){
   return { escalados, naoCobertos };
 }
 
+// Último dia do mês "YYYY-MM", em ISO. new Date(y, m, 0) usa o truque do
+// dia 0 (dia anterior ao dia 1 do mês seguinte) — m já vem 1-indexado da
+// string, então passar ele direto como índice de mês (0-indexado) do JS
+// já aponta pro mês seguinte, e o dia 0 desse volta pro último dia do mês
+// pedido.
+function ultimoDiaDoMesISO(mesStr){
+  const [y,m] = mesStr.split('-').map(Number);
+  return dateToISO(new Date(y, m, 0));
+}
+
+// Gera uma proposta de escala mensal (Operações Fixas) pro time inteiro:
+// pega o "cardápio" de hubs atualmente vigentes (mesmo critério do botão
+// Exportar vigentes) e propõe um novo titular pra cada um, pro período
+// informado. Três regras duras: (1) nunca propõe um hub pra quem já teve
+// ele em qualquer vigência, passada ou atual — consulta o histórico
+// completo da equipe; (2) só propõe se o horário do hub cabe dentro da
+// janela de jornada da pessoa (horaInicio–horaFim, cruzando meia-noite do
+// mesmo jeito que hourSortValue já trata em outros lugares); (3) nunca
+// sobrepõe dois hubs no mesmo horário pra mesma pessoa. Entre os
+// elegíveis, prioriza quem tem menos hubs atribuídos nessa rodada e, em
+// seguida, quem ainda não pegou nenhum hub do mesmo UF — pra espalhar a
+// carteira de cada analista entre estados diferentes. A ordem dos hubs e
+// o desempate entre elegíveis são embaralhados a cada chamada, então
+// clicar em Gerar de novo tende a propor uma combinação diferente.
+// dias fica vazio ([]) nas entradas novas, igual ao resto da base hoje —
+// é o que deixa o Gerar Escala de Fim de Semana continuar enxergando
+// esses hubs como precisando de cobertura no domingo (bmRodaNoDia só
+// filtra por dias quando o campo não está vazio).
+function gerarEscalaMensal(analistaIds, idsEquipe){
+  const equipe = new Set(idsEquipe);
+  const hoje = todayISO();
+  const vistos = new Set();
+  const hubs = [];
+  DB.baseMestra.filter(b=>b.analistaId && equipe.has(b.analistaId) && b.dataFim>=hoje).forEach(b=>{
+    const chave = `${b.operacao}|${b.ciclo}|${b.horaInicio}|${b.horaFim}`;
+    if(vistos.has(chave)) return;
+    vistos.add(chave);
+    hubs.push({ operacao:b.operacao, ciclo:b.ciclo, horaInicio:b.horaInicio, horaFim:b.horaFim });
+  });
+
+  const jaTeve = new Set(
+    DB.baseMestra.filter(b=>b.analistaId && equipe.has(b.analistaId))
+      .map(b=>`${b.analistaId}|${b.operacao}`)
+  );
+
+  const analistas = analistaIds.map(id=>{
+    const u = userById(id);
+    return { id, name: u?.name || '—', jornada: u?.jornada || null, assigned: [], ufs: new Set() };
+  });
+
+  function janela(horaInicio, horaFim){
+    const s = hourSortValue(horaInicio);
+    let e = hourSortValue(horaFim);
+    if(e<=s) e += 24;
+    return [s,e];
+  }
+  function elegivel(a, h){
+    if(jaTeve.has(`${a.id}|${h.operacao}`)) return false;
+    const [s,e] = janela(h.horaInicio, h.horaFim);
+    if(a.jornada && a.jornada.horaInicio && a.jornada.horaFim){
+      const [js,je] = janela(a.jornada.horaInicio, a.jornada.horaFim);
+      if(s<js || e>je) return false;
+    }
+    return !a.assigned.some(x=>{
+      const [xs,xe] = janela(x.horaInicio, x.horaFim);
+      return rangesOverlap(s,e,xs,xe);
+    });
+  }
+  function embaralhar(arr){
+    const out = [...arr];
+    for(let i=out.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [out[i],out[j]] = [out[j],out[i]];
+    }
+    return out;
+  }
+
+  const naoCobertos = [];
+  const linhas = embaralhar(hubs).map(h=>{
+    const uf = ufDaOperacao(h.operacao);
+    const elegiveis = embaralhar(analistas.filter(a=>elegivel(a,h)));
+    if(elegiveis.length===0){ naoCobertos.push(h); return { ...h, uf, analistaId:'' }; }
+    elegiveis.sort((a,b)=>{
+      if(a.assigned.length !== b.assigned.length) return a.assigned.length - b.assigned.length;
+      const repeteA = a.ufs.has(uf) ? 1 : 0, repeteB = b.ufs.has(uf) ? 1 : 0;
+      return repeteA - repeteB;
+    });
+    const escolhido = elegiveis[0];
+    escolhido.assigned.push(h);
+    escolhido.ufs.add(uf);
+    return { ...h, uf, analistaId: escolhido.id };
+  });
+
+  return { linhas, analistas, naoCobertos };
+}
+
 
 // Ignora acento, maiúscula/minúscula, pontuação e espaço duplicado — pra
 // "José da Silva", "jose  da-silva." e "JOSÉ DA SILVA" baterem com o mesmo

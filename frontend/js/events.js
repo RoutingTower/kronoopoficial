@@ -950,6 +950,50 @@ function bindMainEvents(){
     alert(`${ok} cobertura(s) lançada(s) com sucesso.${fail?` ${fail} falharam.`:''}`);
   });
 
+  const escalaMensalMesInput = document.getElementById('escalaMensalMesInput');
+  if(escalaMensalMesInput) escalaMensalMesInput.addEventListener('change', ()=>{
+    uiState.escalaMensalMes = escalaMensalMesInput.value;
+    uiState.escalaMensalResultado = null;
+    renderMain();
+  });
+  main.querySelectorAll('[data-gerar-escala-mensal]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
+      const ids = myAnalistas.map(a=>a.id);
+      const { linhas } = gerarEscalaMensal(ids, ids);
+      uiState.escalaMensalResultado = { mes: uiState.escalaMensalMes, linhas };
+      renderMain();
+    });
+  });
+  main.querySelectorAll('[data-escalamensal-idx]').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      const idx = parseInt(sel.dataset.escalamensalIdx,10);
+      uiState.escalaMensalResultado.linhas[idx].analistaId = sel.value;
+      renderMain();
+    });
+  });
+  const btnConfirmarEscalaMensal = document.getElementById('btnConfirmarEscalaMensal');
+  if(btnConfirmarEscalaMensal) btnConfirmarEscalaMensal.addEventListener('click', async ()=>{
+    const res = uiState.escalaMensalResultado;
+    const dataInicio = `${res.mes}-01`;
+    const dataFim = ultimoDiaDoMesISO(res.mes);
+    const linhas = res.linhas.filter(l=>l.analistaId);
+    let ok=0, fail=0;
+    openProgressModal('Publicando escala do mês...');
+    for(const [idx, l] of linhas.entries()){
+      const entrada = {analistaId:l.analistaId, operacao:l.operacao, ciclo:l.ciclo,
+        horaInicio:l.horaInicio, horaFim:l.horaFim, titular:userById(l.analistaId)?.name||'', dias:[],
+        dataInicio, dataFim};
+      try{ DB.baseMestra.push(await apiCreateBaseMestra(entrada)); ok++; }
+      catch(e){ console.error('KronoOP: falha ao publicar escala do mês.', e); fail++; }
+      updateProgressModal(idx+1, linhas.length);
+    }
+    closeModal();
+    uiState.escalaMensalResultado = null;
+    renderMain();
+    alert(`${ok} operação(ões) publicada(s) com sucesso.${fail?` ${fail} falharam.`:''}`);
+  });
+
   // Formulários (Convocações) — supervisor: criar/editar/pausar/excluir/ver
   // respostas + aprovar-recusar férias.
   const btnNovoFormulario = document.getElementById('btnNovoFormulario');

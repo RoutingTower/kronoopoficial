@@ -82,6 +82,11 @@ let uiState = {
   escalaDomData: null,
   escalaDomSelecionados: [],
   escalaDomResultado: null,
+  // Gerar Escala do Mês (ver gerarEscalaMensal em utils.js): mês-alvo
+  // ("YYYY-MM", padrão o próximo) + o resultado (proposta editável) depois
+  // de clicar em "Gerar escala" — null até o primeiro clique.
+  escalaMensalMes: null,
+  escalaMensalResultado: null,
   // Formulários (Convocações) — supervisor: form de nova/editar aberto +
   // quais respostas estão expandidas na lista. Ver render-supervisor.js/
   // render-analista.js (formulariosScreen) e events.js.

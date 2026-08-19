@@ -5,7 +5,7 @@ function renderSupervisor(){
   const tabLabel = NAV.supervisor.find(t=>t.k===activeNavKey)?.label || '';
   let content='';
   if(activeNavKey==='cadastros') content = supCadastros(myAnalistas);
-  else if(activeNavKey==='basemestra') content = supBaseMestra(myAnalistas);
+  else if(activeNavKey==='basemestra') content = renderImportPendentesBanner('basemestra', myAnalistas) + supGerarEscalaMensal(myAnalistas) + supBaseMestra(myAnalistas);
   else if(activeNavKey==='spr') content = supSPR();
   else if(activeNavKey==='resultadospr') content = supResultadoSPR(myAnalistas);
   else if(activeNavKey==='tempoexecucao') content = supTempoExecucao(myAnalistas);
@@ -117,12 +117,76 @@ function supCadastros(myAnalistas){
 // inteiras todo mês (ver btnExportarMestra, events.js).
 let baseMestraExportRows = [];
 
+// Redistribui a carteira do mês inteiro pra equipe de uma vez (ver
+// gerarEscalaMensal, utils.js): pega os hubs vigentes hoje e propõe um
+// novo titular pra cada um, respeitando jornada, nunca repetindo hub que
+// a pessoa já teve, e variando UF entre a carteira de cada analista. A
+// proposta fica editável (dropdown por linha) antes de publicar — mesmo
+// espírito do Gerar Escala de Fim de Semana, só que pro mês inteiro e
+// criando operação fixa (Base Mestra) em vez de cobertura avulsa.
+function supGerarEscalaMensal(myAnalistas){
+  if(!uiState.escalaMensalMes) uiState.escalaMensalMes = addMonthsISO(todayISO(), 1).slice(0,7);
+  const mes = uiState.escalaMensalMes;
+  const res = uiState.escalaMensalResultado;
+
+  let resultsHtml = '';
+  if(res && res.mes===mes && res.linhas.length===0){
+    resultsHtml = `<div class="card" style="margin-top:18px;margin-bottom:22px;">
+      <div class="section-title">Proposta — ${mes}</div>
+      <div class="help-text" style="color:var(--danger,#e05252);">⚠️ Nenhuma operação fixa vigente encontrada pra sua equipe. Cadastre as operações em Operações Fixas antes de gerar a escala do mês.</div>
+    </div>`;
+  } else if(res && res.mes===mes){
+    const porAnalista = new Map(myAnalistas.map(a=>[a.id, 0]));
+    res.linhas.forEach(l=>{ if(l.analistaId) porAnalista.set(l.analistaId, (porAnalista.get(l.analistaId)||0)+1); });
+    const resumo = myAnalistas.map(a=>{
+      const n = porAnalista.get(a.id)||0;
+      return `<span class="op-tag" style="${n===0?'color:var(--danger,#e05252);':''}">${escapeHtml(a.name)}: ${n} op(s)</span>`;
+    }).join(' ');
+    const naoCobertos = res.linhas.filter(l=>!l.analistaId).length;
+
+    resultsHtml = `<div class="card" style="margin-top:18px;margin-bottom:22px;">
+      <div class="section-title">Proposta — ${mes}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">${resumo}</div>
+      ${naoCobertos>0 ? `<div class="help-text" style="color:var(--danger,#e05252);">⚠️ ${naoCobertos} operação(ões) não coube em ninguém (todo mundo já teve esse hub, ou não bate com a jornada de ninguém) — ajuste manualmente abaixo.</div>` : ''}
+      <div style="overflow-x:auto;">
+      <table><thead><tr><th>Operação</th><th>Ciclo</th><th>Horário</th><th>UF</th><th>Novo titular</th></tr></thead><tbody>
+      ${res.linhas.map((l,idx)=>`<tr ${!l.analistaId?'style="background:rgba(224,82,82,0.08);"':''}>
+        <td>${escapeHtml(l.operacao)}</td>
+        <td>${escapeHtml(l.ciclo||'')}</td>
+        <td class="mono">${l.horaInicio}–${l.horaFim}</td>
+        <td class="mono">${l.uf||'—'}</td>
+        <td><select data-escalamensal-idx="${idx}">
+          <option value="">— sem titular —</option>
+          ${myAnalistas.map(a=>`<option value="${a.id}" ${l.analistaId===a.id?'selected':''}>${escapeHtml(a.name)}</option>`).join('')}
+        </select></td>
+      </tr>`).join('')}
+      </tbody></table>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+        <button class="btn" data-gerar-escala-mensal="1">Gerar outra combinação</button>
+        <button class="btn btn-brand" id="btnConfirmarEscalaMensal">Publicar (${res.linhas.filter(l=>l.analistaId).length} operação(ões))</button>
+      </div>
+    </div>`;
+  }
+
+  return `
+  <div class="section-title">Gerar Escala do Mês</div>
+  <div class="help-text">Escolha o mês e clique em Gerar: o sistema redistribui os hubs vigentes entre a equipe, sem repetir com ninguém um hub que já teve (histórico completo), respeitando o horário de jornada de cada um e variando o estado (UF) da carteira de cada pessoa. A proposta fica editável antes de publicar — publicar cria uma operação fixa nova pra cada linha com titular, sem mexer no que já existe.</div>
+  <div class="card" style="margin-bottom:22px;">
+    <div class="field" style="max-width:220px;"><label>Mês</label><input type="month" id="escalaMensalMesInput" value="${mes}"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+      <button class="btn btn-brand" data-gerar-escala-mensal="1">Gerar escala</button>
+    </div>
+  </div>
+  ${resultsHtml}`;
+}
+
+
 function supBaseMestra(myAnalistas){
   const ids = myAnalistas.map(a=>a.id);
   const rows = DB.baseMestra.filter(b=>ids.includes(b.analistaId));
   baseMestraExportRows = rows.filter(b=>b.dataFim>=todayISO());
   return `
-  ${renderImportPendentesBanner('basemestra', myAnalistas)}
   <div class="csv-row">
     <span class="csv-label">Carga em massa das operações do titular (Excel)</span>
     <button class="btn" id="btnExportarMestra">⬇ Exportar vigentes</button>
