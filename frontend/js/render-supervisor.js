@@ -90,7 +90,7 @@ function supCadastros(myAnalistas){
     <button class="btn" id="btnBaixarModeloAnalista">⭳ Baixar modelo Excel</button>
     <label class="btn" style="margin:0;">⭱ Importar Excel<input type="file" accept=".xlsx,.xls" id="fileImportAnalista" style="display:none;"></label>
   </div>
-  <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+  <div class="action-row-end" style="margin-bottom:14px;">
     <button class="btn btn-brand" id="btnNovoAnalista">+ Novo Analista</button>
   </div>
   <div class="card">
@@ -121,7 +121,7 @@ function supBaseMestra(myAnalistas){
     <button class="btn" id="btnBaixarModeloMestra">⭳ Baixar modelo Excel</button>
     <label class="btn" style="margin:0;">⭱ Importar Excel<input type="file" accept=".xlsx,.xls" id="fileImportMestra" style="display:none;"></label>
   </div>
-  <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+  <div class="action-row-end" style="margin-bottom:14px;">
     <button class="btn btn-brand" id="btnNovaMestra">+ Nova entrada</button>
   </div>
   <div class="card">
@@ -149,7 +149,7 @@ function supSPR(){
     <button class="btn" id="btnBaixarModeloSpr">⭳ Baixar modelo Excel</button>
     <label class="btn" style="margin:0;">⭱ Importar Excel<input type="file" accept=".xlsx,.xls" id="fileImportSpr" style="display:none;"></label>
   </div>
-  <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+  <div class="action-row-end" style="margin-bottom:14px;">
     <button class="btn btn-brand" id="btnNovoSpr">+ Nova entrada SPR</button>
   </div>
   <div class="card">
@@ -228,7 +228,7 @@ function supSuplencias(myAnalistas){
       <input type="date" data-suplenciafiltro="fim" value="${f.fim}">
     </label>
   </div>
-  <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+  <div class="action-row-end" style="margin-bottom:10px;">
     <button class="btn btn-danger" id="btnExcluirTodasCoberturas" ${rows.length===0?'disabled':''}>Excluir todos (${rows.length})</button>
   </div>
   <div class="card" style="margin-bottom:22px;">
@@ -528,7 +528,7 @@ function supControleDomingos(myAnalistas){
     <div class="stat-card"><div class="stat-num">${ranking.length}</div><div class="stat-label">Analistas escalados em algum domingo</div></div>
     <div class="stat-card"><div class="stat-num">${ranking[0]?.total ?? 0}</div><div class="stat-label">${ranking[0] ? `Máximo: ${escapeHtml(ranking[0].analista.name)}` : 'Sem domingos escalados'}</div></div>
   </div>
-  <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+  <div class="action-row-end" style="margin-bottom:14px;">
     <button class="btn" id="btnExportDomingos">⬇ Exportar Excel</button>
   </div>
   <div class="card">
@@ -732,7 +732,7 @@ function supPlantao(){
   return `
   <div class="section-title">Plantão</div>
   <div class="help-text">Defina quem cobre sua ausência (Supervisor, Analista ou Coordenador) em uma data específica. A informação aparece para os analistas da sua equipe.</div>
-  <div style="display:flex;justify-content:flex-end;margin-bottom:14px;"><button class="btn btn-brand" id="btnNovoPlantao">+ Definir plantão</button></div>
+  <div class="action-row-end" style="margin-bottom:14px;"><button class="btn btn-brand" id="btnNovoPlantao">+ Definir plantão</button></div>
   <div class="card">
   <table><thead><tr><th>Data</th><th>Cargo do plantonista</th><th>Nome</th><th></th></tr></thead><tbody>
   ${rows.map(p=>`<tr><td class="mono">${p.data}</td><td>${p.coberturaRole}</td><td>${p.coberturaNome}</td>

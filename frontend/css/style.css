@@ -38,7 +38,12 @@
   --brand-ink:#FFFFFF;
 }
 *{box-sizing:border-box;}
-html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;}
+/* overflow-x:hidden aqui é o freio de mão geral contra a página inteira
+   esticando de lado por causa de algum conteúdo largo dentro do .shell —
+   as áreas que realmente precisam rolar de lado (tabela num .card, o
+   kanban, a barra de abas do menu no celular) já têm o próprio
+   overflow-x:auto e continuam rolando normalmente por dentro. */
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;overflow-x:hidden;}
 body{min-height:100vh;transition:background-color .2s ease, color .2s ease;}
 .mono{font-family:'JetBrains Mono',monospace;}
 /* Ícones Lucide (ver icon() em utils.js) — stroke herda a cor do texto ao
@@ -270,7 +275,12 @@ input,select,textarea{font-family:inherit;}
 .shell.nav-collapsed .nav-item{position:relative;}
 .shell.nav-collapsed .menu-config-btn{justify-content:center;}
 
-.main{padding:28px 34px;overflow-x:hidden;}
+/* min-width:0: .main é item de grid (filho de .shell, ver .shell abaixo)
+   — sem isso, conteúdo largo por dentro (uma tabela sem quebra de linha,
+   por exemplo) empurra o próprio .main além da viewport em vez de só
+   rolar dentro dele; overflow-x:hidden sozinho nem sempre basta pra zerar
+   essa largura mínima automática de item de grid/flex. */
+.main{padding:28px 34px;overflow-x:hidden;min-width:0;}
 .page-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:22px;flex-wrap:wrap;gap:12px;}
 .page-title{font-size:30px;margin:0;}
 .page-desc{color:var(--text-muted);font-size:13px;margin-top:2px;}
@@ -492,6 +502,11 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .section-title{font-size:13px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);margin:0 0 12px;}
 .help-text{font-size:12px;color:var(--text-muted);margin-bottom:14px;}
 .csv-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:16px;padding:12px 14px;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;}
+/* Linha só com um botão "+ Novo X" alinhado à direita (Cadastros, Eventos,
+   Controle de Acessos etc.) — em telas estreitas vira botão largura
+   cheia em vez de ficar fixo colado na borda direita (risco de cortar
+   fora da tela em telas bem pequenas). */
+.action-row-end{display:flex;justify-content:flex-end;}
 .csv-row .csv-label{font-size:12.5px;color:var(--text-muted);margin-right:auto;}
 .filter-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
 .filter-row select,.filter-row input{padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);font-size:12.5px;}
@@ -593,16 +608,31 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 @media (max-width:880px){
   .shell{grid-template-columns:1fr;}
   .shell.nav-collapsed{grid-template-columns:1fr;}
-  .sidebar{position:sticky;top:0;z-index:20;flex-direction:row;align-items:center;padding:12px 14px;overflow-x:auto;}
-  .shell.nav-collapsed .sidebar{padding:12px 14px;}
+  /* min-width:0: .sidebar é item de grid (filho de .shell) — sem isso ele
+     não encolhe abaixo do conteúdo (mesmo "min-content" que afeta flex),
+     e o navItems por dentro nunca ganha espaço sobrando pra rolar sozinho
+     (o .shell inteiro estourava a tela e rolava junto, escondendo
+     usuário/Sair fora da área visível). */
+  .sidebar{position:sticky;top:0;z-index:20;flex-direction:row;align-items:center;padding:10px 12px;gap:10px;min-width:0;}
+  .shell.nav-collapsed .sidebar{padding:10px 12px;}
   .sidebar-toggle{display:none;}
-  .brand-row{border:none;margin:0;padding:0 10px 0 0;}
-  .sidebar-foot{margin:0;padding:0 0 0 10px;border:none;display:flex;align-items:center;gap:8px;}
-  .user-chip{margin:0;}
+  .brand-row{border:none;margin:0;padding:0;flex-shrink:0;}
+  .theme-switch{flex-shrink:0;}
+  /* #navItems empilhava verticalmente mesmo com a .sidebar já virada linha
+     (era um único filho em bloco, com os .nav-item dela mesma ainda em
+     coluna por dentro) — cabeçalho ficava gigante, sobrepondo o conteúdo.
+     Vira uma faixa de abas com rolagem horizontal própria, sem arrastar
+     logo/usuário/sair junto (só ela rola, o resto fica fixo nas pontas). */
+  #navItems{display:flex;align-items:center;gap:4px;overflow-x:auto;flex:1;min-width:0;}
+  .nav-item{white-space:nowrap;flex-shrink:0;margin-bottom:0;}
   .nav-eyebrow{display:none;}
   .menu-config-btn{display:none;}
   .particularidades-btn{display:none;}
-  .nav-item{white-space:nowrap;}
+  .sidebar-foot{margin:0;padding:0;border:none;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+  .user-chip{margin:0;padding:0;max-width:100px;}
+  .user-sup{display:none;}
+  .logout-btn{width:auto;padding:8px 10px;}
+  .logout-label{display:none;}
   .main{padding:18px;}
   .grid-4,.grid-3,.grid-2{grid-template-columns:1fr;}
 }
@@ -611,13 +641,21 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
    espaçamento/tipografia pra caber numa tela de ~360-400px sem cortar nada
    nem depender só do scroll horizontal dos cards. */
 @media (max-width:560px){
+  .action-row-end{justify-content:stretch;}
+  .action-row-end .btn{width:100%;}
   .main{padding:12px;}
   .page-title{font-size:23px;}
   #view-login{padding:14px;}
   .login-card{padding:26px 20px;}
   .login-title{font-size:32px;}
-  table{font-size:12px;}
-  th,td{padding:8px 6px;}
+  /* width:100% (regra padrão da table) força as colunas a espremer o
+     conteúdo pra caber na tela — nome/e-mail quebravam em várias linhas e
+     os botões de ação saíam cortados da viewport. width:auto devolve a
+     tabela pro tamanho natural do conteúdo (nowrap trava a quebra de
+     linha), e min-width:100% mantém tabela curta esticada quando cabe —
+     o overflow-x:auto do .card (ver mais acima) assume a rolagem. */
+  table{width:auto;min-width:100%;font-size:12px;}
+  th,td{padding:8px 6px;white-space:nowrap;}
   .modal-bg{padding:10px;}
   .modal{padding:18px;border-radius:13px;}
   .modal h3{font-size:17px;}

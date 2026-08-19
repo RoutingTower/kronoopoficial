@@ -267,7 +267,7 @@ function exportarPainelHoraAHora(){
 function coordAcessos(){
   const sups = usersByRole('supervisor');
   return `
-  <div style="display:flex;justify-content:flex-end;margin-bottom:14px;"><button class="btn btn-brand" id="btnNovoSupervisor">+ Novo Supervisor</button></div>
+  <div class="action-row-end" style="margin-bottom:14px;"><button class="btn btn-brand" id="btnNovoSupervisor">+ Novo Supervisor</button></div>
   <div class="card"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Equipe</th><th>Status</th><th></th></tr></thead><tbody>
   ${sups.map(s=>`<tr><td>${s.name}</td><td class="mono" style="color:var(--text-muted);">${s.email}</td>
   <td>${DB.users.filter(u=>u.supervisorId===s.id).length} analistas</td>
