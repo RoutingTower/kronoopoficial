@@ -111,16 +111,25 @@ function supCadastros(myAnalistas){
 }
 
 
+// Linhas vigentes (dataFim >= hoje) das Operações Fixas da equipe, no
+// mesmo formato/ordem de coluna do import — dá pra baixar, editar
+// titular/datas e reimportar direto, sem retypar as ~90 operações
+// inteiras todo mês (ver btnExportarMestra, events.js).
+let baseMestraExportRows = [];
+
 function supBaseMestra(myAnalistas){
   const ids = myAnalistas.map(a=>a.id);
   const rows = DB.baseMestra.filter(b=>ids.includes(b.analistaId));
+  baseMestraExportRows = rows.filter(b=>b.dataFim>=todayISO());
   return `
   ${renderImportPendentesBanner('basemestra', myAnalistas)}
   <div class="csv-row">
     <span class="csv-label">Carga em massa das operações do titular (Excel)</span>
+    <button class="btn" id="btnExportarMestra">⬇ Exportar vigentes</button>
     <button class="btn" id="btnBaixarModeloMestra">⭳ Baixar modelo Excel</button>
     <label class="btn" style="margin:0;">⭱ Importar Excel<input type="file" accept=".xlsx,.xls" id="fileImportMestra" style="display:none;"></label>
   </div>
+  <div class="help-text" style="margin-top:-10px;">Pra trocar os titulares do mês: exporte as vigentes, mude a coluna "analista" e as datas, e importe de volta — cria um lote novo, sem mexer no que já existe (o histórico anterior continua na tabela).</div>
   <div class="action-row-end" style="margin-bottom:14px;">
     <button class="btn btn-brand" id="btnNovaMestra">+ Nova entrada</button>
   </div>
@@ -132,8 +141,15 @@ function supBaseMestra(myAnalistas){
 }
 
 
+// Linhas atuais de SPR da equipe, mesmo formato do import — baixar,
+// atualizar só a coluna "spr" e reimportar (ver comentário na importação,
+// events.js: reimportar operação+ciclo já existente ATUALIZA o valor em
+// vez de duplicar, então isso já cobre a troca mensal em massa).
+let sprCadastroExportRows = [];
+
 function supSPR(){
   const rows = [...DB.sprs].filter(s=>s.supervisorId===session.userId).sort((a,b)=> a.operacao.localeCompare(b.operacao) || a.ciclo.localeCompare(b.ciclo));
+  sprCadastroExportRows = rows;
   // Sugestões pro datalist do modal (Nova entrada/Editar) — operação e
   // ciclo já usados em Operações Fixas ou Cobertura, pra evitar erro de
   // digitação que faria o SPR não bater com nada (mesmo problema que já
@@ -141,14 +157,16 @@ function supSPR(){
   const opsConhecidas = [...new Set([...DB.baseMestra, ...DB.suplencias].map(b=>b.operacao))].sort();
   const ciclosConhecidos = [...new Set([...DB.baseMestra, ...DB.suplencias].map(b=>b.ciclo).filter(Boolean))].sort();
   return `
-  <div class="help-text">Cadastre o SPR de cada Operação/Ciclo aqui — ele aparece automaticamente em Operações Fixas, Cobertura e na Programação do analista, sempre que a operação e o ciclo baterem.</div>
+  <div class="help-text">Cadastre o SPR de cada Operação/Ciclo aqui — ele aparece automaticamente em Operações Fixas, Cobertura e na Programação do analista, sempre que a operação e o ciclo baterem. O SPR usado em cada finalização já fica congelado no Raio-X dela (spr_meta), então atualizar aqui não apaga o histórico do que já foi lançado.</div>
   <datalist id="sprOpList">${opsConhecidas.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>
   <datalist id="sprCicloList">${ciclosConhecidos.map(c=>`<option value="${escapeHtml(c)}">`).join('')}</datalist>
   <div class="csv-row">
     <span class="csv-label">Carga em massa de SPR (Excel)</span>
+    <button class="btn" id="btnExportarSpr">⬇ Exportar atuais</button>
     <button class="btn" id="btnBaixarModeloSpr">⭳ Baixar modelo Excel</button>
     <label class="btn" style="margin:0;">⭱ Importar Excel<input type="file" accept=".xlsx,.xls" id="fileImportSpr" style="display:none;"></label>
   </div>
+  <div class="help-text" style="margin-top:-10px;">Reimportar operação+ciclo que já existe atualiza o valor (não duplica) — pra trocar o SPR do mês inteiro, exporte os atuais, mude a coluna "spr" e importe de volta.</div>
   <div class="action-row-end" style="margin-bottom:14px;">
     <button class="btn btn-brand" id="btnNovoSpr">+ Nova entrada SPR</button>
   </div>

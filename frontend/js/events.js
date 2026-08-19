@@ -1424,6 +1424,11 @@ function bindMainEvents(){
     });
   });
 
+  const btnExportarSpr = document.getElementById('btnExportarSpr');
+  if(btnExportarSpr) btnExportarSpr.addEventListener('click', ()=>{
+    const linhas = sprCadastroExportRows.map(s=>[s.operacao, s.ciclo, s.spr]);
+    exportarRelatorioExcel(`spr_atual_${todayISO()}.xlsx`, ['operacao','ciclo','spr'], linhas);
+  });
   const btnBaixarModeloSpr = document.getElementById('btnBaixarModeloSpr');
   if(btnBaixarModeloSpr) btnBaixarModeloSpr.addEventListener('click', ()=>{
     downloadXLSX('modelo_spr.xlsx', ['operacao','ciclo','spr'], ['LM Hub_SP_Atibaia_Ponte_Alta','T3','92']);
@@ -1461,6 +1466,11 @@ function bindMainEvents(){
     alert(`Importação concluída: ${ok} entrada(s) salva(s)${fail?`, ${fail} linha(s) ignorada(s) (campos obrigatórios ausentes)`:''}.`);
   });
 
+  const btnExportarMestra = document.getElementById('btnExportarMestra');
+  if(btnExportarMestra) btnExportarMestra.addEventListener('click', ()=>{
+    const linhas = baseMestraExportRows.map(b=>[b.titular, b.operacao, b.ciclo, b.horaInicio, b.horaFim, (b.dias||[]).join(','), b.dataInicio, b.dataFim]);
+    exportarRelatorioExcel(`operacoes_fixas_vigentes_${todayISO()}.xlsx`, ['analista','operacao','ciclo','hora_inicio','hora_fim','dias','data_inicio','data_fim'], linhas);
+  });
   const btnBaixarModeloMestra = document.getElementById('btnBaixarModeloMestra');
   if(btnBaixarModeloMestra) btnBaixarModeloMestra.addEventListener('click', ()=>{
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
