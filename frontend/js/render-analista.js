@@ -13,14 +13,14 @@ function renderExecucaoActions(it, dateStr, analistaId, sprMeta, souEu){
   const raiox = DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===it.horaInicio && r.data===dateStr);
   if(raiox){
     const duracaoHtml = raiox.duracaoSegundos!=null
-      ? ` · ⏱ ${formatarDuracao(raiox.duracaoSegundos)}${raiox.duracaoSegundos>SLA_TEMPO_EXECUCAO_SEGUNDOS ? ' <span style="color:var(--alert);font-weight:600;">acima do SLA</span>' : ''}`
+      ? ` · ${icon('timer',11)} ${formatarDuracao(raiox.duracaoSegundos)}${raiox.duracaoSegundos>SLA_TEMPO_EXECUCAO_SEGUNDOS ? ' <span style="color:var(--alert);font-weight:600;">acima do SLA</span>' : ''}`
       : '';
     // Editar/Excluir só pro supervisor olhando a operação de alguém da
     // equipe (souEu=false) — preenchimento incorreto ou roteirização
     // cancelada depois do fato (ver raioX.controller.js, updateRaioX).
     const acoesSupervisor = !souEu ? `<div class="flash-actions" style="margin-top:6px;">
-        <button class="btn" data-editar-raiox="${raiox.id}">✏️ Editar</button>
-        <button class="btn btn-danger" data-excluir-raiox="${raiox.id}">🗑️ Excluir</button>
+        <button class="btn" data-editar-raiox="${raiox.id}">${icon('pencil',12)} Editar</button>
+        <button class="btn btn-danger" data-excluir-raiox="${raiox.id}">${icon('trash-2',12)} Excluir</button>
       </div>` : '';
     return `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}${raiox.semRoteirizacao ? ' · Sem roteirização' : raiox.sprRoteirizado!=null ? ` · SPR lançado ${escapeHtml(String(raiox.sprRoteirizado))}` : ''}${duracaoHtml}</div>${acoesSupervisor}`;
   }
@@ -31,16 +31,16 @@ function renderExecucaoActions(it, dateStr, analistaId, sprMeta, souEu){
     return `<div class="timer-live" data-timer-desde="${exec.iniciadoEm}">
         <span class="timer-dot"></span><span class="timer-num mono">00:00</span><span class="timer-tag">em andamento</span>
       </div>
-      <div class="flash-actions"><button class="btn btn-brand" ${dataAttrs}>■ Finalizar operação</button></div>`;
+      <div class="flash-actions"><button class="btn btn-brand" ${dataAttrs}>${icon('square',12)} Finalizar operação</button></div>`;
   }
   if(exec && exec.liberadoManual){
-    return `<div class="flash-meta" style="color:var(--folga);font-weight:600;">🔓 Liberado pelo supervisor — informe início e fim ao finalizar</div>
-      <div class="flash-actions"><button class="btn btn-brand" ${dataAttrs} data-manual="1">■ Finalizar operação</button></div>`;
+    return `<div class="flash-meta" style="color:var(--folga);font-weight:600;">${icon('unlock',12)} Liberado pelo supervisor — informe início e fim ao finalizar</div>
+      <div class="flash-actions"><button class="btn btn-brand" ${dataAttrs} data-manual="1">${icon('square',12)} Finalizar operação</button></div>`;
   }
   if(janelaIniciarFechada(dateStr, it.horaInicio)){
-    return `<div class="flash-meta" style="color:var(--alert);font-weight:600;">🔒 Não iniciado — contate seu supervisor pra liberar o preenchimento</div>`;
+    return `<div class="flash-meta" style="color:var(--alert);font-weight:600;">${icon('lock',12)} Não iniciado — contate seu supervisor pra liberar o preenchimento</div>`;
   }
-  return `<div class="flash-actions"><button class="btn btn-brand" data-iniciar-op="${escapeHtml(it.operacao)}" data-hora="${it.horaInicio}" data-data="${dateStr}" data-ciclo="${escapeHtml(it.ciclo)}">▶ Iniciar operação</button></div>`;
+  return `<div class="flash-actions"><button class="btn btn-brand" data-iniciar-op="${escapeHtml(it.operacao)}" data-hora="${it.horaInicio}" data-data="${dateStr}" data-ciclo="${escapeHtml(it.ciclo)}">${icon('play',12)} Iniciar operação</button></div>`;
 }
 
 // showLembretes só é true na própria Programação do analista (renderAnalista) —
@@ -84,11 +84,11 @@ function buildHourCardsHtml(items, rns, lembretes, ctx){
         </div>
         <div class="flash-meta">${it.ciclo} · ${it.horaInicio}–${it.horaFim}${spr!=null ? ` · SPR REF ${escapeHtml(String(spr))}` : ''}</div>
         <div class="flash-meta">${it.isSuplente ? 'Suplente' : 'Titular'}: ${it.responsavelNome}</div>
-        ${it.isOff ? `<div class="flash-cover">${it.tipo==='ferias'?'🏖️ Férias':'🌙 Folga'} do titular</div>`
-          : it.isCobertura ? `<div class="flash-cover">🔁 Cobrindo ${it.tipo==='ferias'?'férias':'folga'} de ${it.responsavelNome}</div>` : ''}
+        ${it.isOff ? `<div class="flash-cover">${it.tipo==='ferias'?icon('palmtree',12)+' Férias':icon('moon',12)+' Folga'} do titular</div>`
+          : it.isCobertura ? `<div class="flash-cover">${icon('repeat',12)} Cobrindo ${it.tipo==='ferias'?'férias':'folga'} de ${it.responsavelNome}</div>` : ''}
         ${mostrarExec ? renderExecucaoActions(it, dateStr, analistaId, spr, souEu) : ''}
         <div class="flash-actions" style="margin-top:8px;">
-          <button class="btn btn-particularidade" data-particularidade-op="${escapeHtml(it.operacao)}" data-particularidade-sup="${supervisorId||''}" data-particularidade-cobertura="${it.isCobertura?'1':'0'}" data-particularidade-analista="${analistaId}" data-particularidade-data="${dateStr}" data-ciente="${ciente?'1':'0'}">⚙️ Ver Particularidade${(it.isCobertura && !ciente) ? '<span class="badge-alerta-ciente" title="Ainda sem confirmação de ciência"></span>' : ''}</button>
+          <button class="btn btn-particularidade" data-particularidade-op="${escapeHtml(it.operacao)}" data-particularidade-sup="${supervisorId||''}" data-particularidade-cobertura="${it.isCobertura?'1':'0'}" data-particularidade-analista="${analistaId}" data-particularidade-data="${dateStr}" data-ciente="${ciente?'1':'0'}">${icon('settings',12)} Ver Particularidade${(it.isCobertura && !ciente) ? '<span class="badge-alerta-ciente" title="Ainda sem confirmação de ciência"></span>' : ''}</button>
         </div>
       </div>`;
     }).join('');
@@ -103,12 +103,12 @@ function buildHourCardsHtml(items, rns, lembretes, ctx){
       // disso mostra o botão desabilitado, pra não dar check-in adiantado.
       const jaComecou = Date.now() >= slotTimestamp(dateStr, r.hora);
       return `<div class="flash-card reuniao">
-      <div class="flash-sigla">📅 Reunião</div>
+      <div class="flash-sigla">${icon('calendar',12)} Reunião</div>
       <div class="flash-meta">${escapeHtml(r.titulo)}</div>
       <div class="flash-meta">${r.tipo==='grupo'?'Grupo':'Individual'} · ${r.horaFim?`${r.hora}–${r.horaFim}`:r.hora}</div>
       ${r.link ? `<div class="flash-actions" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
         <a class="btn btn-brand" href="${escapeHtml(normalizeUrl(r.link))}" target="_blank" rel="noopener noreferrer">Entrar na reunião</a>
-        ${souEu ? (presente ? `<span class="btn btn-brand" style="cursor:default;opacity:0.75;">✓ Check-in</span>`
+        ${souEu ? (presente ? `<span class="btn btn-brand" style="cursor:default;opacity:0.75;">${icon('check',12)} Check-in</span>`
           : jaComecou ? `<button class="btn btn-brand" data-marcar-presenca="${r.id}">Check-in</button>`
           : `<span class="btn" style="opacity:0.5;cursor:not-allowed;" title="Libera a partir de ${r.hora}">Check-in</span>`) : ''}
       </div>` : ''}
@@ -256,7 +256,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
     linhas.push({ analista:a, slots });
   });
 
-  const statusLabels = { wait:['pill-wait','⏳','A Iniciar'], live:['pill-live','🏃','Em Andamento'], naoiniciado:['pill-naoiniciado','⚠️','Não Iniciado'], done:['pill-done','✅','Finalizada'], atraso:['pill-atraso','🚨','Não Finalizado'] };
+  const statusLabels = { wait:['pill-wait','clock','A Iniciar'], live:['pill-live','circle-play','Em Andamento'], naoiniciado:['pill-naoiniciado','clock-alert','Não Iniciado'], done:['pill-done','circle-check-big','Finalizada'], atraso:['pill-atraso','octagon-alert','Não Finalizado'] };
   const filtro = uiState.progStatusFiltro;
 
   // Card minimalista de propósito: só hub + ciclo, pra grade ficar limpa e
@@ -268,12 +268,12 @@ function renderProgramacaoIntegrada(lista, dateStr){
   const cardHtml = (it, hour, analistaId)=>{
     const status = statusComExecucao(hour, dateStr, analistaId, it.operacao, it.ciclo, it.isOff);
     const dim = filtro && filtro!==status;
-    const [,emojiStatus,labelStatus] = statusLabels[status] || [];
+    const [,iconStatus,labelStatus] = statusLabels[status] || [];
     const detalhe = `${it.operacao} — ${it.ciclo} · ${it.horaInicio}–${it.horaFim}${labelStatus ? ` · ${labelStatus}` : ''}` +
       (it.isCobertura ? ` · Cobrindo ${it.responsavelNome}` : it.isOff ? ` · Coberto por ${it.responsavelNome}` : '');
     const borda = status==='atraso' ? ' flash-card-atraso' : status==='naoiniciado' ? ' flash-card-naoiniciado' : '';
     return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${dim?' prog-dim':''}" title="${escapeHtml(detalhe)}">
-      <span class="flash-sigla">${emojiStatus?emojiStatus+' ':''}${escapeHtml(it.operacao)}</span>
+      <span class="flash-sigla">${iconStatus?icon(iconStatus,11)+' ':''}${escapeHtml(it.operacao)}</span>
       <span class="prog-ciclo">${escapeHtml(it.ciclo)}</span>
     </div>`;
   };
@@ -311,13 +311,13 @@ function renderProgramacaoIntegrada(lista, dateStr){
 
   const legendHtml = `<div class="status-legend">
     <span class="status-legend-label">Destacar por status</span>
-    ${Object.entries(statusLabels).map(([key,[cls,emoji,label]])=>
-      `<span class="pill ${cls}${filtro===key?' active':''}${filtro && filtro!==key?' inactive':''}" data-status-filtro="${key}">${emoji} ${label}</span>`
+    ${Object.entries(statusLabels).map(([key,[cls,ic,label]])=>
+      `<span class="pill ${cls}${filtro===key?' active':''}${filtro && filtro!==key?' inactive':''}" data-status-filtro="${key}">${icon(ic,12)} ${label}</span>`
     ).join('')}
     ${filtro ? `<button class="btn" id="btnLimparStatusFiltro">Limpar</button>` : ''}
-    <span class="pill pill-done pill-info" title="Analistas com operação hoje">🟢 ${linhas.length} ativos</span>
-    <span class="pill pill-wait pill-info" title="Soma de operações de todos os analistas exibidos">📋 ${linhas.reduce((s,l)=>s+l.slots.length,0)} operações</span>
-    ${folgaNomes.length>0 ? `<span class="pill pill-off pill-info pill-folga-info">🌙 ${folgaNomes.length} de folga
+    <span class="pill pill-done pill-info" title="Analistas com operação hoje">${icon('users',12)} ${linhas.length} ativos</span>
+    <span class="pill pill-wait pill-info" title="Soma de operações de todos os analistas exibidos">${icon('clipboard-list',12)} ${linhas.reduce((s,l)=>s+l.slots.length,0)} operações</span>
+    ${folgaNomes.length>0 ? `<span class="pill pill-off pill-info pill-folga-info">${icon('moon',12)} ${folgaNomes.length} de folga
       <span class="folga-tip"><b>De folga hoje</b><br>${folgaNomes.map(escapeHtml).join('<br>')}</span>
     </span>` : ''}
   </div>`;
@@ -354,10 +354,10 @@ function proximaOcorrencia(predicate, maxDias){
 // Card de contagem regressiva (próxima cobertura/folga): número grande é
 // os dias faltando ("Hoje" se for hoje mesmo), com a data e o emoji no
 // rótulo. Sem nada encontrado na janela de busca, mostra "—" com o aviso.
-function statCardContagem(proxima, emoji, label, semLabel){
-  if(!proxima) return `<div class="stat-card"><div class="stat-num">—</div><div class="stat-label">${emoji} ${semLabel}</div></div>`;
+function statCardContagem(proxima, iconHtml, label, semLabel){
+  if(!proxima) return `<div class="stat-card"><div class="stat-num">—</div><div class="stat-label">${iconHtml} ${semLabel}</div></div>`;
   const sufixoDias = proxima.diasFaltando>0 ? ` (${proxima.diasFaltando} dia${proxima.diasFaltando>1?'s':''})` : '';
-  return `<div class="stat-card"><div class="stat-num">${proxima.diasFaltando===0?'Hoje':proxima.diasFaltando}</div><div class="stat-label">${emoji} ${label} · ${formatarDataCurta(proxima.data)}${sufixoDias}</div></div>`;
+  return `<div class="stat-card"><div class="stat-num">${proxima.diasFaltando===0?'Hoje':proxima.diasFaltando}</div><div class="stat-label">${iconHtml} ${label} · ${formatarDataCurta(proxima.data)}${sufixoDias}</div></div>`;
 }
 
 function renderAnalista(){
@@ -401,33 +401,33 @@ function renderAnalista(){
         <button data-view="mensal" class="${uiState.analistaView==='mensal'?'active':''}">Mensal</button>
       </div>
       ${uiState.analistaView==='diaria' ? `<div class="toggle-group" data-scope="analista-layout">
-        <button data-layout="kanban" class="${uiState.analistaDiariaLayout==='kanban'?'active':''}" title="Colunas por horário, rolagem horizontal">▤ Kanban</button>
-        <button data-layout="lista" class="${uiState.analistaDiariaLayout==='lista'?'active':''}" title="Lista vertical, sem rolagem horizontal">☰ Lista</button>
+        <button data-layout="kanban" class="${uiState.analistaDiariaLayout==='kanban'?'active':''}" title="Colunas por horário, rolagem horizontal">${icon('layout-grid',12)} Kanban</button>
+        <button data-layout="lista" class="${uiState.analistaDiariaLayout==='lista'?'active':''}" title="Lista vertical, sem rolagem horizontal">${icon('list',12)} Lista</button>
       </div>` : ''}
     </div>
   </div>
   <div class="grid-2" style="margin-bottom:14px;">
     <div class="stat-card">
       <div class="stat-num">${sprLancadoMedio!=null ? sprLancadoMedio.toFixed(1) : '—'}</div>
-      <div class="stat-label">🎯 SPR Lançado${sprRefMedio!=null?` <span style="color:var(--text-faint);">(REF ${sprRefMedio.toFixed(1)})</span>`:''} <span style="color:var(--text-faint);">· 30 dias</span></div>
+      <div class="stat-label">${icon('target',12)} SPR Lançado${sprRefMedio!=null?` <span style="color:var(--text-faint);">(REF ${sprRefMedio.toFixed(1)})</span>`:''} <span style="color:var(--text-faint);">· 30 dias</span></div>
     </div>
     <div class="stat-card">
       <div class="stat-num" style="color:${tempoMedioRecente!=null && tempoMedioRecente>SLA_TEMPO_EXECUCAO_SEGUNDOS?'var(--alert)':'var(--done)'};">${tempoMedioRecente!=null ? formatarDuracao(Math.round(tempoMedioRecente)) : '—'}</div>
-      <div class="stat-label">⏳ Tempo médio de execução <span style="color:var(--text-faint);">(SLA 1h · 30 dias)</span></div>
+      <div class="stat-label">${icon('hourglass',12)} Tempo médio de execução <span style="color:var(--text-faint);">(SLA 1h · 30 dias)</span></div>
     </div>
   </div>
   <div class="grid-3" style="margin-bottom:22px;">
-    <div class="stat-card"><div class="stat-num">${todaySlots.length}</div><div class="stat-label">📋 Operações do dia</div></div>
-    ${statCardContagem(proxCobertura, '🔁', 'Próxima cobertura', 'Sem cobertura agendada')}
-    ${statCardContagem(proxFolga, '🌙', 'Próxima folga', 'Sem folga agendada')}
+    <div class="stat-card"><div class="stat-num">${todaySlots.length}</div><div class="stat-label">${icon('clipboard-list',12)} Operações do dia</div></div>
+    ${statCardContagem(proxCobertura, icon('repeat',12), 'Próxima cobertura', 'Sem cobertura agendada')}
+    ${statCardContagem(proxFolga, icon('moon',12), 'Próxima folga', 'Sem folga agendada')}
   </div>
   <div class="filter-row" style="align-items:center;margin-bottom:16px;">
     <input type="date" id="analistaDatePick" value="${dateStr}" class="mono" style="background:var(--bg-2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;">
     <select data-opfiltro="status">
       <option value="all" ${uiState.analistaOpFiltro==='all'?'selected':''}>Todas as operações</option>
-      <option value="fixa" ${uiState.analistaOpFiltro==='fixa'?'selected':''}>🟢 Operação fixa</option>
-      <option value="cobertura" ${uiState.analistaOpFiltro==='cobertura'?'selected':''}>🔵 Estou cobrindo</option>
-      <option value="folga" ${uiState.analistaOpFiltro==='folga'?'selected':''}>🟡 Estou sendo coberto (folga)</option>
+      <option value="fixa" ${uiState.analistaOpFiltro==='fixa'?'selected':''}>Operação fixa</option>
+      <option value="cobertura" ${uiState.analistaOpFiltro==='cobertura'?'selected':''}>Estou cobrindo</option>
+      <option value="folga" ${uiState.analistaOpFiltro==='folga'?'selected':''}>Estou sendo coberto (folga)</option>
     </select>
     <button class="btn btn-brand" id="btnAddLembreteModal">+ Adicionar lembrete</button>
   </div>
@@ -450,17 +450,17 @@ function renderAnalista(){
 // mínima fixa (ver style.css).
 function extraChipsForDay(analistaId, ds){
   const chips = [];
-  if(analistaEmPlantao(analistaId, ds)) chips.push(`<div class="cal-chip cal-chip-plantao" title="Escalado em plantão nesse dia">🔔 Plantão</div>`);
+  if(analistaEmPlantao(analistaId, ds)) chips.push(`<div class="cal-chip cal-chip-plantao" title="Escalado em plantão nesse dia">${icon('bell',11)} Plantão</div>`);
   // isFolgaDSR() já é "dia totalmente livre": todas as operações do dia
   // cobertas por outra pessoa, nenhuma operação própria sem cobertura e
   // sem plantão — exatamente o critério de "folgando".
-  else if(isFolgaDSR(analistaId, ds)) chips.push(`<div class="cal-chip cal-chip-folga-dia" title="Dia de folga">🌙 Folgando</div>`);
+  else if(isFolgaDSR(analistaId, ds)) chips.push(`<div class="cal-chip cal-chip-folga-dia" title="Dia de folga">${icon('moon',11)} Folgando</div>`);
   getReunioesForDate(analistaId, ds).forEach(r=>{
     const faixa = r.horaFim ? `${r.hora}–${r.horaFim}` : r.hora;
-    chips.push(`<div class="cal-chip cal-chip-reuniao" title="${escapeHtml(r.titulo)} · ${r.tipo==='grupo'?'Grupo':'Individual'} · ${faixa}">📅 ${r.hora} ${escapeHtml(r.titulo)}</div>`);
+    chips.push(`<div class="cal-chip cal-chip-reuniao" title="${escapeHtml(r.titulo)} · ${r.tipo==='grupo'?'Grupo':'Individual'} · ${faixa}">${icon('calendar',11)} ${r.hora} ${escapeHtml(r.titulo)}</div>`);
   });
   getLembretesForAnalista(analistaId).filter(l=>(l.data||todayISO())===ds).forEach(l=>{
-    chips.push(`<div class="cal-chip cal-chip-lembrete${l.done?' cal-chip-done':''}" title="${escapeHtml(l.texto)}">📝 ${l.hora?l.hora+' ':''}${escapeHtml(l.texto)}</div>`);
+    chips.push(`<div class="cal-chip cal-chip-lembrete${l.done?' cal-chip-done':''}" title="${escapeHtml(l.texto)}">${icon('sticky-note',11)} ${l.hora?l.hora+' ':''}${escapeHtml(l.texto)}</div>`);
   });
   return chips;
 }
