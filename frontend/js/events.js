@@ -958,9 +958,15 @@ function bindMainEvents(){
   });
   main.querySelectorAll('[data-gerar-escala-mensal]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
-      const ids = myAnalistas.map(a=>a.id);
-      const { linhas } = gerarEscalaMensal(ids, ids);
+      // idsEquipe fica com o time inteiro (ativos + inativos) — é o que
+      // define quais hubs entram na redistribuição (inclusive os que hoje
+      // são de alguém desativado, que MAIS precisam de um titular novo) e
+      // o histórico de "já teve" consultado. Só quem PODE receber um hub
+      // novo (candidatoIds) fica restrito aos cadastros ativos.
+      const todosAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
+      const idsEquipe = todosAnalistas.map(a=>a.id);
+      const candidatoIds = todosAnalistas.filter(a=>a.active).map(a=>a.id);
+      const { linhas } = gerarEscalaMensal(candidatoIds, idsEquipe);
       uiState.escalaMensalResultado = { mes: uiState.escalaMensalMes, linhas };
       renderMain();
     });

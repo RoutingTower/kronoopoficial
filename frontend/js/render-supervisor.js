@@ -125,6 +125,7 @@ let baseMestraExportRows = [];
 // espírito do Gerar Escala de Fim de Semana, só que pro mês inteiro e
 // criando operação fixa (Base Mestra) em vez de cobertura avulsa.
 function supGerarEscalaMensal(myAnalistas){
+  const analistasAtivos = myAnalistas.filter(a=>a.active);
   if(!uiState.escalaMensalMes) uiState.escalaMensalMes = addMonthsISO(todayISO(), 1).slice(0,7);
   const mes = uiState.escalaMensalMes;
   const res = uiState.escalaMensalResultado;
@@ -136,9 +137,9 @@ function supGerarEscalaMensal(myAnalistas){
       <div class="help-text" style="color:var(--danger,#e05252);">⚠️ Nenhuma operação fixa vigente encontrada pra sua equipe. Cadastre as operações em Operações Fixas antes de gerar a escala do mês.</div>
     </div>`;
   } else if(res && res.mes===mes){
-    const porAnalista = new Map(myAnalistas.map(a=>[a.id, 0]));
+    const porAnalista = new Map(analistasAtivos.map(a=>[a.id, 0]));
     res.linhas.forEach(l=>{ if(l.analistaId) porAnalista.set(l.analistaId, (porAnalista.get(l.analistaId)||0)+1); });
-    const resumo = myAnalistas.map(a=>{
+    const resumo = analistasAtivos.map(a=>{
       const n = porAnalista.get(a.id)||0;
       return `<span class="op-tag" style="${n===0?'color:var(--danger,#e05252);':''}">${escapeHtml(a.name)}: ${n} op(s)</span>`;
     }).join(' ');
@@ -147,7 +148,7 @@ function supGerarEscalaMensal(myAnalistas){
     resultsHtml = `<div class="card" style="margin-top:18px;margin-bottom:22px;">
       <div class="section-title">Proposta — ${mes}</div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">${resumo}</div>
-      ${naoCobertos>0 ? `<div class="help-text" style="color:var(--danger,#e05252);">⚠️ ${naoCobertos} operação(ões) não coube em ninguém (todo mundo já teve esse hub, ou não bate com a jornada de ninguém) — ajuste manualmente abaixo.</div>` : ''}
+      ${naoCobertos>0 ? `<div class="help-text" style="color:var(--danger,#e05252);">⚠️ ${naoCobertos} operação(ões) não coube em ninguém entre os cadastros ativos (todo mundo já teve esse hub, ou não bate com a jornada de ninguém) — ajuste manualmente abaixo.</div>` : ''}
       <div style="overflow-x:auto;">
       <table><thead><tr><th>Operação</th><th>Ciclo</th><th>Horário</th><th>UF</th><th>Novo titular</th></tr></thead><tbody>
       ${res.linhas.map((l,idx)=>`<tr ${!l.analistaId?'style="background:rgba(224,82,82,0.08);"':''}>
@@ -157,7 +158,7 @@ function supGerarEscalaMensal(myAnalistas){
         <td class="mono">${l.uf||'—'}</td>
         <td><select data-escalamensal-idx="${idx}">
           <option value="">— sem titular —</option>
-          ${myAnalistas.map(a=>`<option value="${a.id}" ${l.analistaId===a.id?'selected':''}>${escapeHtml(a.name)}</option>`).join('')}
+          ${analistasAtivos.map(a=>`<option value="${a.id}" ${l.analistaId===a.id?'selected':''}>${escapeHtml(a.name)}</option>`).join('')}
         </select></td>
       </tr>`).join('')}
       </tbody></table>
@@ -171,7 +172,7 @@ function supGerarEscalaMensal(myAnalistas){
 
   return `
   <div class="section-title">Gerar Escala do Mês</div>
-  <div class="help-text">Escolha o mês e clique em Gerar: o sistema redistribui os hubs vigentes entre a equipe, sem repetir com ninguém um hub que já teve (histórico completo), respeitando o horário de jornada de cada um e variando o estado (UF) da carteira de cada pessoa. A proposta fica editável antes de publicar — publicar cria uma operação fixa nova pra cada linha com titular, sem mexer no que já existe.</div>
+  <div class="help-text">Escolha o mês e clique em Gerar: o sistema redistribui os hubs vigentes entre os cadastros ativos da equipe (analistas desativados ficam de fora do sorteio), sem repetir com ninguém um hub que já teve (histórico completo), respeitando o horário de jornada de cada um e variando o estado (UF) da carteira de cada pessoa. A proposta fica editável antes de publicar — publicar cria uma operação fixa nova pra cada linha com titular, sem mexer no que já existe.</div>
   <div class="card" style="margin-bottom:22px;">
     <div class="field" style="max-width:220px;"><label>Mês</label><input type="month" id="escalaMensalMesInput" value="${mes}"></div>
     <div style="display:flex;justify-content:flex-end;margin-top:14px;">
