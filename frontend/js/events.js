@@ -318,6 +318,10 @@ function bindMainEvents(){
 
   main.querySelectorAll('[data-finalizar-op]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
+      // Marca o fim do cronômetro AGORA (clique em "Finalizar operação"),
+      // não só quando o Raio-X é enviado — preencher a observação pode
+      // levar minutos e isso não pode contar contra o SLA da operação.
+      const finalizadoEm = Date.now();
       const op = btn.dataset.finalizarOp, hora = btn.dataset.hora, data = btn.dataset.data || uiState.analistaDate;
       const ciclo = btn.dataset.ciclo || '';
       const sprMeta = btn.dataset.sprMeta!=='' ? Number(btn.dataset.sprMeta) : null;
@@ -409,7 +413,7 @@ function bindMainEvents(){
         if(estrelas<1 || !manualValido()) return;
         if(!semRot && (observacao.length<RAIOX_MIN_OBS_LEN || sprRealEl.value.trim()==='' || Number.isNaN(sprReal))) return;
         const entrada = {analistaId:session.userId, operacao:op, hora, data, estrelas, observacao,
-          sprRoteirizado: semRot ? 0 : sprReal, sprMeta: semRot ? null : sprMeta, ciclo, semRoteirizacao:semRot};
+          sprRoteirizado: semRot ? 0 : sprReal, sprMeta: semRot ? null : sprMeta, ciclo, semRoteirizacao:semRot, finalizadoEm};
         if(manual) entrada.duracaoSegundos = calcularDuracaoManual(inicioManualEl.value, fimManualEl.value);
         confirmBtn.disabled = true;
         try{

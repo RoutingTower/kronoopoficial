@@ -34,7 +34,7 @@ async function listRaioX(req, res) {
 // Finalização é sempre auto-declarada pelo próprio analista (ver
 // frontend/js/events.js) — ninguém finaliza operação de outra pessoa.
 async function createRaioX(req, res) {
-  const { analistaId, operacao, ciclo, hora, data, estrelas, observacao, sprRoteirizado, sprMeta, semRoteirizacao, duracaoSegundos } = req.body;
+  const { analistaId, operacao, ciclo, hora, data, estrelas, observacao, sprRoteirizado, sprMeta, semRoteirizacao, duracaoSegundos, finalizadoEm } = req.body;
   if (!analistaId || !operacao || !hora || !data) {
     return res.status(400).json({
       error: "bad_request",
@@ -79,7 +79,16 @@ async function createRaioX(req, res) {
           message: 'É preciso clicar em "Iniciar operação" antes de finalizar (ou pedir liberação manual ao supervisor).',
         });
       }
-      duracaoFinal = Math.round((Date.now() - inicio.iniciadoEm) / 1000);
+      // O relógio pra pra assim que o analista clica em "Finalizar operação"
+      // (finalizadoEm, capturado no frontend antes de abrir o modal do
+      // Raio-X) — sem isso, o tempo de preencher a observação (que pode
+      // levar minutos) contava contra o SLA da operação. Só usa o valor do
+      // cliente se ele fizer sentido (depois do início, não no futuro);
+      // caso contrário cai de volta pro comportamento antigo.
+      const clique = Number(finalizadoEm);
+      const agora = Date.now();
+      const fimEfetivo = Number.isFinite(clique) && clique >= inicio.iniciadoEm && clique <= agora ? clique : agora;
+      duracaoFinal = Math.round((fimEfetivo - inicio.iniciadoEm) / 1000);
       duracaoOrigemFinal = "cronometro";
     }
   }
