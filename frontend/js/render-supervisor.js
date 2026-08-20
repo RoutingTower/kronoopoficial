@@ -1546,6 +1546,48 @@ function supTempoExecucao(myAnalistas){
   return tempoExecucaoBody(selecionados, tempoAnalistaPicker(myAnalistas));
 }
 
+// Escreve o valor de cada barra dentro dela mesma, grande e sem precisar
+// passar o mouse — pensado pra print/report (Gap e SPR Lançado x REF).
+// Contorno escuro atrás do texto branco pra ficar legível em qualquer cor
+// de barra (vermelho, verde, azul ou cinza).
+const barValueLabelsPlugin = {
+  id: 'barValueLabels',
+  afterDatasetsDraw(chart){
+    const { ctx } = chart;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    chart.data.datasets.forEach((dataset, dsIndex)=>{
+      const meta = chart.getDatasetMeta(dsIndex);
+      if(meta.hidden) return;
+      meta.data.forEach((bar, idx)=>{
+        const raw = dataset.data[idx];
+        if(raw==null || bar.y==null || bar.base==null) return;
+        const label = Number(raw).toFixed(1);
+        const midY = (bar.y + bar.base) / 2;
+        const barHeight = Math.abs(bar.base - bar.y);
+        // Reduz a fonte quando a barra é estreita (muitos dias/barras
+        // agrupadas no período) — sem isso o texto de barras vizinhas se
+        // atropela. Nunca some: sempre desenha, só encolhe.
+        let fontSize = Math.max(10, Math.min(17, barHeight - 8));
+        ctx.font = `700 ${fontSize}px 'Inter', sans-serif`;
+        const maxWidth = (bar.width || 24) - 4;
+        const textWidth = ctx.measureText(label).width;
+        if(textWidth > maxWidth && maxWidth > 0){
+          fontSize = Math.max(8, fontSize * (maxWidth / textWidth));
+          ctx.font = `700 ${fontSize}px 'Inter', sans-serif`;
+        }
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+        ctx.strokeText(label, bar.x, midY);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(label, bar.x, midY);
+      });
+    });
+    ctx.restore();
+  }
+};
+
 // Mesmo padrão de renderMetricasCharts() — destrói as instâncias antigas e
 // não faz nada fora da tela de Resultado SPR.
 let sprChartInstances = {};
@@ -1587,6 +1629,7 @@ function renderSPRCharts(){
         { label:'Delta do dia', data: sprChartData.porDiaAsc.map(d=>Number(d.deltaMedio.toFixed(1))),
           backgroundColor: sprChartData.porDiaAsc.map(d=> d.deltaMedio>=0 ? '#2FAE60' : '#D9362E'), borderRadius:4 },
       ] },
+      plugins:[barValueLabelsPlugin],
       options:{ plugins:{ legend:{ display:false } }, scales:{
         x:{ ticks:{ color:textColor }, grid:{ display:false } },
         y:{ ticks:{ color:textColor }, grid:{ color:gridColor } } } }
@@ -1605,6 +1648,7 @@ function renderSPRCharts(){
           { label:'SPR Lançado', data: sprChartData.porDiaAsc.map(d=>Number(d.roteirizadoMedio.toFixed(1))), backgroundColor:'#2F80ED', borderRadius:4 },
           { label:'SPR REF', data: sprChartData.porDiaAsc.map(d=>Number(d.metaMedio.toFixed(1))), backgroundColor:'#A8A8A8', borderRadius:4 },
         ] },
+      plugins:[barValueLabelsPlugin],
       options:{ plugins:{ legend:{ position:'bottom', labels:{ color:textColor } } }, scales:{
         x:{ ticks:{ color:textColor, autoSkip:true, maxRotation:60, minRotation:0 }, grid:{ display:false } },
         y:{ ticks:{ color:textColor }, grid:{ color:gridColor } } } }
