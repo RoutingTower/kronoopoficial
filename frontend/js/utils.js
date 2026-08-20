@@ -177,6 +177,15 @@ function formatarDuracao(totalSegundos){
   return `${s}s`;
 }
 
+// Versão enxuta de formatarDuracao (sem espaço, sem segundos) — pra caber
+// num card pequeno da Grade Integrada sem quebrar linha à toa.
+function formatarDuracaoCompacta(totalSegundos){
+  const h = Math.floor(totalSegundos/3600), m = Math.round((totalSegundos%3600)/60);
+  if(h>0 && m>0) return `${h}h${m}min`;
+  if(h>0) return `${h}h`;
+  return `${m}min`;
+}
+
 function computeStatus(hora, dataStr, analistaId, operacao, isOff){
   const atrasada = () => (analistaId && operacao && !isOff && !isOperacaoFinalizada(analistaId, operacao, hora, dataStr)) ? 'atraso' : 'done';
   const slotStart = slotTimestamp(dataStr, hora);

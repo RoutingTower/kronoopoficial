@@ -272,9 +272,11 @@ function renderProgramacaoIntegrada(lista, dateStr){
     const detalhe = `${it.operacao} — ${it.ciclo} · ${it.horaInicio}–${it.horaFim}${labelStatus ? ` · ${labelStatus}` : ''}` +
       (it.isCobertura ? ` · Cobrindo ${it.responsavelNome}` : it.isOff ? ` · Coberto por ${it.responsavelNome}` : '');
     const borda = status==='atraso' ? ' flash-card-atraso' : status==='naoiniciado' ? ' flash-card-naoiniciado' : '';
+    const duracao = formatarDuracaoCompacta(calcularDuracaoManual(it.horaInicio, it.horaFim));
     return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${dim?' prog-dim':''}" title="${escapeHtml(detalhe)}">
       <span class="flash-sigla">${iconStatus?icon(iconStatus,11)+' ':''}${escapeHtml(it.operacao)}</span>
       <span class="prog-ciclo">${escapeHtml(it.ciclo)}</span>
+      <span class="prog-horario mono">${it.horaInicio}–${it.horaFim} · ${duracao}</span>
     </div>`;
   };
 
