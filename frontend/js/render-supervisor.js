@@ -1291,21 +1291,21 @@ function sprRankingTableHtml(ranking, flt){
   return `
   <div class="card">
   <div class="section-title">Ranking por SPR Lançado <span style="color:var(--text-faint);text-transform:none;letter-spacing:0;">(${ranking.length} operação(ões) · faixa: ${escapeHtml(faixaTexto)})</span></div>
-  <table><thead><tr><th>#</th><th>Operação</th><th>Ciclo</th><th>Analista</th><th>Hora</th><th>SPR Lançado</th><th>SPR REF</th><th>Delta</th><th>Observação</th></tr></thead><tbody>
+  <table><thead><tr><th>#</th><th>Operação</th><th>Ciclo</th><th>Hora</th><th>SPR Lançado</th><th>SPR REF</th><th>Delta</th><th>Observação</th></tr></thead><tbody>
   ${ranking.map((r,idx)=>{
     const delta = r.sprMeta!=null ? r.sprRoteirizado-r.sprMeta : null;
+    const ciclo = r.ciclo || cicloDaOperacaoHistorico(r.operacao, r.analistaId);
     return `<tr>
       <td class="mono" style="color:var(--text-faint);">${idx+1}</td>
-      <td>${escapeHtml(r.operacao)}</td>
-      <td class="mono">${escapeHtml(r.ciclo||'—')}</td>
-      <td style="cursor:pointer;" data-analista-timeline="${r.analistaId}" title="Ver histórico">${escapeHtml(userById(r.analistaId)?.name||'—')}</td>
+      <td title="Analista: ${escapeHtml(userById(r.analistaId)?.name||'—')}">${escapeHtml(r.operacao)}</td>
+      <td class="mono">${escapeHtml(ciclo||'—')}</td>
       <td class="mono">${r.data} ${r.hora}</td>
       <td class="mono" style="font-weight:700;color:${delta==null?'var(--text)':delta>=0?'var(--done)':'var(--alert)'};">${r.sprRoteirizado}</td>
       <td class="mono">${r.sprMeta!=null ? r.sprMeta : '—'}</td>
       <td class="mono" style="color:${delta==null?'var(--text-faint)':delta>=0?'var(--done)':'var(--alert)'};">${delta==null?'—':(delta>=0?'+':'')+delta.toFixed(1)}</td>
-      <td><span class="obs-truncate" title="${escapeHtml(r.observacao||'')}">${escapeHtml(r.observacao||'—')}</span></td>
+      <td><span class="obs-truncate obs-truncate-wide" title="${escapeHtml(r.observacao||'')}">${escapeHtml(r.observacao||'—')}</span></td>
     </tr>`;
-  }).join('') || '<tr><td colspan="9" class="empty">Nenhuma operação nessa faixa de SPR no período</td></tr>'}
+  }).join('') || '<tr><td colspan="8" class="empty">Nenhuma operação nessa faixa de SPR no período</td></tr>'}
   </tbody></table>
   </div>`;
 }
@@ -1313,7 +1313,7 @@ function sprRankingTableHtml(ranking, flt){
 function exportarSPR(){
   // sprMeta pode faltar no Ranking (lá não é pré-filtrado por "tem meta",
   // ver sprResultadoBody) — sem essa checagem o delta virava "NaN" na planilha.
-  const linhas = sprExportRows.map(r=>[userById(r.analistaId)?.name||'—', r.operacao, r.ciclo||'—', r.data, r.hora, r.sprRoteirizado, r.sprMeta ?? '—', r.sprMeta!=null ? (r.sprRoteirizado-r.sprMeta).toFixed(1) : '—', r.observacao||'']);
+  const linhas = sprExportRows.map(r=>[userById(r.analistaId)?.name||'—', r.operacao, r.ciclo || cicloDaOperacaoHistorico(r.operacao, r.analistaId) || '—', r.data, r.hora, r.sprRoteirizado, r.sprMeta ?? '—', r.sprMeta!=null ? (r.sprRoteirizado-r.sprMeta).toFixed(1) : '—', r.observacao||'']);
   exportarRelatorioExcel(`resultado-spr_${uiState.sprFiltro.inicio}_a_${uiState.sprFiltro.fim}.xlsx`, ['Analista','Operação','Ciclo','Data','Hora','SPR Lançado','SPR REF','Delta','Observação'], linhas);
 }
 

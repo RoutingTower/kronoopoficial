@@ -617,6 +617,18 @@ function candidatosParaSlot(myAnalistas, titularId, bm, dataStr){
 // reais seguem esse padrão). Usado só pra diversificar a escala de fim de
 // semana (gerarEscalaFDS), sem valor de fallback especial se não bater —
 // hubs sem esse padrão simplesmente não contam pra diversidade de ninguém.
+// Raio-X antigo às vezes não tem ciclo gravado (campo chegou depois na
+// tabela) — pra não mostrar "—" à toa no Ranking SPR, busca o ciclo
+// vigente da mesma operação nas Operações Fixas (Base Mestra): primeiro
+// tenta achar do mesmo analista que roteirizou, senão de qualquer um que
+// já teve essa operação.
+function cicloDaOperacaoHistorico(operacao, analistaId){
+  const doAnalista = DB.baseMestra.find(b=>b.operacao===operacao && b.analistaId===analistaId && b.ciclo);
+  if(doAnalista) return doAnalista.ciclo;
+  const qualquer = DB.baseMestra.find(b=>b.operacao===operacao && b.ciclo);
+  return qualquer ? qualquer.ciclo : '';
+}
+
 function ufDaOperacao(operacao){
   const m = /^LM Hub_([A-Za-z]{2})_/.exec(operacao||'');
   return m ? m[1].toUpperCase() : '';

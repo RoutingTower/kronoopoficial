@@ -590,6 +590,7 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .mover-row{display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;}
 .mover-name{font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .obs-truncate{display:inline-block;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;}
+.obs-truncate-wide{max-width:440px;}
 .mover-bar-wrap{grid-column:1/-1;height:7px;border-radius:4px;background:var(--bg-2);overflow:hidden;}
 .mover-bar{height:100%;border-radius:4px;}
 .mover-bar.neg{background:var(--alert);}
