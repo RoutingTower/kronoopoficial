@@ -288,12 +288,15 @@ function renderProgramacaoIntegrada(lista, dateStr){
     // ciclo, que aqui sempre viria vazio e nunca bateria).
     const exec = DB.execucaoInicio.find(e=>e.analistaId===analistaId && e.operacao===it.operacao && (e.ciclo||'')===(it.ciclo||'') && e.hora===hour && e.data===dateStr);
     const rx = DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===hour && r.data===dateStr);
-    let tempoLabel = '';
+    let tempoLabel = '', tempoCor = '';
     if(rx && rx.duracaoSegundos!=null && !rx.semRoteirizacao){
       const dur = formatarDuracaoCompacta(rx.duracaoSegundos);
       tempoLabel = (exec && exec.iniciadoEm!=null)
         ? `${horaDe(exec.iniciadoEm)}–${horaDe(exec.iniciadoEm+rx.duracaoSegundos*1000)} · ${dur}`
         : dur;
+      // Até 30min verde, 31-60min amarelo, acima de 1h vermelho — mesmo
+      // esquema de cor do resto do app (var(--done)/--folga/--alert).
+      tempoCor = rx.duracaoSegundos<=1800 ? 'var(--done)' : rx.duracaoSegundos<=3600 ? 'var(--folga)' : 'var(--alert)';
     } else if(exec && exec.iniciadoEm!=null){
       tempoLabel = `${horaDe(exec.iniciadoEm)}–`;
     }
@@ -301,7 +304,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
     return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${dim?' prog-dim':''}" title="${escapeHtml(detalhe)}">
       <span class="flash-sigla">${iconStatus?icon(iconStatus,11)+' ':''}${escapeHtml(it.operacao)}</span>
       <span class="prog-ciclo">${escapeHtml(it.ciclo)}</span>
-      ${tempoLabel ? `<span class="prog-horario mono">${tempoLabel}</span>` : ''}
+      ${tempoLabel ? `<span class="prog-horario mono"${tempoCor?` style="color:${tempoCor};"`:''}>${tempoLabel}</span>` : ''}
     </div>`;
   };
 
