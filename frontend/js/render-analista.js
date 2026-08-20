@@ -282,16 +282,20 @@ function renderProgramacaoIntegrada(lista, dateStr){
       (it.isCobertura ? ` · Cobrindo ${it.responsavelNome}` : it.isOff ? ` · Coberto por ${it.responsavelNome}` : '');
     const borda = status==='atraso' ? ' flash-card-atraso' : status==='naoiniciado' ? ' flash-card-naoiniciado' : '';
 
+    // raio_x não grava ciclo (bug de longa data no backend — ver ciclo
+    // ausente na tabela, cicloDaOperacaoHistorico em utils.js), então o
+    // cruzamento com o Raio-X é só por analista+operação+hora+data (sem
+    // ciclo, que aqui sempre viria vazio e nunca bateria).
     const exec = DB.execucaoInicio.find(e=>e.analistaId===analistaId && e.operacao===it.operacao && (e.ciclo||'')===(it.ciclo||'') && e.hora===hour && e.data===dateStr);
-    const rx = DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && (r.ciclo||'')===(it.ciclo||'') && r.hora===hour && r.data===dateStr);
+    const rx = DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===hour && r.data===dateStr);
     let tempoLabel = '';
     if(rx && rx.duracaoSegundos!=null && !rx.semRoteirizacao){
       const dur = formatarDuracaoCompacta(rx.duracaoSegundos);
       tempoLabel = (exec && exec.iniciadoEm!=null)
         ? `${horaDe(exec.iniciadoEm)}–${horaDe(exec.iniciadoEm+rx.duracaoSegundos*1000)} · ${dur}`
-        : `Execução: ${dur}`;
+        : dur;
     } else if(exec && exec.iniciadoEm!=null){
-      tempoLabel = `Iniciado às ${horaDe(exec.iniciadoEm)}`;
+      tempoLabel = `${horaDe(exec.iniciadoEm)}–`;
     }
 
     return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${dim?' prog-dim':''}" title="${escapeHtml(detalhe)}">
