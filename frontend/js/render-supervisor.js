@@ -1230,13 +1230,13 @@ function sprResultadoBody(selecionados, picker){
     <div class="chart-card"><div class="section-title">Linha do tempo — trajetória de SPR dia a dia</div><canvas id="chartSprSemanas"></canvas></div>
     <div class="chart-card"><div class="section-title">Gap para a referência (delta diário)</div><canvas id="chartSprGap"></canvas></div>
     <div class="chart-card">
-      <div class="section-title">Oportunidades e destaques <span style="color:var(--text-faint);text-transform:none;letter-spacing:0;">(por operação, delta médio)</span></div>
+      <div class="section-title">Oportunidades e destaques <span style="color:var(--text-faint);text-transform:none;letter-spacing:0;">(por operação, SPR Lançado médio — ordenado pelo delta)</span></div>
       <div class="grid-2" style="gap:18px;">
         <div>
           <div style="font-size:11px;color:var(--alert);font-weight:600;margin-bottom:8px;">▾ Abaixo da meta</div>
           <div class="mover-list">${oportunidades.map(h=>`<div class="mover-row">
               <span class="mover-name" title="${escapeHtml(h.operacao)}">${escapeHtml(h.operacao)}</span>
-              <span class="mover-delta neg">${h.deltaMedio.toFixed(1)}</span>
+              <span class="mover-delta neg" title="Delta médio: ${h.deltaMedio.toFixed(1)}">${h.roteirizadoMedio.toFixed(1)}</span>
               <div class="mover-bar-wrap"><div class="mover-bar neg" style="width:${Math.abs(h.deltaMedio)/maxAbsDeltaHub*100}%;"></div></div>
             </div>`).join('') || '<div class="help-text" style="margin:0;">Nenhuma operação abaixo da meta</div>'}</div>
         </div>
@@ -1244,7 +1244,7 @@ function sprResultadoBody(selecionados, picker){
           <div style="font-size:11px;color:var(--done);font-weight:600;margin-bottom:8px;">▴ Acima da meta</div>
           <div class="mover-list">${destaques.map(h=>`<div class="mover-row">
               <span class="mover-name" title="${escapeHtml(h.operacao)}">${escapeHtml(h.operacao)}</span>
-              <span class="mover-delta pos">+${h.deltaMedio.toFixed(1)}</span>
+              <span class="mover-delta pos" title="Delta médio: +${h.deltaMedio.toFixed(1)}">${h.roteirizadoMedio.toFixed(1)}</span>
               <div class="mover-bar-wrap"><div class="mover-bar pos" style="width:${Math.abs(h.deltaMedio)/maxAbsDeltaHub*100}%;"></div></div>
             </div>`).join('') || '<div class="help-text" style="margin:0;">Nenhuma operação acima da meta</div>'}</div>
         </div>
