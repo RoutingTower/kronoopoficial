@@ -260,11 +260,20 @@ function renderProgramacaoIntegrada(lista, dateStr){
   const filtro = uiState.progStatusFiltro;
 
   // Card minimalista de propósito: só hub + ciclo, pra grade ficar limpa e
-  // alinhada com muitos analistas na tela — hora/SPR REF/cobertura ainda dá
-  // pra ver passando o mouse (title), particularidade e reunião saíram
-  // daqui (quem quiser isso entra na Programação individual do analista).
-  // Status cruza o horário com o cronômetro (statusComExecucao, utils.js) —
-  // "Em Andamento" sem ninguém ter clicado Iniciar vira "Não Iniciado".
+  // alinhada com muitos analistas na tela — hora da janela/SPR REF/cobertura
+  // ainda dá pra ver passando o mouse (title), particularidade e reunião
+  // saíram daqui (quem quiser isso entra na Programação individual do
+  // analista). Status cruza o horário com o cronômetro (statusComExecucao,
+  // utils.js) — "Em Andamento" sem ninguém ter clicado Iniciar vira "Não
+  // Iniciado".
+  //
+  // Tempo de execução real (Iniciar→Finalizar), não o horário da janela
+  // agendada (esse já dá pra ver na própria grade/hora da coluna): cruza
+  // execucaoInicio (hora que clicou Iniciar) com o duracaoSegundos do
+  // Raio-X (calculado a partir do clique em Finalizar, ver raioX.controller.js).
+  // Preenchimento manual liberado pelo supervisor não tem iniciadoEm real
+  // (a pessoa nunca clicou Iniciar) — nesse caso só mostra a duração.
+  const horaDe = ts => new Date(ts).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
   const cardHtml = (it, hour, analistaId)=>{
     const status = statusComExecucao(hour, dateStr, analistaId, it.operacao, it.ciclo, it.isOff);
     const dim = filtro && filtro!==status;
@@ -272,11 +281,23 @@ function renderProgramacaoIntegrada(lista, dateStr){
     const detalhe = `${it.operacao} — ${it.ciclo} · ${it.horaInicio}–${it.horaFim}${labelStatus ? ` · ${labelStatus}` : ''}` +
       (it.isCobertura ? ` · Cobrindo ${it.responsavelNome}` : it.isOff ? ` · Coberto por ${it.responsavelNome}` : '');
     const borda = status==='atraso' ? ' flash-card-atraso' : status==='naoiniciado' ? ' flash-card-naoiniciado' : '';
-    const duracao = formatarDuracaoCompacta(calcularDuracaoManual(it.horaInicio, it.horaFim));
+
+    const exec = DB.execucaoInicio.find(e=>e.analistaId===analistaId && e.operacao===it.operacao && (e.ciclo||'')===(it.ciclo||'') && e.hora===hour && e.data===dateStr);
+    const rx = DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && (r.ciclo||'')===(it.ciclo||'') && r.hora===hour && r.data===dateStr);
+    let tempoLabel = '';
+    if(rx && rx.duracaoSegundos!=null && !rx.semRoteirizacao){
+      const dur = formatarDuracaoCompacta(rx.duracaoSegundos);
+      tempoLabel = (exec && exec.iniciadoEm!=null)
+        ? `${horaDe(exec.iniciadoEm)}–${horaDe(exec.iniciadoEm+rx.duracaoSegundos*1000)} · ${dur}`
+        : `Execução: ${dur}`;
+    } else if(exec && exec.iniciadoEm!=null){
+      tempoLabel = `Iniciado às ${horaDe(exec.iniciadoEm)}`;
+    }
+
     return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${dim?' prog-dim':''}" title="${escapeHtml(detalhe)}">
       <span class="flash-sigla">${iconStatus?icon(iconStatus,11)+' ':''}${escapeHtml(it.operacao)}</span>
       <span class="prog-ciclo">${escapeHtml(it.ciclo)}</span>
-      <span class="prog-horario mono">${it.horaInicio}–${it.horaFim} · ${duracao}</span>
+      ${tempoLabel ? `<span class="prog-horario mono">${tempoLabel}</span>` : ''}
     </div>`;
   };
 
