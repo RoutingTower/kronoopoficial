@@ -1108,11 +1108,12 @@ function sprResultadoBody(selecionados, picker){
     metaMedio: d.total ? d.metaSoma/d.total : 0,
   })).sort((a,b)=>a.operacao.localeCompare(b.operacao));
 
-  // Oportunidades (pior delta médio) e destaques (melhor) — top 5 de cada
-  // lado, por operação. Substitui o antigo card só com os piores.
-  const oportunidades = [...porHub].filter(h=>h.deltaMedio<0).sort((a,b)=>a.deltaMedio-b.deltaMedio).slice(0,5);
-  const destaques = [...porHub].filter(h=>h.deltaMedio>0).sort((a,b)=>b.deltaMedio-a.deltaMedio).slice(0,5);
-  const maxAbsDeltaHub = Math.max(1, ...porHub.map(h=>Math.abs(h.deltaMedio)));
+  // Oportunidades (menor SPR Lançado) e destaques (maior) — top 5 de cada
+  // lado, por operação, direto pelo valor absoluto (sem comparar com a
+  // meta/delta — só ranking de menor pra maior).
+  const oportunidades = [...porHub].sort((a,b)=>a.roteirizadoMedio-b.roteirizadoMedio).slice(0,5);
+  const destaques = [...porHub].sort((a,b)=>b.roteirizadoMedio-a.roteirizadoMedio).slice(0,5);
+  const maxRoteirizadoHub = Math.max(1, ...porHub.map(h=>h.roteirizadoMedio));
   const hubsForaMeta = porHub.filter(h=>h.deltaMedio<0).length;
 
   // Tendência do card de KPI: compara a média de SPR Lançado do período
@@ -1230,23 +1231,23 @@ function sprResultadoBody(selecionados, picker){
     <div class="chart-card"><div class="section-title">Linha do tempo — trajetória de SPR dia a dia</div><canvas id="chartSprSemanas"></canvas></div>
     <div class="chart-card"><div class="section-title">Gap para a referência (delta diário)</div><canvas id="chartSprGap"></canvas></div>
     <div class="chart-card">
-      <div class="section-title">Oportunidades e destaques <span style="color:var(--text-faint);text-transform:none;letter-spacing:0;">(por operação, SPR Lançado médio — ordenado pelo delta)</span></div>
+      <div class="section-title">Oportunidades e destaques <span style="color:var(--text-faint);text-transform:none;letter-spacing:0;">(por operação, SPR Lançado — menores e maiores, sem comparar com a meta)</span></div>
       <div class="grid-2" style="gap:18px;">
         <div>
-          <div style="font-size:11px;color:var(--alert);font-weight:600;margin-bottom:8px;">▾ Abaixo da meta</div>
+          <div style="font-size:11px;color:var(--alert);font-weight:600;margin-bottom:8px;">▾ Menores SPR</div>
           <div class="mover-list">${oportunidades.map(h=>`<div class="mover-row">
               <span class="mover-name" title="${escapeHtml(h.operacao)}">${escapeHtml(h.operacao)}</span>
-              <span class="mover-delta neg" title="Delta médio: ${h.deltaMedio.toFixed(1)}">${h.roteirizadoMedio.toFixed(1)}</span>
-              <div class="mover-bar-wrap"><div class="mover-bar neg" style="width:${Math.abs(h.deltaMedio)/maxAbsDeltaHub*100}%;"></div></div>
-            </div>`).join('') || '<div class="help-text" style="margin:0;">Nenhuma operação abaixo da meta</div>'}</div>
+              <span class="mover-delta neg">${h.roteirizadoMedio.toFixed(1)}</span>
+              <div class="mover-bar-wrap"><div class="mover-bar neg" style="width:${h.roteirizadoMedio/maxRoteirizadoHub*100}%;"></div></div>
+            </div>`).join('') || '<div class="help-text" style="margin:0;">Nenhuma operação no período</div>'}</div>
         </div>
         <div>
-          <div style="font-size:11px;color:var(--done);font-weight:600;margin-bottom:8px;">▴ Acima da meta</div>
+          <div style="font-size:11px;color:var(--done);font-weight:600;margin-bottom:8px;">▴ Maiores SPR</div>
           <div class="mover-list">${destaques.map(h=>`<div class="mover-row">
               <span class="mover-name" title="${escapeHtml(h.operacao)}">${escapeHtml(h.operacao)}</span>
-              <span class="mover-delta pos" title="Delta médio: +${h.deltaMedio.toFixed(1)}">${h.roteirizadoMedio.toFixed(1)}</span>
-              <div class="mover-bar-wrap"><div class="mover-bar pos" style="width:${Math.abs(h.deltaMedio)/maxAbsDeltaHub*100}%;"></div></div>
-            </div>`).join('') || '<div class="help-text" style="margin:0;">Nenhuma operação acima da meta</div>'}</div>
+              <span class="mover-delta pos">${h.roteirizadoMedio.toFixed(1)}</span>
+              <div class="mover-bar-wrap"><div class="mover-bar pos" style="width:${h.roteirizadoMedio/maxRoteirizadoHub*100}%;"></div></div>
+            </div>`).join('') || '<div class="help-text" style="margin:0;">Nenhuma operação no período</div>'}</div>
         </div>
       </div>
     </div>
