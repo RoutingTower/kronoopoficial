@@ -618,20 +618,36 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
      usuário/Sair fora da área visível). */
   .sidebar{position:sticky;top:0;z-index:20;flex-direction:row;align-items:center;padding:10px 12px;gap:10px;min-width:0;}
   .shell.nav-collapsed .sidebar{padding:10px 12px;}
-  .sidebar-toggle{display:none;}
+  /* O botão de recolher (desktop) vira o botão de abrir o menu no celular —
+     mesmo ícone de sanduíche, papel diferente: aqui ele mostra/esconde o
+     #navItems como um painel solto (ver abaixo), não encolhe a barra
+     lateral (não faz sentido "encolher" uma barra que já é só uma linha). */
+  .sidebar-toggle{display:flex;}
   .brand-row{border:none;margin:0;padding:0;flex-shrink:0;}
   .theme-switch{flex-shrink:0;}
   /* #navItems empilhava verticalmente mesmo com a .sidebar já virada linha
      (era um único filho em bloco, com os .nav-item dela mesma ainda em
      coluna por dentro) — cabeçalho ficava gigante, sobrepondo o conteúdo.
-     Vira uma faixa de abas com rolagem horizontal própria, sem arrastar
-     logo/usuário/sair junto (só ela rola, o resto fica fixo nas pontas). */
-  #navItems{display:flex;align-items:center;gap:4px;overflow-x:auto;flex:1;min-width:0;}
-  .nav-item{white-space:nowrap;flex-shrink:0;margin-bottom:0;}
+     Uma faixa horizontal não dava conta de ~14 abas no espaço apertado que
+     sobra entre logo e usuário/sair (rolagem lateral discreta demais pra
+     notar que dava pra arrastar — usuário ficava "preso" na aba aberta).
+     Agora é um painel solto (dropdown), escondido até clicar no sanduíche,
+     com os itens empilhados verticalmente como no menu de desktop — fácil
+     de tocar, sem precisar adivinhar que rola pro lado. */
+  #navItems{
+    display:none;position:absolute;top:100%;left:10px;right:10px;margin-top:6px;
+    flex-direction:column;gap:2px;max-height:calc(100vh - 70px);overflow-y:auto;
+    background:var(--panel);border:1px solid var(--border);border-radius:12px;
+    padding:8px;box-shadow:0 16px 40px rgba(0,0,0,0.28);
+  }
+  .shell.nav-mobile-open #navItems{display:flex;}
+  .shell.nav-mobile-open .nav-mobile-backdrop{display:block;}
+  .nav-item{white-space:normal;flex-shrink:0;margin-bottom:0;padding:11px 10px;}
+  .nav-label{white-space:normal;}
   .nav-eyebrow{display:none;}
   .menu-config-btn{display:none;}
   .particularidades-btn{display:none;}
-  .sidebar-foot{margin:0;padding:0;border:none;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+  .sidebar-foot{margin:0 0 0 auto;padding:0;border:none;display:flex;align-items:center;gap:8px;flex-shrink:0;}
   .user-chip{margin:0;padding:0;max-width:100px;}
   .user-sup{display:none;}
   .logout-btn{width:auto;padding:8px 10px;}
@@ -639,6 +655,12 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
   .main{padding:18px;}
   .grid-4,.grid-3,.grid-2{grid-template-columns:1fr;}
 }
+/* Fundo escurecido atrás do painel de navegação do celular (ver #navItems
+   acima) — toque fora do menu fecha ele (main.js). Fica abaixo da
+   .sidebar (z-index:20) mas acima do conteúdo, então o toque no conteúdo
+   por baixo do painel aberto sempre fecha o menu em vez de interagir com
+   o que está por trás. */
+.nav-mobile-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:19;}
 /* Ajustes finos pra celular (a 880px acima já resolve a estrutura geral:
    sidebar vira barra horizontal, grids viram 1 coluna). Aqui é só apertar
    espaçamento/tipografia pra caber numa tela de ~360-400px sem cortar nada

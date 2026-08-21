@@ -38,11 +38,25 @@ function applySidebarCollapsed(collapsed){
 let sidebarCollapsed = false;
 try{ sidebarCollapsed = localStorage.getItem('kronoop-sidebar-collapsed')==='1'; }catch(e){}
 applySidebarCollapsed(sidebarCollapsed);
+
+// No celular o mesmo botão (☰) tem outro papel: a barra lateral já é só
+// uma linha horizontal (não faz sentido "recolher" ela), então aqui ele
+// abre/fecha o menu de navegação como um painel solto (#navItems vira
+// dropdown, ver @media max-width:880px no style.css) — 14 abas não cabiam
+// numa faixa de rolagem horizontal apertada, ficava difícil até notar que
+// dava pra arrastar pro lado pra achar as outras.
+const navMobileBackdrop = document.getElementById('navMobileBackdrop');
+function closeMobileNav(){ shellEl.classList.remove('nav-mobile-open'); }
 sidebarToggleBtn.addEventListener('click', ()=>{
+  if(window.matchMedia('(max-width:880px)').matches){
+    shellEl.classList.toggle('nav-mobile-open');
+    return;
+  }
   sidebarCollapsed = !sidebarCollapsed;
   applySidebarCollapsed(sidebarCollapsed);
   try{ localStorage.setItem('kronoop-sidebar-collapsed', sidebarCollapsed?'1':'0'); }catch(e){}
 });
+navMobileBackdrop.addEventListener('click', closeMobileNav);
 
 const themeSwitches = document.querySelectorAll('.theme-switch-input');
 function syncThemeSwitches(){

@@ -270,6 +270,10 @@ function buildNav(){
     // (uiState.progAnalista) — sem isso, entrar na aba de novo continuava
     // preso na pessoa vista da última vez, em vez de partir de "Todos".
     if(activeNavKey==='programacao') uiState.progAnalista = 'all';
+    // No celular o menu abre como um painel solto por cima do conteúdo
+    // (ver closeMobileNav, main.js) — trocar de aba já fecha ele sozinho,
+    // sem precisar de outro toque no sanduíche ou fora do painel.
+    if(typeof closeMobileNav==='function') closeMobileNav();
     renderMain();
     // Troca de aba sempre volta pro topo — sem isso, quem clicava numa
     // aba estando rolado pra baixo (ex.: Programação Analista) continuava
