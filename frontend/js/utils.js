@@ -258,17 +258,23 @@ function isDomingo(dateStr){
   return WEEKDAYS[new Date(dateStr+'T00:00:00').getDay()]==='dom';
 }
 
-function isFimDeSemana(dateStr){
-  const w = WEEKDAYS[new Date(dateStr+'T00:00:00').getDay()];
-  return w==='dom' || w==='sab';
+// Sábado da MESMA folga (fim de semana) que a data cair: domingo pertence
+// ao sábado do dia anterior, qualquer outro dia da semana pertence ao
+// sábado seguinte. Usado pra normalizar o que o supervisor digitar no
+// campo de data do Gerar Escala de Fim de Semana — sábado e domingo agora
+// são tratados como um par só (domingo = sábado+1), nunca dias soltos.
+function sabadoDoFimDeSemana(dateStr){
+  const dow = new Date(dateStr+'T00:00:00').getDay(); // 0=domingo ... 6=sábado
+  if(dow===6) return dateStr;
+  if(dow===0) return addDaysISO(dateStr, -1);
+  return addDaysISO(dateStr, 6-dow);
 }
 
-// Próximo sábado ou domingo a partir de uma data (ou hoje) — hoje mesmo se
-// hoje já cair num deles. Usado como valor padrão do Gerar Escala de Fim
-// de Semana (a mesma escala serve pros dois dias, não só domingo).
-function proximoFimDeSemanaISO(fromDateStr){
+// Próximo sábado a partir de hoje (ou de uma data) — hoje mesmo se hoje já
+// for sábado. Valor padrão do Gerar Escala de Fim de Semana.
+function proximoSabadoISO(fromDateStr){
   let d = fromDateStr || todayISO();
-  while(!isFimDeSemana(d)) d = addDaysISO(d, 1);
+  while(WEEKDAYS[new Date(d+'T00:00:00').getDay()]!=='sab') d = addDaysISO(d, 1);
   return d;
 }
 

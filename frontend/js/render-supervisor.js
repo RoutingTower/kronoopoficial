@@ -322,86 +322,98 @@ function supSuplencias(myAnalistas){
 }
 
 
-// Todo fim de semana (sábado ou domingo), os hubs 7x7 continuam
-// precisando de titular mesmo com o time inteiro de folga — hoje isso é
-// escolhido e distribuído manualmente. Aqui o supervisor só informa a
-// data e quem foi escalado pra trabalhar; o sistema propõe a escala
-// inteira (gerarEscalaFDS, ver utils.js): até 6 operações por pessoa, sem
-// estourar 8h de turno, priorizando a carteira própria de cada um. A
-// proposta fica editável (dropdown por linha) antes de confirmar — mesmo
-// espírito do Sugerir Suplente logo abaixo, só que pro dia inteiro de
-// uma vez.
+// Todo fim de semana, os hubs 7x7 continuam precisando de titular mesmo
+// com o time inteiro de folga — hoje isso é escolhido e distribuído
+// manualmente. Regra nova: quem trabalha no sábado folga no domingo e
+// vice-versa, então sábado e domingo viram um par só (domingo = sábado+1)
+// com DUAS equipes disjuntas, uma pra cada dia. O sistema propõe a escala
+// inteira de cada dia (gerarEscalaFDS, ver utils.js): até 6 operações por
+// pessoa, sem estourar 8h de turno, priorizando a carteira própria de cada
+// um. As duas propostas ficam lado a lado (grid-2) — dá pra comparar e
+// ajustar (dropdown por linha) os dois dias antes de confirmar, cada um
+// com seu próprio botão de confirmação.
 // A grade de chips (escaladom-grid) é grande demais pra ficar sempre
-// aberta dentro do card — aqui só um botão-resumo, que abre a seleção
-// numa caixa (modal, ver abrirModalEscalaDomAnalistas em events.js).
-function escalaDomAnalistaPicker(myAnalistas){
-  const sel = uiState.escalaDomSelecionados;
+// aberta dentro do card — aqui só um botão-resumo por dia, que abre a
+// seleção numa caixa (modal, ver wireEscalaDomModal em events.js). O
+// modal de um dia esconde quem já foi escalado no outro — ninguém pode
+// estar nos dois ao mesmo tempo.
+function escalaDomAnalistaPicker(dia, label, sel){
   return `<div class="field" style="margin-bottom:0;">
-    <label>Quem foi escalado pra trabalhar</label>
-    <button type="button" class="btn" id="btnAbrirEscalaDomAnalistas" style="width:100%;display:flex;justify-content:space-between;align-items:center;">
+    <label>${label}</label>
+    <button type="button" class="btn" data-abrir-escaladom="${dia}" style="width:100%;display:flex;justify-content:space-between;align-items:center;">
       <span>${sel.length===0 ? 'Selecionar analistas' : `${sel.length} analista(s) selecionado(s)`}</span>
       <span>✎</span>
     </button>
   </div>`;
 }
 
-function supGerarEscalaDomingo(myAnalistas){
-  if(!uiState.escalaDomData) uiState.escalaDomData = proximoFimDeSemanaISO();
-  const dataStr = uiState.escalaDomData;
-  const res = uiState.escalaDomResultado;
-
-  let resultsHtml = '';
-  if(res && res.data===dataStr && res.linhas.length===0){
+function escalaDomPropostaHtml(dia, label, dataStr, res, myAnalistas){
+  if(!res) return '';
+  if(res.linhas.length===0){
     const idsEquipe = new Set(myAnalistas.map(a=>a.id));
     const datasFim = DB.baseMestra.filter(b=>b.analistaId && idsEquipe.has(b.analistaId)).map(b=>b.dataFim).sort();
     const ultima = datasFim[datasFim.length-1];
-    resultsHtml = `<div class="card" style="margin-top:18px;margin-bottom:22px;">
-      <div class="section-title">Proposta de escala — ${dataStr}</div>
+    return `<div class="card">
+      <div class="section-title">${label} — ${dataStr}</div>
       <div class="help-text" style="color:var(--danger,#e05252);">
         ⚠️ Nenhuma operação fixa da sua equipe está ativa em ${dataStr}${ultima ? ` — a última operação fixa cadastrada termina em ${ultima}` : ''}. Atualize a Base Mestra (Operações Fixas) pra estender o período antes de gerar a escala.
       </div>
     </div>`;
-  } else if(res && res.data===dataStr){
-    const porEscalado = new Map(res.escalados.map(id=>[id, 0]));
-    res.linhas.forEach(l=>{ if(l.escaladoId) porEscalado.set(l.escaladoId, (porEscalado.get(l.escaladoId)||0)+1); });
-    const resumo = res.escalados.map(id=>{
-      const n = porEscalado.get(id)||0;
-      return `<span class="op-tag" style="${n===0?'color:var(--danger,#e05252);':''}">${escapeHtml(userById(id)?.name||'—')}: ${n} op(s)</span>`;
-    }).join(' ');
-    const naoCobertos = res.linhas.filter(l=>!l.escaladoId).length;
-
-    resultsHtml = `<div class="card" style="margin-top:18px;margin-bottom:22px;">
-      <div class="section-title">Proposta de escala — ${dataStr}</div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">${resumo}</div>
-      ${naoCobertos>0 ? `<div class="help-text" style="color:var(--danger,#e05252);">⚠️ ${naoCobertos} operação(ões) não coube em ninguém (capacidade ou janela de 8h esgotada) — ajuste manualmente abaixo ou escale mais gente.</div>` : ''}
-      <div style="overflow-x:auto;">
-      <table><thead><tr><th>Horário</th><th>Operação</th><th>Ciclo</th><th>Quem cobre</th></tr></thead><tbody>
-      ${res.linhas.map((l,idx)=>{
-        const propria = l.analistaId && l.analistaId===l.escaladoId;
-        return `<tr ${!l.escaladoId?'style="background:rgba(224,82,82,0.08);"':''}>
-          <td class="mono">${l.horaInicio}–${l.horaFim}</td>
-          <td>${escapeHtml(l.operacao)}</td>
-          <td>${escapeHtml(l.ciclo||'')}</td>
-          <td><select data-escaladom-idx="${idx}">
-            <option value="">— não cobrir —</option>
-            ${res.escalados.map(id=>`<option value="${id}" ${l.escaladoId===id?'selected':''}>${escapeHtml(userById(id)?.name||'—')}${id===l.analistaId?' (própria)':''}</option>`).join('')}
-          </select>${propria?' 🏠':''}</td>
-        </tr>`;
-      }).join('')}
-      </tbody></table>
-      </div>
-      <div style="display:flex;justify-content:flex-end;margin-top:14px;">
-        <button class="btn btn-brand" id="btnConfirmarEscalaDom">Confirmar escala (${res.linhas.filter(l=>l.escaladoId).length} cobertura(s))</button>
-      </div>
-    </div>`;
   }
+  const porEscalado = new Map(res.escalados.map(id=>[id, 0]));
+  res.linhas.forEach(l=>{ if(l.escaladoId) porEscalado.set(l.escaladoId, (porEscalado.get(l.escaladoId)||0)+1); });
+  const resumo = res.escalados.map(id=>{
+    const n = porEscalado.get(id)||0;
+    return `<span class="op-tag" style="${n===0?'color:var(--danger,#e05252);':''}">${escapeHtml(userById(id)?.name||'—')}: ${n} op(s)</span>`;
+  }).join(' ');
+  const naoCobertos = res.linhas.filter(l=>!l.escaladoId).length;
+  return `<div class="card">
+    <div class="section-title">${label} — ${dataStr}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">${resumo}</div>
+    ${naoCobertos>0 ? `<div class="help-text" style="color:var(--danger,#e05252);">⚠️ ${naoCobertos} operação(ões) não coube em ninguém (capacidade ou janela de 8h esgotada) — ajuste manualmente abaixo ou escale mais gente.</div>` : ''}
+    <div style="overflow-x:auto;">
+    <table><thead><tr><th>Horário</th><th>Operação</th><th>Ciclo</th><th>Quem cobre</th></tr></thead><tbody>
+    ${res.linhas.map((l,idx)=>{
+      const propria = l.analistaId && l.analistaId===l.escaladoId;
+      return `<tr ${!l.escaladoId?'style="background:rgba(224,82,82,0.08);"':''}>
+        <td class="mono">${l.horaInicio}–${l.horaFim}</td>
+        <td>${escapeHtml(l.operacao)}</td>
+        <td>${escapeHtml(l.ciclo||'')}</td>
+        <td><select data-escaladom-dia="${dia}" data-escaladom-idx="${idx}">
+          <option value="">— não cobrir —</option>
+          ${res.escalados.map(id=>`<option value="${id}" ${l.escaladoId===id?'selected':''}>${escapeHtml(userById(id)?.name||'—')}${id===l.analistaId?' (própria)':''}</option>`).join('')}
+        </select>${propria?' 🏠':''}</td>
+      </tr>`;
+    }).join('')}
+    </tbody></table>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+      <button class="btn btn-brand" data-confirmar-escaladom="${dia}">Confirmar ${label.toLowerCase()} (${res.linhas.filter(l=>l.escaladoId).length} cobertura(s))</button>
+    </div>
+  </div>`;
+}
+
+function supGerarEscalaDomingo(myAnalistas){
+  if(!uiState.escalaDomSabado) uiState.escalaDomSabado = proximoSabadoISO();
+  const sabado = uiState.escalaDomSabado;
+  const domingo = addDaysISO(sabado, 1);
+
+  const cardSab = escalaDomPropostaHtml('sab', 'Sábado', sabado, uiState.escalaDomResultadoSab, myAnalistas);
+  const cardDom = escalaDomPropostaHtml('dom', 'Domingo', domingo, uiState.escalaDomResultadoDom, myAnalistas);
+  const resultsHtml = (cardSab || cardDom)
+    ? `<div class="grid-2" style="align-items:start;margin-bottom:22px;">${cardSab || '<div></div>'}${cardDom || '<div></div>'}</div>`
+    : '';
 
   return `
   <div class="section-title">Gerar Escala de Fim de Semana</div>
-  <div class="help-text">Informe a data (sábado ou domingo) e quem foi escalado pra trabalhar. O sistema monta a escala do dia inteiro: até 6 operações por pessoa, priorizando a carteira própria de cada um (🏠), equilibrando o total entre todos e variando o estado (UF) dos hubs extras, sem passar de 8h de turno.</div>
+  <div class="help-text">Quem trabalha no sábado folga no domingo, e quem trabalha no domingo folga no sábado — selecione cada equipe separadamente (ninguém pode estar nas duas). O sistema monta a escala do dia inteiro pra cada um: até 6 operações por pessoa, priorizando a carteira própria (🏠), equilibrando o total entre todos e variando o estado (UF) dos hubs extras, sem passar de 8h de turno.</div>
   <div class="card" style="margin-bottom:22px;">
-    <div class="field" style="max-width:220px;"><label>Data</label><input type="date" id="escalaDomDataInput" value="${dataStr}"></div>
-    ${escalaDomAnalistaPicker(myAnalistas)}
+    <div class="field" style="max-width:220px;"><label>Sábado</label><input type="date" id="escalaDomSabadoInput" value="${sabado}"></div>
+    <div class="help-text" style="margin-top:-8px;margin-bottom:14px;">Domingo: ${domingo} (dia seguinte, automático)</div>
+    <div class="grid-2">
+      ${escalaDomAnalistaPicker('sab', 'Quem trabalha no sábado', uiState.escalaDomSelecionadosSab)}
+      ${escalaDomAnalistaPicker('dom', 'Quem trabalha no domingo', uiState.escalaDomSelecionadosDom)}
+    </div>
     <div style="display:flex;justify-content:flex-end;margin-top:14px;">
       <button class="btn btn-brand" id="btnGerarEscalaDom">Gerar escala</button>
     </div>

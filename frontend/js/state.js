@@ -76,12 +76,18 @@ let uiState = {
   domingosMes: todayISO(),
   particularidadesFiltro: { operacao: '', analista: 'all' },
   sugerir: null, inboxSelected: null,
-  // Gerar Escala de Fim de Semana (ver gerarEscalaFDS em utils.js): data
-  // (sábado ou domingo) + quem foi escalado pra trabalhar, e o resultado
-  // (proposta editável) depois de clicar em "Gerar escala".
-  escalaDomData: null,
-  escalaDomSelecionados: [],
-  escalaDomResultado: null,
+  // Gerar Escala de Fim de Semana (ver gerarEscalaFDS em utils.js): sábado
+  // âncora (domingo = sábado+1, sempre tratados como par) + quem foi
+  // escalado pra trabalhar em CADA dia (listas separadas — quem trabalha
+  // um dia não pode aparecer na do outro, é a regra de folga cruzada) e o
+  // resultado (proposta editável) de cada dia depois de clicar em "Gerar
+  // escala". Um dia sem ninguém selecionado fica com resultado null (não
+  // gera proposta pra ele).
+  escalaDomSabado: null,
+  escalaDomSelecionadosSab: [],
+  escalaDomSelecionadosDom: [],
+  escalaDomResultadoSab: null,
+  escalaDomResultadoDom: null,
   // Gerar Escala do Mês (ver gerarEscalaMensal em utils.js): mês-alvo
   // ("YYYY-MM", padrão o próximo) + o resultado (proposta editável) depois
   // de clicar em "Gerar escala" — null até o primeiro clique.

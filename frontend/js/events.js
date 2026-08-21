@@ -24,19 +24,30 @@ function bindMultiselect(main, toggleId, todosId, chkClass, filtro, key, openKey
   });
 }
 
-// Escala de Domingo (ver supGerarEscalaDomingo/escalaDomAnalistaPicker em
-// render-supervisor.js): a grade de chips fica dentro de uma caixa (modal)
-// em vez de aberta direto no card — escolher 10-14 pessoas ocupava espaço
-// demais na tela principal. Cada toggle re-renderiza só o CONTEÚDO do
-// modal (openModal de novo, sem fechar) pra refletir o chip marcado/
+// Escala de Fim de Semana (ver supGerarEscalaDomingo/escalaDomAnalistaPicker
+// em render-supervisor.js): a grade de chips fica dentro de uma caixa
+// (modal) em vez de aberta direto no card — escolher 10-14 pessoas ocupava
+// espaço demais na tela principal. Cada toggle re-renderiza só o CONTEÚDO
+// do modal (openModal de novo, sem fechar) pra refletir o chip marcado/
 // desmarcado e o contador, sem mexer no resto da tela.
 // Duas caixas (Disponíveis / Escalados, ver .escaladom-dual no CSS) — clicar
 // no nome move de um lado pro outro. Só a busca + clique num nome
 // re-renderizam as DUAS LISTAS (escalaDomRenderLists), nunca o modal
 // inteiro — re-montar tudo a cada tecla digitada perderia o foco/cursor do
 // campo de busca.
-function escalaDomModalBody(myAnalistas){
-  return `<h3>Quem foi escalado pra trabalhar</h3>
+// Mesmo modal serve os dois dias (dia = 'sab'|'dom'): analista inativo
+// nunca aparece, e quem já foi escalado no OUTRO dia some da lista — regra
+// de folga cruzada (quem trabalha sábado folga domingo e vice-versa) é
+// aplicada aqui, na origem, não só validada depois.
+function escalaDomElegiveis(myAnalistas, dia){
+  const outroKey = dia==='sab' ? 'escalaDomSelecionadosDom' : 'escalaDomSelecionadosSab';
+  const outro = new Set(uiState[outroKey]);
+  return myAnalistas.filter(a=>a.active && !outro.has(a.id));
+}
+function escalaDomModalBody(dia){
+  const titulo = dia==='sab' ? 'Quem trabalha no sábado' : 'Quem trabalha no domingo';
+  return `<h3>${titulo}</h3>
+    <div class="help-text" style="margin-top:-4px;margin-bottom:10px;">Só analistas ativos aparecem aqui, e quem já foi escalado pro outro dia do fim de semana some da lista — a mesma pessoa não pode trabalhar os dois dias.</div>
     <div class="field" style="margin-bottom:10px;"><input type="text" id="escalaDomBusca" placeholder="Buscar por nome..."></div>
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
       <button type="button" class="btn" id="btnEscalaDomModalTodos" style="padding:4px 10px;font-size:11.5px;">Selecionar todos</button>
@@ -57,29 +68,37 @@ function escalaDomModalBody(myAnalistas){
       <button class="btn btn-brand" id="btnFecharEscalaDomModal">Fechar</button>
     </div>`;
 }
-function escalaDomRenderLists(myAnalistas){
-  const sel = uiState.escalaDomSelecionados;
+function escalaDomRenderLists(myAnalistas, dia){
+  const key = dia==='sab' ? 'escalaDomSelecionadosSab' : 'escalaDomSelecionadosDom';
+  const elegiveis = escalaDomElegiveis(myAnalistas, dia);
+  const elegiveisIds = new Set(elegiveis.map(a=>a.id));
+  // Se alguém que já estava selecionado deixou de ser elegível nesse meio
+  // tempo (foi escalado pro outro dia, ou desativado), tira daqui também —
+  // não deixa o estado ficar inconsistente com o que a tela mostra.
+  uiState[key] = uiState[key].filter(id=>elegiveisIds.has(id));
+  const sel = uiState[key];
   const busca = normalizarNome(document.getElementById('escalaDomBusca')?.value || '');
   const bate = a => !busca || normalizarNome(a.name).includes(busca);
-  const disponiveis = myAnalistas.filter(a=>!sel.includes(a.id) && bate(a));
-  const escalados = myAnalistas.filter(a=>sel.includes(a.id) && bate(a));
+  const disponiveis = elegiveis.filter(a=>!sel.includes(a.id) && bate(a));
+  const escalados = elegiveis.filter(a=>sel.includes(a.id) && bate(a));
   document.getElementById('escalaDomListaDisponiveis').innerHTML = disponiveis.map(a=>`<button type="button" class="escaladom-item" data-id="${a.id}">${escapeHtml(a.name)}</button>`).join('')
     || '<div class="help-text" style="padding:8px;">Ninguém encontrado</div>';
   document.getElementById('escalaDomListaEscalados').innerHTML = escalados.map(a=>`<button type="button" class="escaladom-item checked" data-id="${a.id}">${escapeHtml(a.name)}</button>`).join('')
     || '<div class="help-text" style="padding:8px;">Ninguém ainda</div>';
   document.getElementById('escalaDomContador').textContent = `${sel.length} selecionado${sel.length===1?'':'s'}`;
   document.querySelectorAll('#escalaDomListaDisponiveis .escaladom-item').forEach(btn=>{
-    btn.onclick = ()=>{ if(!sel.includes(btn.dataset.id)) sel.push(btn.dataset.id); escalaDomRenderLists(myAnalistas); };
+    btn.onclick = ()=>{ if(!sel.includes(btn.dataset.id)) sel.push(btn.dataset.id); escalaDomRenderLists(myAnalistas, dia); };
   });
   document.querySelectorAll('#escalaDomListaEscalados .escaladom-item').forEach(btn=>{
-    btn.onclick = ()=>{ uiState.escalaDomSelecionados = sel.filter(id=>id!==btn.dataset.id); escalaDomRenderLists(myAnalistas); };
+    btn.onclick = ()=>{ uiState[key] = sel.filter(id=>id!==btn.dataset.id); escalaDomRenderLists(myAnalistas, dia); };
   });
 }
-function wireEscalaDomModal(myAnalistas){
-  escalaDomRenderLists(myAnalistas);
-  document.getElementById('escalaDomBusca').addEventListener('input', ()=> escalaDomRenderLists(myAnalistas));
-  document.getElementById('btnEscalaDomModalTodos').onclick = ()=>{ uiState.escalaDomSelecionados = myAnalistas.map(a=>a.id); escalaDomRenderLists(myAnalistas); };
-  document.getElementById('btnEscalaDomModalLimpar').onclick = ()=>{ uiState.escalaDomSelecionados = []; escalaDomRenderLists(myAnalistas); };
+function wireEscalaDomModal(myAnalistas, dia){
+  const key = dia==='sab' ? 'escalaDomSelecionadosSab' : 'escalaDomSelecionadosDom';
+  escalaDomRenderLists(myAnalistas, dia);
+  document.getElementById('escalaDomBusca').addEventListener('input', ()=> escalaDomRenderLists(myAnalistas, dia));
+  document.getElementById('btnEscalaDomModalTodos').onclick = ()=>{ uiState[key] = escalaDomElegiveis(myAnalistas, dia).map(a=>a.id); escalaDomRenderLists(myAnalistas, dia); };
+  document.getElementById('btnEscalaDomModalLimpar').onclick = ()=>{ uiState[key] = []; escalaDomRenderLists(myAnalistas, dia); };
   document.getElementById('btnFecharEscalaDomModal').onclick = ()=>{ closeModal(); renderMain(); };
 }
 
@@ -899,59 +918,73 @@ function bindMainEvents(){
   const progDate = document.getElementById('progDateSel');
   if(progDate) progDate.addEventListener('change', ()=>{ uiState.progDate = progDate.value; renderMain(); });
 
-  const btnAbrirEscalaDomAnalistas = document.getElementById('btnAbrirEscalaDomAnalistas');
-  if(btnAbrirEscalaDomAnalistas) btnAbrirEscalaDomAnalistas.addEventListener('click', ()=>{
-    const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
-    openModalLarge(escalaDomModalBody(myAnalistas));
-    wireEscalaDomModal(myAnalistas);
+  main.querySelectorAll('[data-abrir-escaladom]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const dia = btn.dataset.abrirEscaladom;
+      const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
+      openModalLarge(escalaDomModalBody(dia));
+      wireEscalaDomModal(myAnalistas, dia);
+    });
   });
 
-  const escalaDomDataInput = document.getElementById('escalaDomDataInput');
-  if(escalaDomDataInput) escalaDomDataInput.addEventListener('change', ()=>{
-    uiState.escalaDomData = escalaDomDataInput.value;
-    uiState.escalaDomResultado = null;
+  const escalaDomSabadoInput = document.getElementById('escalaDomSabadoInput');
+  if(escalaDomSabadoInput) escalaDomSabadoInput.addEventListener('change', ()=>{
+    uiState.escalaDomSabado = sabadoDoFimDeSemana(escalaDomSabadoInput.value);
+    uiState.escalaDomResultadoSab = null;
+    uiState.escalaDomResultadoDom = null;
     renderMain();
   });
 
   const btnGerarEscalaDom = document.getElementById('btnGerarEscalaDom');
   if(btnGerarEscalaDom) btnGerarEscalaDom.addEventListener('click', ()=>{
-    const selecionados = uiState.escalaDomSelecionados;
-    if(selecionados.length===0){ alert('Selecione ao menos um analista escalado pra trabalhar nesse domingo.'); return; }
-    const dataStr = uiState.escalaDomData;
+    const selSab = uiState.escalaDomSelecionadosSab;
+    const selDom = uiState.escalaDomSelecionadosDom;
+    if(selSab.length===0 && selDom.length===0){ alert('Selecione ao menos um analista escalado pra trabalhar no sábado ou no domingo.'); return; }
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
-    const { escalados, naoCobertos } = gerarEscalaFDS(selecionados, dataStr, myAnalistas.map(a=>a.id));
-    const linhas = [
-      ...escalados.flatMap(e=>e.assigned.map(h=>({...h, escaladoId:e.id}))),
-      ...naoCobertos.map(h=>({...h, escaladoId:''})),
-    ].sort((a,b)=>a.startMs-b.startMs);
-    uiState.escalaDomResultado = { data: dataStr, escalados: selecionados, linhas };
+    const idsEquipe = myAnalistas.map(a=>a.id);
+    const sabado = uiState.escalaDomSabado;
+    const domingo = addDaysISO(sabado, 1);
+    function gerarLinhas(escaladoIds, dataStr){
+      const { escalados, naoCobertos } = gerarEscalaFDS(escaladoIds, dataStr, idsEquipe);
+      return [
+        ...escalados.flatMap(e=>e.assigned.map(h=>({...h, escaladoId:e.id}))),
+        ...naoCobertos.map(h=>({...h, escaladoId:''})),
+      ].sort((a,b)=>a.startMs-b.startMs);
+    }
+    uiState.escalaDomResultadoSab = selSab.length ? { data: sabado, escalados: selSab, linhas: gerarLinhas(selSab, sabado) } : null;
+    uiState.escalaDomResultadoDom = selDom.length ? { data: domingo, escalados: selDom, linhas: gerarLinhas(selDom, domingo) } : null;
     renderMain();
   });
   main.querySelectorAll('[data-escaladom-idx]').forEach(sel=>{
     sel.addEventListener('change', ()=>{
+      const dia = sel.dataset.escaladomDia;
       const idx = parseInt(sel.dataset.escaladomIdx,10);
-      uiState.escalaDomResultado.linhas[idx].escaladoId = sel.value;
+      const key = dia==='sab' ? 'escalaDomResultadoSab' : 'escalaDomResultadoDom';
+      uiState[key].linhas[idx].escaladoId = sel.value;
       renderMain();
     });
   });
-  const btnConfirmarEscalaDom = document.getElementById('btnConfirmarEscalaDom');
-  if(btnConfirmarEscalaDom) btnConfirmarEscalaDom.addEventListener('click', async ()=>{
-    const res = uiState.escalaDomResultado;
-    const cobertas = res.linhas.filter(l=>l.escaladoId);
-    let ok=0, fail=0;
-    openProgressModal('Lançando escala de domingo...');
-    for(const [idx, l] of cobertas.entries()){
-      const entrada = {operacao:l.operacao, ciclo:l.ciclo, horaInicio:l.horaInicio, horaFim:l.horaFim,
-        suplente:userById(l.escaladoId)?.name||'', dataCobertura:res.data,
-        analistaOriginalId: l.analistaId || l.escaladoId, tipo:'folga'};
-      try{ DB.suplencias.push(await apiCreateSuplencia(entrada)); ok++; }
-      catch(e){ console.error('KronoOP: falha ao lançar cobertura da escala de domingo.', e); fail++; }
-      updateProgressModal(idx+1, cobertas.length);
-    }
-    closeModal();
-    uiState.escalaDomResultado = null;
-    renderMain();
-    alert(`${ok} cobertura(s) lançada(s) com sucesso.${fail?` ${fail} falharam.`:''}`);
+  main.querySelectorAll('[data-confirmar-escaladom]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const dia = btn.dataset.confirmarEscaladom;
+      const key = dia==='sab' ? 'escalaDomResultadoSab' : 'escalaDomResultadoDom';
+      const res = uiState[key];
+      const cobertas = res.linhas.filter(l=>l.escaladoId);
+      let ok=0, fail=0;
+      openProgressModal(`Lançando escala de ${dia==='sab'?'sábado':'domingo'}...`);
+      for(const [idx, l] of cobertas.entries()){
+        const entrada = {operacao:l.operacao, ciclo:l.ciclo, horaInicio:l.horaInicio, horaFim:l.horaFim,
+          suplente:userById(l.escaladoId)?.name||'', dataCobertura:res.data,
+          analistaOriginalId: l.analistaId || l.escaladoId, tipo:'folga'};
+        try{ DB.suplencias.push(await apiCreateSuplencia(entrada)); ok++; }
+        catch(e){ console.error('KronoOP: falha ao lançar cobertura da escala de fim de semana.', e); fail++; }
+        updateProgressModal(idx+1, cobertas.length);
+      }
+      closeModal();
+      uiState[key] = null;
+      renderMain();
+      alert(`${ok} cobertura(s) lançada(s) com sucesso.${fail?` ${fail} falharam.`:''}`);
+    });
   });
 
   const escalaMensalMesInput = document.getElementById('escalaMensalMesInput');
