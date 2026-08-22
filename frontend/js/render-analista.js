@@ -265,13 +265,16 @@ function renderProgramacaoIntegrada(lista, dateStr){
     // cruzamento com o Raio-X é só por analista+operação+hora+data (sem
     // ciclo, que aqui sempre viria vazio e nunca bateria).
     const rx = DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===hour && r.data===dateStr);
-    let tempoLabel = '', tempoCor = '';
+    // Horário e duração em linhas separadas (não um texto só) — combinados
+    // não cabiam na largura do card e estouravam pra fora (ex.: "22:32–
+    // 23:59 · 1h18min" é comprido demais pra uma coluna de ~96px).
+    let horarioLabel = '', tempoLabel = '', tempoCor = '';
     if(rx && rx.duracaoSegundos!=null && !rx.semRoteirizacao){
-      const dur = formatarDuracaoCompacta(rx.duracaoSegundos);
+      tempoLabel = formatarDuracaoCompacta(rx.duracaoSegundos);
       // Início/fim reais vêm da planilha de roteirização (hora_inicio_real/
       // hora_fim_real) — registro anterior a essa importação ter esses
       // campos não tem, aí mostra só a duração.
-      tempoLabel = (rx.horaInicioReal && rx.horaFimReal) ? `${rx.horaInicioReal}–${rx.horaFimReal} · ${dur}` : dur;
+      if(rx.horaInicioReal && rx.horaFimReal) horarioLabel = `${rx.horaInicioReal}–${rx.horaFimReal}`;
       // Até 30min verde, 31-60min amarelo, acima de 1h vermelho — mesmo
       // esquema de cor do resto do app (var(--done)/--folga/--alert).
       tempoCor = rx.duracaoSegundos<=1800 ? 'var(--done)' : rx.duracaoSegundos<=3600 ? 'var(--folga)' : 'var(--alert)';
@@ -280,6 +283,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
     return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${dim?' prog-dim':''}" title="${escapeHtml(detalhe)}">
       <span class="flash-sigla">${iconStatus?icon(iconStatus,11)+' ':''}${escapeHtml(it.operacao)}</span>
       <span class="prog-ciclo">${escapeHtml(it.ciclo)}</span>
+      ${horarioLabel ? `<span class="prog-horario mono">${horarioLabel}</span>` : ''}
       ${tempoLabel ? `<span class="prog-horario mono"${tempoCor?` style="color:${tempoCor};"`:''}>${tempoLabel}</span>` : ''}
     </div>`;
   };

@@ -433,7 +433,7 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .prog-cell .flash-card{padding:4px 7px;border-radius:7px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:1px;line-height:1.2;}
 .prog-cell .flash-sigla{font-size:10.8px;}
 .prog-ciclo{font-size:9.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.03em;}
-.prog-horario{font-size:9.5px;font-weight:600;color:var(--text);white-space:nowrap;}
+.prog-horario{font-size:9px;font-weight:600;color:var(--text);white-space:normal;overflow-wrap:break-word;line-height:1.3;}
 .status-legend{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px;}
 .status-legend-label{font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-faint);margin-right:2px;}
 .status-legend .pill{cursor:pointer;transition:opacity .12s, transform .12s;}

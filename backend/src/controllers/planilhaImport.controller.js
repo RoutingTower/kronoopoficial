@@ -56,6 +56,19 @@ function dataCalendarioDoRaioX(dataOperacional, hora) {
   return dt.toISOString().slice(0, 10);
 }
 
+// Mesma convenção de hourSortValue no frontend: madrugada (antes das 7h)
+// conta como depois da meia-noite anterior, pra medir distância de horário
+// direito entre um turno que já cruzou a virada e o hora agendado do Raio-X.
+function segundosAjustados(segundos) {
+  return segundos < 7 * 3600 ? segundos + 24 * 3600 : segundos;
+}
+
+// Janela de tolerância pra casar por horário quando o ciclo não bate (ver
+// uso abaixo) — 3h cobre a folga normal entre horário agendado e início
+// real sem risco de confundir com outro ciclo do mesmo hub mais tarde no
+// dia (esses costumam ficar bem mais distantes que isso).
+const TOLERANCIA_HORARIO_SEG = 3 * 60 * 60;
+
 // Corta listas de diagnóstico grandes (a planilha real manda dezenas de
 // milhares de linhas de histórico) — sem isso a resposta HTTP e o
 // Logger.log do Apps Script (que trunca saída grande) ficam inúteis.
@@ -140,27 +153,58 @@ async function importarPlanilha(req, res) {
       continue;
     }
 
-    // Ciclo é o desempate quando o mesmo hub roda mais de uma vez no dia —
-    // registro antigo (sem ciclo gravado, ver comentário em raio_x no
-    // supabase-schema.sql) conta como "qualquer ciclo" pra não deixar de
-    // achar um Raio-X real só porque ele é anterior à correção do bug.
     const mesmaDataOperacao = porDataOperacao.get(`${dataISO}|${operacao}`) || [];
-    const candidatos = mesmaDataOperacao.filter((r) => !ciclo || !r.ciclo || r.ciclo === ciclo);
-    if (candidatos.length === 0) {
+    if (mesmaDataOperacao.length === 0) {
       naoEncontrados.push({ data: dataISO, operacao, ciclo });
       continue;
     }
-    if (candidatos.length > 1) {
-      ambiguos.push({ data: dataISO, operacao, ciclo, qtd: candidatos.length });
+
+    // 1) Ciclo bate exato — igual antes, o caminho normal (registro antigo
+    // sem ciclo gravado, ver comentário em raio_x no supabase-schema.sql,
+    // conta como "qualquer ciclo" pra não deixar de achar um Raio-X real só
+    // porque ele é anterior à correção do bug).
+    const cicloExato = mesmaDataOperacao.filter((r) => ciclo && r.ciclo && r.ciclo === ciclo);
+    let escolhido = null;
+    if (cicloExato.length === 1) {
+      escolhido = cicloExato[0];
+    } else if (cicloExato.length === 0) {
+      // 2) Ciclo não bateu em ninguém (divergente ou ausente dos dois
+      // lados) — cai pro horário: se o início real da planilha cai perto o
+      // bastante do horário agendado de UM único candidato (dentro de
+      // TOLERANCIA_HORARIO_SEG), considera que é esse hub mesmo, mesmo com
+      // o rótulo do ciclo não batendo. Só aceita se o mais próximo estiver
+      // claramente à frente do segundo colocado — dois hubs igualmente
+      // próximos (ex.: mesmo horário, ciclos diferentes) continuam ambíguos.
+      const inicioSeg = paraSegundosDoDia(inicioTxt);
+      const comDistancia = mesmaDataOperacao
+        .map((r) => {
+          const horaSeg = paraSegundosDoDia(r.hora);
+          const d = inicioSeg == null || horaSeg == null
+            ? Infinity
+            : Math.abs(segundosAjustados(inicioSeg) - segundosAjustados(horaSeg));
+          return { r, d };
+        })
+        .filter((x) => x.d <= TOLERANCIA_HORARIO_SEG)
+        .sort((a, b) => a.d - b.d);
+      if (comDistancia.length === 1 || (comDistancia.length > 1 && comDistancia[1].d - comDistancia[0].d >= 600)) {
+        escolhido = comDistancia[0].r;
+      }
+    }
+    // cicloExato.length > 1: dois Raio-X com o mesmo ciclo pra essa
+    // operação+data — não deveria acontecer, mas não arrisca escolher.
+
+    if (!escolhido) {
+      if (mesmaDataOperacao.length > 1) ambiguos.push({ data: dataISO, operacao, ciclo, qtd: mesmaDataOperacao.length });
+      else naoEncontrados.push({ data: dataISO, operacao, ciclo });
       continue;
     }
 
     paraAtualizar.push({
-      id: candidatos[0].id,
+      id: escolhido.id,
       patch: {
         duracaoSegundos,
         duracaoOrigem: "planilha",
-        ciclo: ciclo || candidatos[0].ciclo || null,
+        ciclo: ciclo || escolhido.ciclo || null,
         horaInicioReal: paraHoraMinuto(inicioTxt),
         horaFimReal: paraHoraMinuto(fimTxt),
       },

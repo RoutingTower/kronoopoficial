@@ -176,13 +176,19 @@ function formatarDuracaoCompacta(totalSegundos){
   return `${m}min`;
 }
 
+// Status é sobre o envio do Raio-X, não sobre o relógio em si: assim que
+// existe um Raio-X pra esse slot, o status já vira "Finalizada" — mesmo
+// que ainda esteja dentro da janela normal ("A Iniciar"/"Em Andamento"),
+// alguém que manda cedo não deveria continuar aparecendo como pendente. Só
+// quando NINGUÉM enviou ainda é que o relógio decide entre A Iniciar/Em
+// Andamento/Não Finalizado.
 function computeStatus(hora, dataStr, analistaId, operacao, isOff){
-  const atrasada = () => (analistaId && operacao && !isOff && !isOperacaoFinalizada(analistaId, operacao, hora, dataStr)) ? 'atraso' : 'done';
+  if(analistaId && operacao && !isOff && isOperacaoFinalizada(analistaId, operacao, hora, dataStr)) return 'done';
   const slotStart = slotTimestamp(dataStr, hora);
   const now = Date.now();
   if(now < slotStart) return 'wait';
   if(now < slotStart + 60*60*1000) return 'live';
-  return atrasada();
+  return (analistaId && operacao && !isOff) ? 'atraso' : 'done';
 }
 
 // emojiOnly: usado na escala em cards (flashcards) do analista pra deixar o
