@@ -31,23 +31,12 @@ function renderExecucaoActions(it, dateStr, analistaId, sprMeta, souEu){
   // própria planilha). Cronômetro ao vivo com base nesse horário, não num
   // clique dentro do Kronos (não existe mais).
   const emAndamento = DB.roteirizacaoStatus.find(s=>s.analistaId===analistaId && s.operacao===it.operacao && s.data===dateStr && s.horaInicioReal && !s.horaFimReal);
-  let timerHtml = '';
-  if(emAndamento){
-    timerHtml = `<div class="timer-live" data-timer-desde="${slotTimestamp(dateStr, emAndamento.horaInicioReal)}">
+  // Sem confirmação real da planilha, não estima nada a partir do horário
+  // programado — só o botão de Enviar Raio-X abaixo, sem número que possa
+  // não refletir a realidade (a operação pode nem ter começado ainda).
+  const timerHtml = emAndamento ? `<div class="timer-live" data-timer-desde="${slotTimestamp(dateStr, emAndamento.horaInicioReal)}">
       <span class="timer-dot"></span><span class="timer-num mono">00:00</span><span class="timer-tag">em andamento</span>
-    </div>`;
-  } else {
-    // Planilha ainda não confirmou início real — mostra o tempo decorrido
-    // desde o horário PROGRAMADO (raio-x já foi descartado acima, então só
-    // chega aqui quem ainda não finalizou), pra não deixar a pessoa "no
-    // escuro" sobre há quanto tempo a operação deveria ter começado.
-    const status = computeStatus(it.horaInicio, dateStr, analistaId, it.operacao, it.isOff);
-    if(status==='live' || status==='atraso'){
-      timerHtml = `<div class="timer-live timer-live-estimado" data-timer-desde="${slotTimestamp(dateStr, it.horaInicio)}">
-        <span class="timer-dot"></span><span class="timer-num mono">00:00</span><span class="timer-tag">desde o horário programado</span>
-      </div>`;
-    }
-  }
+    </div>` : '';
   const dataAttrs = `data-finalizar-op="${escapeHtml(it.operacao)}" data-hora="${it.horaInicio}" data-data="${dateStr}" data-ciclo="${escapeHtml(it.ciclo)}" data-spr-meta="${sprMeta!=null?sprMeta:''}"`;
   return `${timerHtml}<div class="flash-actions"><button class="btn btn-brand" ${dataAttrs}>${icon('send',12)} Enviar Raio-X</button></div>`;
 }
@@ -312,17 +301,11 @@ function renderProgramacaoIntegrada(lista, dateStr){
         timerHtml = `<div class="timer-live" data-timer-desde="${desde}" title="Início real (planilha): ${emAndamento.horaInicioReal}">
           <span class="timer-dot"></span><span class="timer-num mono">00:00</span>
         </div>`;
-      } else if(status==='live' || status==='atraso'){
-        // Planilha ainda não confirmou nenhum início real pra essa operação —
-        // mesmo assim mostra o tempo decorrido desde o horário PROGRAMADO, pra
-        // não deixar a operação "muda" no card enquanto ninguém sabe se ela já
-        // começou de verdade. Visual mais neutro (cinza, sem pulso) que o
-        // cronômetro de início confirmado, justamente por ser uma estimativa.
-        const desde = slotTimestamp(dateStr, hour);
-        timerHtml = `<div class="timer-live timer-live-estimado" data-timer-desde="${desde}" title="Tempo desde o horário programado (${hour}) — planilha ainda não confirmou início real">
-          <span class="timer-dot"></span><span class="timer-num mono">00:00</span>
-        </div>`;
       }
+      // Sem confirmação real da planilha, não estima nada a partir do
+      // horário agendado — só o alerta de "não finalizado" abaixo, sem
+      // número que possa não refletir a realidade (a operação pode nem ter
+      // começado ainda).
     }
     // Selo fixo de "não finalizado" — a borda vermelha sozinha (flash-card-
     // atraso) estava passando despercebida no meio das cores de categoria

@@ -449,12 +449,6 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .prog-cell .timer-dot{width:5px;height:5px;}
 .prog-cell .timer-num{font-size:9px;color:var(--brand);}
 .prog-cell .timer-tag{display:none;}
-/* Variante "estimada": horário programado ainda sem confirmação real da
-   planilha — cor neutra e sem pulso, pra não passar a mesma certeza do
-   cronômetro com início já confirmado. */
-.timer-live-estimado{background:rgba(118,118,118,0.1);}
-.timer-live-estimado .timer-dot{background:var(--text-muted);animation:none;}
-.timer-live-estimado .timer-num{color:var(--text-muted);}
 /* Selo "Não finalizado" fixo no card da Grade Integrada — a borda vermelha
    (flash-card-atraso) sozinha competia com a cor de categoria da operação
    e passava despercebida. */
