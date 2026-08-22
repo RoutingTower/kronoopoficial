@@ -20,6 +20,7 @@ const reuniaoPresencaRoutes = require("./reuniaoPresenca.routes");
 const formulariosRoutes = require("./formularios.routes");
 const formularioRespostasRoutes = require("./formularioRespostas.routes");
 const planilhaImportRoutes = require("./planilhaImport.routes");
+const roteirizacaoStatusRoutes = require("./roteirizacaoStatus.routes");
 
 const router = Router();
 
@@ -44,6 +45,7 @@ router.use("/base-mestra", baseMestraRoutes);
 router.use("/ausencias", ausenciasRoutes);
 router.use("/suplencias", suplenciasRoutes);
 router.use("/raio-x", raioXRoutes);
+router.use("/roteirizacao-status", roteirizacaoStatusRoutes);
 router.use("/recados", recadosRoutes);
 router.use("/reunioes", reunioesRoutes);
 router.use("/plantoes", plantoesRoutes);

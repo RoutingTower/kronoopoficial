@@ -172,6 +172,30 @@ create table raio_x (
 create index idx_raiox_analista on raio_x(analista_id);
 create index idx_raiox_data on raio_x(data);
 
+-- "Iniciado segundo a planilha, ainda sem Raio-X enviado" — a planilha de
+-- roteirização (ver planilhaImport.controller.js) sabe o horário de início
+-- real de uma operação muito antes do analista abrir o Kronos e mandar o
+-- Raio-X (estrelas/observação/SPR). Enquanto não existe Raio-X pra essa
+-- operação+data, o card mostra "iniciado às X" com base nesta tabela — assim
+-- que o Raio-X é enviado, ele passa a valer (raio_x.hora_inicio_real) e esta
+-- linha vira só histórico morto (não é limpa, mas também não é mais lida).
+-- analista_id vem do e-mail da própria planilha (coluna nova), casado
+-- contra users.email — sem isso não tem como saber de quem é a operação
+-- antes de existir um Raio-X (que já vem com analista_id sabido).
+create table roteirizacao_status (
+  id               uuid primary key default gen_random_uuid(),
+  analista_id      uuid not null references users(id),
+  operacao         text not null,
+  ciclo            text,
+  data             date not null,
+  hora_inicio_real text,
+  hora_fim_real    text,
+  duracao_segundos integer,
+  atualizado_em    bigint not null
+);
+create index idx_roteirizacao_status_analista on roteirizacao_status(analista_id);
+create index idx_roteirizacao_status_data on roteirizacao_status(data);
+
 create table recados (
   id            uuid primary key default gen_random_uuid(),
   remetente     text not null,

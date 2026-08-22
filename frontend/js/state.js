@@ -139,12 +139,13 @@ let _loadDBInFlight = null;
 async function loadDB(){
   if(_loadDBInFlight) return _loadDBInFlight;
   _loadDBInFlight = (async ()=>{
-    const [users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas] = await Promise.all([
+    const [users, baseMestra, suplencias, sprs, raioX, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas] = await Promise.all([
       apiRequest('GET', '/users'),
       apiRequest('GET', '/base-mestra'),
       apiRequest('GET', '/suplencias'),
       apiRequest('GET', '/sprs'),
       apiRequest('GET', '/raio-x'),
+      apiRequest('GET', '/roteirizacao-status'),
       apiRequest('GET', '/ausencias'),
       apiRequest('GET', '/recados'),
       apiRequest('GET', '/reunioes'),
@@ -157,7 +158,7 @@ async function loadDB(){
       apiRequest('GET', '/formularios'),
       apiRequest('GET', '/formulario-respostas'),
     ]);
-    DB = { users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas };
+    DB = { users, baseMestra, suplencias, sprs, raioX, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas };
   })();
   try{ await _loadDBInFlight; }
   finally{ _loadDBInFlight = null; }

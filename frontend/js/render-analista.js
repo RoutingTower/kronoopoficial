@@ -25,8 +25,17 @@ function renderExecucaoActions(it, dateStr, analistaId, sprMeta, souEu){
     return `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}${raiox.semRoteirizacao ? ' · Sem roteirização' : raiox.sprRoteirizado!=null ? ` · SPR lançado ${escapeHtml(String(raiox.sprRoteirizado))}` : ''}${duracaoHtml}</div>${acoesSupervisor}`;
   }
   if(!souEu) return ''; // sem raio-x ainda: enviar só faz sentido pra quem executa
+  // Ainda sem Raio-X — a planilha de roteirização pode já ter registrado o
+  // início real mesmo assim (roteirizacao_status, ver
+  // planilhaImport.controller.js, identifica o analista pelo e-mail da
+  // própria planilha). Cronômetro ao vivo com base nesse horário, não num
+  // clique dentro do Kronos (não existe mais).
+  const emAndamento = DB.roteirizacaoStatus.find(s=>s.analistaId===analistaId && s.operacao===it.operacao && s.data===dateStr && s.horaInicioReal && !s.horaFimReal);
+  const timerHtml = emAndamento ? `<div class="timer-live" data-timer-desde="${slotTimestamp(dateStr, emAndamento.horaInicioReal)}">
+      <span class="timer-dot"></span><span class="timer-num mono">00:00</span><span class="timer-tag">em andamento</span>
+    </div>` : '';
   const dataAttrs = `data-finalizar-op="${escapeHtml(it.operacao)}" data-hora="${it.horaInicio}" data-data="${dateStr}" data-ciclo="${escapeHtml(it.ciclo)}" data-spr-meta="${sprMeta!=null?sprMeta:''}"`;
-  return `<div class="flash-actions"><button class="btn btn-brand" ${dataAttrs}>${icon('send',12)} Enviar Raio-X</button></div>`;
+  return `${timerHtml}<div class="flash-actions"><button class="btn btn-brand" ${dataAttrs}>${icon('send',12)} Enviar Raio-X</button></div>`;
 }
 
 // showLembretes só é true na própria Programação do analista (renderAnalista) —
@@ -268,7 +277,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
     // Horário e duração em linhas separadas (não um texto só) — combinados
     // não cabiam na largura do card e estouravam pra fora (ex.: "22:32–
     // 23:59 · 1h18min" é comprido demais pra uma coluna de ~96px).
-    let horarioLabel = '', tempoLabel = '', tempoCor = '';
+    let horarioLabel = '', tempoLabel = '', tempoCor = '', timerHtml = '';
     if(rx && rx.duracaoSegundos!=null && !rx.semRoteirizacao){
       tempoLabel = formatarDuracaoCompacta(rx.duracaoSegundos);
       // Início/fim reais vêm da planilha de roteirização (hora_inicio_real/
@@ -278,6 +287,18 @@ function renderProgramacaoIntegrada(lista, dateStr){
       // Até 30min verde, 31-60min amarelo, acima de 1h vermelho — mesmo
       // esquema de cor do resto do app (var(--done)/--folga/--alert).
       tempoCor = rx.duracaoSegundos<=1800 ? 'var(--done)' : rx.duracaoSegundos<=3600 ? 'var(--folga)' : 'var(--alert)';
+    } else if(!rx){
+      // Ainda sem Raio-X — a planilha pode já ter registrado o início real
+      // mesmo assim (roteirizacao_status, ver planilhaImport.controller.js).
+      // Cronômetro ao vivo com base nesse horário, não num clique dentro do
+      // Kronos (não existe mais).
+      const emAndamento = DB.roteirizacaoStatus.find(s=>s.analistaId===analistaId && s.operacao===it.operacao && s.data===dateStr && s.horaInicioReal && !s.horaFimReal);
+      if(emAndamento){
+        const desde = slotTimestamp(dateStr, emAndamento.horaInicioReal);
+        timerHtml = `<div class="timer-live" data-timer-desde="${desde}">
+          <span class="timer-dot"></span><span class="timer-num mono">00:00</span>
+        </div>`;
+      }
     }
 
     return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${dim?' prog-dim':''}" title="${escapeHtml(detalhe)}">
@@ -285,6 +306,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
       <span class="prog-ciclo">${escapeHtml(it.ciclo)}</span>
       ${horarioLabel ? `<span class="prog-horario mono">${horarioLabel}</span>` : ''}
       ${tempoLabel ? `<span class="prog-horario mono"${tempoCor?` style="color:${tempoCor};"`:''}>${tempoLabel}</span>` : ''}
+      ${timerHtml}
     </div>`;
   };
 

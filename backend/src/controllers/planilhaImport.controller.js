@@ -33,26 +33,36 @@ function duracaoEmSegundos(inicio, fim) {
 }
 
 // "HH:MM:SS" ou "HH:MM" -> "HH:MM" (sem segundos, com zero à esquerda) —
-// só pra exibição (início/fim reais no card da Grade Integrada). A
-// duração continua com precisão de segundos, guardada à parte.
+// só pra exibição (início/fim reais no card). A duração continua com
+// precisão de segundos, guardada à parte.
 function paraHoraMinuto(valor) {
   const m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(String(valor || "").trim());
   return m ? `${m[1].padStart(2, "0")}:${m[2]}` : null;
 }
 
-// raio_x.data é o "dia operacional" do turno (o turno inteiro conta pro
-// dia em que começou, mesmo virando a madrugada — mesma convenção de
+// raio_x.data é o "dia operacional" do turno (o turno inteiro conta pro dia
+// em que começou, mesmo virando a madrugada — mesma convenção de
 // hourSortValue/slotTimestamp no frontend), mas a planilha registra a data
 // literal do relógio: uma operação de madrugada que o Kronos guarda como
 // "21/08" (turno começou dia 21) aparece na planilha como "22/08" (a hora
-// real já é depois da meia-noite). Sem esse ajuste, toda operação de
-// madrugada nunca batia com o Raio-X correspondente.
+// real já é depois da meia-noite). dataCalendarioDoRaioX vai de operacional
+// -> literal (pra indexar o Raio-X do jeito que a planilha vai perguntar);
+// dataOperacionalDoSheet faz o caminho inverso (pra gravar roteirizacao_
+// status, que allto guarda a data operacional, igual ao Raio-X).
 function dataCalendarioDoRaioX(dataOperacional, hora) {
   const h = parseInt(String(hora).split(":")[0], 10);
-  if (h >= 7) return dataOperacional; // turno começou de dia, mesma data nos dois
+  if (h >= 7) return dataOperacional;
   const [y, m, d] = dataOperacional.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
   dt.setUTCDate(dt.getUTCDate() + 1);
+  return dt.toISOString().slice(0, 10);
+}
+function dataOperacionalDoSheet(dataCalendario, hora) {
+  const h = parseInt(String(hora).split(":")[0], 10);
+  if (h >= 7) return dataCalendario;
+  const [y, m, d] = dataCalendario.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() - 1);
   return dt.toISOString().slice(0, 10);
 }
 
@@ -63,11 +73,42 @@ function segundosAjustados(segundos) {
   return segundos < 7 * 3600 ? segundos + 24 * 3600 : segundos;
 }
 
-// Janela de tolerância pra casar por horário quando o ciclo não bate (ver
-// uso abaixo) — 3h cobre a folga normal entre horário agendado e início
-// real sem risco de confundir com outro ciclo do mesmo hub mais tarde no
-// dia (esses costumam ficar bem mais distantes que isso).
+// Janela de tolerância pra casar por horário quando o ciclo não bate — 3h
+// cobre a folga normal entre horário agendado e início real sem risco de
+// confundir com outro ciclo do mesmo hub mais tarde no dia (esses costumam
+// ficar bem mais distantes que isso).
 const TOLERANCIA_HORARIO_SEG = 3 * 60 * 60;
+
+// Acha, entre os Raio-X da mesma operação+data (candidatos, todos os
+// ciclos), qual é o certo pra essa linha da planilha: 1) ciclo bate exato
+// (caminho normal — registro antigo sem ciclo gravado conta como "qualquer
+// ciclo"); 2) senão, cai pro horário — se o início real cai perto o
+// bastante (TOLERANCIA_HORARIO_SEG) do horário agendado de UM único
+// candidato, considera esse mesmo com o rótulo do ciclo não batendo. Só
+// aceita se o mais próximo estiver claramente à frente do segundo colocado
+// — candidatos igualmente próximos (ex.: dois ciclos no mesmo horário)
+// continuam null (ambíguo), não arrisca escolher errado.
+function escolherRaioX(candidatos, ciclo, inicioTxt) {
+  const cicloExato = candidatos.filter((r) => ciclo && r.ciclo && r.ciclo === ciclo);
+  if (cicloExato.length === 1) return cicloExato[0];
+  if (cicloExato.length > 1) return null; // não deveria acontecer, mas não arrisca
+
+  const inicioSeg = paraSegundosDoDia(inicioTxt);
+  const comDistancia = candidatos
+    .map((r) => {
+      const horaSeg = paraSegundosDoDia(r.hora);
+      const d = inicioSeg == null || horaSeg == null
+        ? Infinity
+        : Math.abs(segundosAjustados(inicioSeg) - segundosAjustados(horaSeg));
+      return { r, d };
+    })
+    .filter((x) => x.d <= TOLERANCIA_HORARIO_SEG)
+    .sort((a, b) => a.d - b.d);
+  if (comDistancia.length === 1 || (comDistancia.length > 1 && comDistancia[1].d - comDistancia[0].d >= 600)) {
+    return comDistancia[0].r;
+  }
+  return null;
+}
 
 // Corta listas de diagnóstico grandes (a planilha real manda dezenas de
 // milhares de linhas de histórico) — sem isso a resposta HTTP e o
@@ -101,12 +142,16 @@ async function executarEmParalelo(itens, concorrencia, fn) {
 // Chamado pelo Apps Script da planilha de roteirização (fora do requireAuth
 // — ver routes/index.js), não por um usuário logado no Kronos. Por isso se
 // autentica com um token fixo (PLANILHA_IMPORT_TOKEN) em vez de um Supabase
-// ID token. Substitui o tempo de execução (duracao_segundos/duracao_origem
-// e o início/fim reais, hora_inicio_real/hora_fim_real — usados pro card da
-// Grade Integrada mostrar o horário de verdade) do Raio-X já existente pra
-// cada linha — nunca CRIA um Raio-X novo (a finalização em si continua
-// exigindo o fluxo normal, com estrelas e observação; isso só corrige o
-// tempo depois que ela já existe).
+// ID token.
+//
+// Pra cada linha, tenta primeiro achar o Raio-X já existente (operação já
+// finalizada pelo analista) e atualizar seu horário/duração reais — nunca
+// CRIA um Raio-X novo (a finalização em si continua exigindo o fluxo
+// normal, com estrelas e observação; isso só corrige o tempo depois que
+// ela já existe). Quando não existe Raio-X ainda (operação em curso, ou já
+// terminada mas o analista não mandou o Raio-X), grava em
+// roteirizacao_status — identificando o analista pelo e-mail da própria
+// planilha — pra o card mostrar "iniciado às X" mesmo sem Raio-X nenhum.
 async function importarPlanilha(req, res) {
   const auth = req.headers.authorization || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
@@ -115,24 +160,36 @@ async function importarPlanilha(req, res) {
   }
 
   const linhas = Array.isArray(req.body.linhas) ? req.body.linhas : [];
-  const todosRaioX = await supabaseService.listAll("raioX");
 
-  // Índice por data (a que aparece na planilha, não a operacional — ver
-  // dataCalendarioDoRaioX) + operação. A planilha manda dezenas de milhares
-  // de linhas de histórico; varrer o array inteiro pra cada uma delas seria
-  // lento demais dentro do tempo de uma requisição HTTP.
-  const porDataOperacao = new Map();
+  const [todosRaioX, todosUsuarios, todosStatus] = await Promise.all([
+    supabaseService.listAll("raioX"),
+    supabaseService.listAll("users"),
+    supabaseService.listWhere("roteirizacaoStatus", [["data", ">=", dataDiasAtras(10)]]),
+  ]);
+
+  // Índice do Raio-X por data (a que aparece na planilha, não a
+  // operacional — ver dataCalendarioDoRaioX) + operação.
+  const raioXPorDataOperacao = new Map();
   for (const r of todosRaioX) {
     const chave = `${dataCalendarioDoRaioX(r.data, r.hora)}|${r.operacao}`;
-    if (!porDataOperacao.has(chave)) porDataOperacao.set(chave, []);
-    porDataOperacao.get(chave).push(r);
+    if (!raioXPorDataOperacao.has(chave)) raioXPorDataOperacao.set(chave, []);
+    raioXPorDataOperacao.get(chave).push(r);
   }
 
-  let semDadosSuficientes = 0; // fim/início em branco (operação ainda em curso na planilha) — não é erro
+  const idPorEmail = new Map(todosUsuarios.filter((u) => u.email).map((u) => [u.email.toLowerCase(), u.id]));
+
+  const statusPorChave = new Map(); // analistaId|operacao|data (operacional) -> linha existente
+  for (const s of todosStatus) {
+    statusPorChave.set(`${s.analistaId}|${s.operacao}|${s.data}`, s);
+  }
+
+  let semDadosSuficientes = 0; // sem operação/data/início — não é erro, planilha ainda incompleta pra essa linha
+  let semAnalistaIdentificado = 0; // sem Raio-X e sem e-mail reconhecido — não dá pra saber de quem é
   const naoEncontrados = [];
   const ambiguos = [];
   const invalidos = []; // data/horário que não bateu em nenhum formato conhecido
-  const paraAtualizar = []; // casamento é síncrono e rápido — só separa o que precisa ir pro banco
+  const paraAtualizarRaioX = [];
+  const paraStatus = []; // {chave, dados} — cria ou atualiza roteirizacao_status
 
   for (const linha of linhas) {
     const operacao = String(linha.operacao || "").trim();
@@ -140,91 +197,94 @@ async function importarPlanilha(req, res) {
     const inicioTxt = String(linha.inicio || "").trim();
     const fimTxt = String(linha.fim || "").trim();
     const dataTxt = String(linha.data || "").trim();
+    const email = String(linha.email || "").trim().toLowerCase();
 
-    if (!operacao || !dataTxt || !inicioTxt || !fimTxt) {
+    if (!operacao || !dataTxt || !inicioTxt) {
       semDadosSuficientes++;
       continue;
     }
 
     const dataISO = paraDataISO(dataTxt);
-    const duracaoSegundos = duracaoEmSegundos(inicioTxt, fimTxt);
-    if (!dataISO || duracaoSegundos == null) {
+    const temFim = !!fimTxt;
+    const duracaoSegundos = temFim ? duracaoEmSegundos(inicioTxt, fimTxt) : null;
+    if (!dataISO || (temFim && duracaoSegundos == null)) {
       invalidos.push({ data: dataTxt, operacao, ciclo, inicio: inicioTxt, fim: fimTxt });
       continue;
     }
 
-    const mesmaDataOperacao = porDataOperacao.get(`${dataISO}|${operacao}`) || [];
-    if (mesmaDataOperacao.length === 0) {
-      naoEncontrados.push({ data: dataISO, operacao, ciclo });
+    const candidatosRaioX = raioXPorDataOperacao.get(`${dataISO}|${operacao}`) || [];
+    const escolhido = candidatosRaioX.length ? escolherRaioX(candidatosRaioX, ciclo, inicioTxt) : null;
+
+    if (escolhido) {
+      const patch = {
+        horaInicioReal: paraHoraMinuto(inicioTxt),
+        ciclo: ciclo || escolhido.ciclo || null,
+      };
+      if (temFim) {
+        patch.duracaoSegundos = duracaoSegundos;
+        patch.duracaoOrigem = "planilha";
+        patch.horaFimReal = paraHoraMinuto(fimTxt);
+      }
+      paraAtualizarRaioX.push({ id: escolhido.id, patch });
       continue;
     }
 
-    // 1) Ciclo bate exato — igual antes, o caminho normal (registro antigo
-    // sem ciclo gravado, ver comentário em raio_x no supabase-schema.sql,
-    // conta como "qualquer ciclo" pra não deixar de achar um Raio-X real só
-    // porque ele é anterior à correção do bug).
-    const cicloExato = mesmaDataOperacao.filter((r) => ciclo && r.ciclo && r.ciclo === ciclo);
-    let escolhido = null;
-    if (cicloExato.length === 1) {
-      escolhido = cicloExato[0];
-    } else if (cicloExato.length === 0) {
-      // 2) Ciclo não bateu em ninguém (divergente ou ausente dos dois
-      // lados) — cai pro horário: se o início real da planilha cai perto o
-      // bastante do horário agendado de UM único candidato (dentro de
-      // TOLERANCIA_HORARIO_SEG), considera que é esse hub mesmo, mesmo com
-      // o rótulo do ciclo não batendo. Só aceita se o mais próximo estiver
-      // claramente à frente do segundo colocado — dois hubs igualmente
-      // próximos (ex.: mesmo horário, ciclos diferentes) continuam ambíguos.
-      const inicioSeg = paraSegundosDoDia(inicioTxt);
-      const comDistancia = mesmaDataOperacao
-        .map((r) => {
-          const horaSeg = paraSegundosDoDia(r.hora);
-          const d = inicioSeg == null || horaSeg == null
-            ? Infinity
-            : Math.abs(segundosAjustados(inicioSeg) - segundosAjustados(horaSeg));
-          return { r, d };
-        })
-        .filter((x) => x.d <= TOLERANCIA_HORARIO_SEG)
-        .sort((a, b) => a.d - b.d);
-      if (comDistancia.length === 1 || (comDistancia.length > 1 && comDistancia[1].d - comDistancia[0].d >= 600)) {
-        escolhido = comDistancia[0].r;
-      }
-    }
-    // cicloExato.length > 1: dois Raio-X com o mesmo ciclo pra essa
-    // operação+data — não deveria acontecer, mas não arrisca escolher.
-
-    if (!escolhido) {
-      if (mesmaDataOperacao.length > 1) ambiguos.push({ data: dataISO, operacao, ciclo, qtd: mesmaDataOperacao.length });
+    // Sem Raio-X (ainda não enviado, ou candidatos ambíguos demais pra
+    // arriscar) — tenta o rastro "ao vivo" via e-mail da planilha.
+    const analistaId = idPorEmail.get(email);
+    if (!analistaId) {
+      semAnalistaIdentificado++;
+      if (candidatosRaioX.length > 1) ambiguos.push({ data: dataISO, operacao, ciclo, qtd: candidatosRaioX.length });
       else naoEncontrados.push({ data: dataISO, operacao, ciclo });
       continue;
     }
 
-    paraAtualizar.push({
-      id: escolhido.id,
-      patch: {
-        duracaoSegundos,
-        duracaoOrigem: "planilha",
-        ciclo: ciclo || escolhido.ciclo || null,
+    const dataOperacional = dataOperacionalDoSheet(dataISO, inicioTxt);
+    const chave = `${analistaId}|${operacao}|${dataOperacional}`;
+    paraStatus.push({
+      chave,
+      existente: statusPorChave.get(chave) || null,
+      dados: {
+        analistaId,
+        operacao,
+        ciclo: ciclo || null,
+        data: dataOperacional,
         horaInicioReal: paraHoraMinuto(inicioTxt),
-        horaFimReal: paraHoraMinuto(fimTxt),
+        horaFimReal: temFim ? paraHoraMinuto(fimTxt) : null,
+        duracaoSegundos: temFim ? duracaoSegundos : null,
+        atualizadoEm: Date.now(),
       },
     });
   }
 
   const CONCORRENCIA = 20;
-  const errosAtualizacao = await executarEmParalelo(paraAtualizar, CONCORRENCIA, (item) =>
-    supabaseService.update("raioX", item.id, item.patch)
-  );
+  const [errosRaioX, errosStatus] = await Promise.all([
+    executarEmParalelo(paraAtualizarRaioX, CONCORRENCIA, (item) => supabaseService.update("raioX", item.id, item.patch)),
+    executarEmParalelo(paraStatus, CONCORRENCIA, (item) =>
+      item.existente
+        ? supabaseService.update("roteirizacaoStatus", item.existente.id, item.dados)
+        : supabaseService.create("roteirizacaoStatus", item.dados)
+    ),
+  ]);
 
   res.json({
     recebidas: linhas.length,
-    atualizados: paraAtualizar.length - errosAtualizacao.length,
+    atualizados: paraAtualizarRaioX.length - errosRaioX.length,
+    statusAoVivo: paraStatus.length - errosStatus.length,
     semDadosSuficientes,
+    semAnalistaIdentificado,
     naoEncontrados: resumir(naoEncontrados),
     ambiguos: resumir(ambiguos),
     invalidos: resumir(invalidos),
-    errosAtualizacao: resumir(errosAtualizacao),
+    errosAtualizacao: resumir(errosRaioX),
+    errosStatus: resumir(errosStatus),
   });
+}
+
+function dataDiasAtras(dias) {
+  const d = new Date();
+  d.setDate(d.getDate() - dias);
+  return d.toISOString().slice(0, 10);
 }
 
 module.exports = { importarPlanilha };
