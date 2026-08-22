@@ -63,6 +63,28 @@ function resumir(lista, limite = 20) {
   return { total: lista.length, amostra: lista.slice(0, limite) };
 }
 
+// Roda as atualizações em paralelo, um punhado de cada vez, em vez de uma
+// por uma (o gargalo real não era o tamanho do que a planilha manda, era
+// esperar cada update no Supabase terminar antes de começar o próximo —
+// centenas de linhas x uma viagem de rede cada uma vira minutos à toa).
+// Uma falha isolada não derruba as outras — fica registrada em `erros`.
+async function executarEmParalelo(itens, concorrencia, fn) {
+  const fila = [...itens];
+  const erros = [];
+  async function trabalhador() {
+    while (fila.length) {
+      const item = fila.shift();
+      try {
+        await fn(item);
+      } catch (e) {
+        erros.push({ item, mensagem: e.message });
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concorrencia, itens.length) }, trabalhador));
+  return erros;
+}
+
 // Chamado pelo Apps Script da planilha de roteirização (fora do requireAuth
 // — ver routes/index.js), não por um usuário logado no Kronos. Por isso se
 // autentica com um token fixo (PLANILHA_IMPORT_TOKEN) em vez de um Supabase
@@ -93,11 +115,11 @@ async function importarPlanilha(req, res) {
     porDataOperacao.get(chave).push(r);
   }
 
-  let atualizados = 0;
   let semDadosSuficientes = 0; // fim/início em branco (operação ainda em curso na planilha) — não é erro
   const naoEncontrados = [];
   const ambiguos = [];
   const invalidos = []; // data/horário que não bateu em nenhum formato conhecido
+  const paraAtualizar = []; // casamento é síncrono e rápido — só separa o que precisa ir pro banco
 
   for (const linha of linhas) {
     const operacao = String(linha.operacao || "").trim();
@@ -133,23 +155,31 @@ async function importarPlanilha(req, res) {
       continue;
     }
 
-    await supabaseService.update("raioX", candidatos[0].id, {
-      duracaoSegundos,
-      duracaoOrigem: "planilha",
-      ciclo: ciclo || candidatos[0].ciclo || null,
-      horaInicioReal: paraHoraMinuto(inicioTxt),
-      horaFimReal: paraHoraMinuto(fimTxt),
+    paraAtualizar.push({
+      id: candidatos[0].id,
+      patch: {
+        duracaoSegundos,
+        duracaoOrigem: "planilha",
+        ciclo: ciclo || candidatos[0].ciclo || null,
+        horaInicioReal: paraHoraMinuto(inicioTxt),
+        horaFimReal: paraHoraMinuto(fimTxt),
+      },
     });
-    atualizados++;
   }
+
+  const CONCORRENCIA = 20;
+  const errosAtualizacao = await executarEmParalelo(paraAtualizar, CONCORRENCIA, (item) =>
+    supabaseService.update("raioX", item.id, item.patch)
+  );
 
   res.json({
     recebidas: linhas.length,
-    atualizados,
+    atualizados: paraAtualizar.length - errosAtualizacao.length,
     semDadosSuficientes,
     naoEncontrados: resumir(naoEncontrados),
     ambiguos: resumir(ambiguos),
     invalidos: resumir(invalidos),
+    errosAtualizacao: resumir(errosAtualizacao),
   });
 }
 
