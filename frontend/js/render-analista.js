@@ -313,7 +313,19 @@ function renderProgramacaoIntegrada(lista, dateStr){
     // não depende de reparar na cor.
     const alertaHtml = status==='atraso' ? `<span class="pill pill-atraso prog-alerta">${icon('octagon-alert',10)} Não finalizado</span>` : '';
 
-    return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${dim?' prog-dim':''}" title="${escapeHtml(detalhe)}">
+    // Passar o mouse no card dá acesso ao texto do Raio-X (observação) sem
+    // precisar abrir Editar — hoje esse texto só aparece ali, e o card
+    // compacto da Grade não tem espaço pra mostrar de cara. Vai no "title"
+    // nativo (não um tooltip próprio): testado visualmente e um balão CSS
+    // próprio fica cortado nas primeiras linhas da grade (o scroll
+    // horizontal do container força corte vertical também — regra de
+    // overflow do CSS). O nativo não sofre disso, e quebra linha sozinho.
+    const obsTexto = rx && rx.observacao ? rx.observacao.trim() : '';
+    const resumoRaiox = obsTexto
+      ? `\n\n${'★'.repeat(Math.max(0,Math.min(5,rx.estrelas||0)))}${rx.semRoteirizacao ? ' · Sem roteirização' : rx.sprRoteirizado!=null ? ` · SPR ${rx.sprRoteirizado}` : ''}\n${obsTexto}`
+      : '';
+
+    return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${dim?' prog-dim':''}" title="${escapeHtml(detalhe+resumoRaiox)}">
       <span class="flash-sigla">${iconStatus?icon(iconStatus,11)+' ':''}${escapeHtml(it.operacao)}</span>
       <span class="prog-ciclo">${escapeHtml(it.ciclo)}</span>
       ${horarioLabel ? `<span class="prog-horario mono">${horarioLabel}</span>` : ''}
