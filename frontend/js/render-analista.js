@@ -31,9 +31,23 @@ function renderExecucaoActions(it, dateStr, analistaId, sprMeta, souEu){
   // própria planilha). Cronômetro ao vivo com base nesse horário, não num
   // clique dentro do Kronos (não existe mais).
   const emAndamento = DB.roteirizacaoStatus.find(s=>s.analistaId===analistaId && s.operacao===it.operacao && s.data===dateStr && s.horaInicioReal && !s.horaFimReal);
-  const timerHtml = emAndamento ? `<div class="timer-live" data-timer-desde="${slotTimestamp(dateStr, emAndamento.horaInicioReal)}">
+  let timerHtml = '';
+  if(emAndamento){
+    timerHtml = `<div class="timer-live" data-timer-desde="${slotTimestamp(dateStr, emAndamento.horaInicioReal)}">
       <span class="timer-dot"></span><span class="timer-num mono">00:00</span><span class="timer-tag">em andamento</span>
-    </div>` : '';
+    </div>`;
+  } else {
+    // Planilha ainda não confirmou início real — mostra o tempo decorrido
+    // desde o horário PROGRAMADO (raio-x já foi descartado acima, então só
+    // chega aqui quem ainda não finalizou), pra não deixar a pessoa "no
+    // escuro" sobre há quanto tempo a operação deveria ter começado.
+    const status = computeStatus(it.horaInicio, dateStr, analistaId, it.operacao, it.isOff);
+    if(status==='live' || status==='atraso'){
+      timerHtml = `<div class="timer-live timer-live-estimado" data-timer-desde="${slotTimestamp(dateStr, it.horaInicio)}">
+        <span class="timer-dot"></span><span class="timer-num mono">00:00</span><span class="timer-tag">desde o horário programado</span>
+      </div>`;
+    }
+  }
   const dataAttrs = `data-finalizar-op="${escapeHtml(it.operacao)}" data-hora="${it.horaInicio}" data-data="${dateStr}" data-ciclo="${escapeHtml(it.ciclo)}" data-spr-meta="${sprMeta!=null?sprMeta:''}"`;
   return `${timerHtml}<div class="flash-actions"><button class="btn btn-brand" ${dataAttrs}>${icon('send',12)} Enviar Raio-X</button></div>`;
 }
@@ -295,11 +309,26 @@ function renderProgramacaoIntegrada(lista, dateStr){
       const emAndamento = DB.roteirizacaoStatus.find(s=>s.analistaId===analistaId && s.operacao===it.operacao && s.data===dateStr && s.horaInicioReal && !s.horaFimReal);
       if(emAndamento){
         const desde = slotTimestamp(dateStr, emAndamento.horaInicioReal);
-        timerHtml = `<div class="timer-live" data-timer-desde="${desde}">
+        timerHtml = `<div class="timer-live" data-timer-desde="${desde}" title="Início real (planilha): ${emAndamento.horaInicioReal}">
+          <span class="timer-dot"></span><span class="timer-num mono">00:00</span>
+        </div>`;
+      } else if(status==='live' || status==='atraso'){
+        // Planilha ainda não confirmou nenhum início real pra essa operação —
+        // mesmo assim mostra o tempo decorrido desde o horário PROGRAMADO, pra
+        // não deixar a operação "muda" no card enquanto ninguém sabe se ela já
+        // começou de verdade. Visual mais neutro (cinza, sem pulso) que o
+        // cronômetro de início confirmado, justamente por ser uma estimativa.
+        const desde = slotTimestamp(dateStr, hour);
+        timerHtml = `<div class="timer-live timer-live-estimado" data-timer-desde="${desde}" title="Tempo desde o horário programado (${hour}) — planilha ainda não confirmou início real">
           <span class="timer-dot"></span><span class="timer-num mono">00:00</span>
         </div>`;
       }
     }
+    // Selo fixo de "não finalizado" — a borda vermelha sozinha (flash-card-
+    // atraso) estava passando despercebida no meio das cores de categoria
+    // (fixa/cobertura/folga), então além dela o card ganha uma etiqueta que
+    // não depende de reparar na cor.
+    const alertaHtml = status==='atraso' ? `<span class="pill pill-atraso prog-alerta">${icon('octagon-alert',10)} Não finalizado</span>` : '';
 
     return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${dim?' prog-dim':''}" title="${escapeHtml(detalhe)}">
       <span class="flash-sigla">${iconStatus?icon(iconStatus,11)+' ':''}${escapeHtml(it.operacao)}</span>
@@ -307,6 +336,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
       ${horarioLabel ? `<span class="prog-horario mono">${horarioLabel}</span>` : ''}
       ${tempoLabel ? `<span class="prog-horario mono"${tempoCor?` style="color:${tempoCor};"`:''}>${tempoLabel}</span>` : ''}
       ${timerHtml}
+      ${alertaHtml}
     </div>`;
   };
 
