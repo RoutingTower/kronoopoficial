@@ -78,6 +78,25 @@ syncThemeSwitches();
 
 initLogin();
 
+// Contagem regressiva do card de login pro dia da campanha (ver
+// .login-countdown, style.css) — atualiza sozinha, sem depender de sessão
+// (roda mesmo com ninguém logado, é a tela de login). Trocar a cada nova
+// campanha (8.8, 9.9, 10.10...) é só mudar essa data.
+const DATA_EVENTO_CAMPANHA = new Date('2026-09-09T00:00:00');
+function atualizarContagemEvento(){
+  const el = document.getElementById('loginCountdownNum');
+  if(!el) return;
+  const diff = DATA_EVENTO_CAMPANHA.getTime() - Date.now();
+  if(diff<=0){ el.textContent = 'chegou!'; return; }
+  const dias = Math.floor(diff/86400000);
+  const horas = Math.floor((diff%86400000)/3600000);
+  const min = Math.floor((diff%3600000)/60000);
+  const seg = Math.floor((diff%60000)/1000);
+  el.textContent = `${dias}d ${String(horas).padStart(2,'0')}:${String(min).padStart(2,'0')}:${String(seg).padStart(2,'0')}`;
+}
+atualizarContagemEvento();
+setInterval(atualizarContagemEvento, 1000);
+
 // Fonte da verdade da sessão: dispara tanto após um login manual
 // (KronoAuth.signIn em ui.js) quanto ao recarregar a página com uma sessão
 // já persistida — os dois casos convergem aqui.
