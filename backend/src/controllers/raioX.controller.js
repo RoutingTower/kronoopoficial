@@ -76,6 +76,23 @@ async function createRaioX(req, res) {
     sprMetaFinal = sprMeta === undefined || sprMeta === null || sprMeta === "" ? null : Number(sprMeta);
   }
 
+  // Evita duplicar quando o analista reenvia o mesmo Raio-X (ex.: achou que
+  // não tinha ido da primeira vez e clicou de novo minutos depois) — cada
+  // duplicata some com a visibilidade da Grade/Programação, porque o front
+  // acha só UM registro por analista+operação+hora+data e não sabe qual dos
+  // vários escolher (visto em produção: Hub_SP_Piracicaba chegou a ter 7
+  // linhas pro mesmo horário). Se já existe, devolve o existente em vez de
+  // criar outro.
+  const existentes = await supabaseService.listWhere(COLLECTION, [
+    ["analistaId", "==", analistaId],
+    ["operacao", "==", operacao],
+    ["hora", "==", hora],
+    ["data", "==", data],
+  ]);
+  if (existentes.length > 0) {
+    return res.status(200).json(existentes[0]);
+  }
+
   const entry = await supabaseService.create(COLLECTION, {
     analistaId,
     operacao,

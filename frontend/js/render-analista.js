@@ -6,7 +6,7 @@
 //    não tem mais cronômetro Iniciar/Finalizar dentro do Kronos);
 // 2) ainda não — botão pra enviar o Raio-X (estrelas, observação, SPR).
 function renderExecucaoActions(it, dateStr, analistaId, sprMeta, souEu){
-  const raiox = DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===it.horaInicio && r.data===dateStr);
+  const raiox = encontrarRaioX(analistaId, it.operacao, it.horaInicio, dateStr);
   if(raiox){
     // Início/fim reais vêm da planilha de roteirização (hora_inicio_real/
     // hora_fim_real) — registro anterior a essa importação não tem, aí
@@ -287,7 +287,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
     // ausente na tabela, cicloDaOperacaoHistorico em utils.js), então o
     // cruzamento com o Raio-X é só por analista+operação+hora+data (sem
     // ciclo, que aqui sempre viria vazio e nunca bateria).
-    const rx = DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===hour && r.data===dateStr);
+    const rx = encontrarRaioX(analistaId, it.operacao, hour, dateStr);
     // Horário e duração em linhas separadas (não um texto só) — combinados
     // não cabiam na largura do card e estouravam pra fora (ex.: "22:32–
     // 23:59 · 1h18min" é comprido demais pra uma coluna de ~96px).

@@ -125,6 +125,19 @@ function isOperacaoFinalizada(analistaId, operacao, hora, dataStr){
   return DB.raioX.some(r=>r.analistaId===analistaId && r.operacao===operacao && r.hora===hora && r.data===dataStr);
 }
 
+// Acha o Raio-X de um analista+operação+hora+data — igual um .find(), mas
+// blindado contra duplicata (o mesmo analista reenviando o mesmo Raio-X cria
+// mais de um registro pro mesmo slot; visto em produção, ex.:
+// Hub_SP_Piracicaba chegou a ter 7 linhas pro mesmo horário, a maioria sem a
+// duração da planilha). Entre vários, prefere o que já tem
+// duracaoSegundos preenchido — sem isso, um .find() comum podia pegar
+// qualquer um dos vazios e a tela ficava muda mesmo com o dado existindo.
+function encontrarRaioX(analistaId, operacao, hora, dataStr){
+  const candidatos = DB.raioX.filter(r=>r.analistaId===analistaId && r.operacao===operacao && r.hora===hora && r.data===dataStr);
+  if(candidatos.length<=1) return candidatos[0];
+  return candidatos.find(r=>r.duracaoSegundos!=null) || candidatos[0];
+}
+
 // Timestamp real de um slot (dataStr+hora): turnos rodam ~19h–07h, então
 // horas de madrugada (00h–06h, ver hourSortValue) marcadas num dataStr na
 // verdade acontecem no dia SEGUINTE em relógio de verdade (dataStr é o dia
