@@ -302,49 +302,11 @@ function bindMainEvents(){
     });
   });
 
-  // Tempo de Execução: "Iniciar" grava o cronômetro no servidor — idempotente
-  // (ver createExecucaoInicio, backend), então um duplo-clique não reseta o
-  // relógio. Botão só existe no próprio card (souEuExec, render-analista.js).
-  main.querySelectorAll('[data-iniciar-op]').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      const operacao = btn.dataset.iniciarOp, hora = btn.dataset.hora, data = btn.dataset.data;
-      const ciclo = btn.dataset.ciclo || '';
-      btn.disabled = true;
-      try{
-        const novo = await apiIniciarExecucao({ analistaId: session.userId, operacao, ciclo, hora, data });
-        if(!DB.execucaoInicio.some(e=>e.id===novo.id)) DB.execucaoInicio.push(novo);
-        renderMain();
-      }catch(e){ alert('Não foi possível iniciar: '+e.message); btn.disabled = false; }
-    });
-  });
-
-  // Supervisor libera preenchimento manual (Grade do Dia) pra quem esqueceu
-  // de clicar Iniciar dentro da janela — ver liberarManual, backend.
-  main.querySelectorAll('[data-liberar-manual]').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      const analistaId = btn.dataset.analistaId, operacao = btn.dataset.op, hora = btn.dataset.hora, data = btn.dataset.data;
-      const ciclo = btn.dataset.ciclo || '';
-      if(!confirm(`Liberar preenchimento manual do horário/tempo pra essa operação? A pessoa vai poder digitar início e fim ao finalizar.`)) return;
-      btn.disabled = true;
-      try{
-        const novo = await apiLiberarExecucaoManual({ analistaId, operacao, ciclo, hora, data });
-        const idx = DB.execucaoInicio.findIndex(e=>e.id===novo.id);
-        if(idx>=0) DB.execucaoInicio[idx] = novo; else DB.execucaoInicio.push(novo);
-        renderMain();
-      }catch(e){ alert('Não foi possível liberar: '+e.message); btn.disabled = false; }
-    });
-  });
-
   main.querySelectorAll('[data-finalizar-op]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      // Marca o fim do cronômetro AGORA (clique em "Finalizar operação"),
-      // não só quando o Raio-X é enviado — preencher a observação pode
-      // levar minutos e isso não pode contar contra o SLA da operação.
-      const finalizadoEm = Date.now();
       const op = btn.dataset.finalizarOp, hora = btn.dataset.hora, data = btn.dataset.data || uiState.analistaDate;
       const ciclo = btn.dataset.ciclo || '';
       const sprMeta = btn.dataset.sprMeta!=='' ? Number(btn.dataset.sprMeta) : null;
-      const manual = btn.dataset.manual === '1';
       let estrelas = 0;
       // Só fecha pelo "Cancelar" ou enviando de verdade — texto de
       // observação (mínimo 150 caracteres) é fácil de perder num clique
@@ -352,13 +314,8 @@ function bindMainEvents(){
       // modalLocked, ver ui.js/main.js).
       modalLocked = true;
       openModal(`
-        <h3>Finalizar operação — ${op} (${hora})</h3>
-        <div class="help-text">Este é o Raio-X da operação: avalie com estrelas, informe o SPR lançado e descreva o que aconteceu. A observação precisa de no mínimo ${RAIOX_MIN_OBS_LEN} caracteres para fechar — tudo isso é obrigatório para finalizar, a não ser que marque "Sem roteirização" abaixo.</div>
-        ${manual ? `<div class="help-text" style="color:var(--folga);">🔓 Liberado pelo supervisor pra preenchimento manual — informe o horário real de início e fim.</div>
-        <div class="grid-2">
-          <div class="field"><label>Início</label><input type="time" id="raioxInicioManual"></div>
-          <div class="field"><label>Fim</label><input type="time" id="raioxFimManual"></div>
-        </div>` : ''}
+        <h3>Enviar Raio-X — ${op} (${hora})</h3>
+        <div class="help-text">Avalie com estrelas, informe o SPR lançado e descreva o que aconteceu. A observação precisa de no mínimo ${RAIOX_MIN_OBS_LEN} caracteres para fechar — tudo isso é obrigatório, a não ser que marque "Sem roteirização" abaixo. O tempo de execução vem da planilha de roteirização, não precisa informar aqui.</div>
         <div class="field">
           <label>Avaliação</label>
           <div id="raioxStars" class="star-picker" style="display:flex;gap:6px;font-size:28px;line-height:1;">
@@ -379,7 +336,7 @@ function bindMainEvents(){
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
           <button class="btn" data-modal-cancel>Cancelar</button>
-          <button class="btn btn-brand" id="confirmFinalizar" disabled>Fechar finalização</button>
+          <button class="btn btn-brand" id="confirmFinalizar" disabled>Enviar Raio-X</button>
         </div>`);
       const cancelBtn = document.querySelector('[data-modal-cancel]');
       if(cancelBtn) cancelBtn.onclick = closeModal;
@@ -389,11 +346,6 @@ function bindMainEvents(){
       const sprRealEl = document.getElementById('raioxSprReal');
       const counterEl = document.getElementById('raioxCounter');
       const confirmBtn = document.getElementById('confirmFinalizar');
-      const inicioManualEl = document.getElementById('raioxInicioManual');
-      const fimManualEl = document.getElementById('raioxFimManual');
-      function manualValido(){
-        return !manual || (inicioManualEl.value!=='' && fimManualEl.value!=='');
-      }
       function updateState(){
         const semRot = semRotEl.checked;
         sprRealEl.disabled = semRot;
@@ -402,12 +354,12 @@ function bindMainEvents(){
         if(semRot){
           counterEl.textContent = 'Observação opcional (sem roteirização nesse horário)';
           counterEl.style.color = 'var(--text-faint)';
-          confirmBtn.disabled = !(estrelas>=1 && manualValido());
+          confirmBtn.disabled = !(estrelas>=1);
         } else {
           counterEl.textContent = `${len} / ${RAIOX_MIN_OBS_LEN} caracteres mínimos`;
           counterEl.style.color = len>=RAIOX_MIN_OBS_LEN ? 'var(--done)' : 'var(--text-faint)';
           const sprValido = sprRealEl.value.trim()!=='' && !Number.isNaN(Number(sprRealEl.value));
-          confirmBtn.disabled = !(estrelas>=1 && len>=RAIOX_MIN_OBS_LEN && sprValido && manualValido());
+          confirmBtn.disabled = !(estrelas>=1 && len>=RAIOX_MIN_OBS_LEN && sprValido);
         }
       }
       starsEl.querySelectorAll('[data-star]').forEach(s=>{
@@ -424,22 +376,20 @@ function bindMainEvents(){
       semRotEl.addEventListener('change', updateState);
       obsEl.addEventListener('input', updateState);
       sprRealEl.addEventListener('input', updateState);
-      if(manual){ inicioManualEl.addEventListener('input', updateState); fimManualEl.addEventListener('input', updateState); }
       confirmBtn.onclick = async ()=>{
         const semRot = semRotEl.checked;
         const observacao = obsEl.value.trim();
         const sprReal = Number(sprRealEl.value);
-        if(estrelas<1 || !manualValido()) return;
+        if(estrelas<1) return;
         if(!semRot && (observacao.length<RAIOX_MIN_OBS_LEN || sprRealEl.value.trim()==='' || Number.isNaN(sprReal))) return;
         const entrada = {analistaId:session.userId, operacao:op, hora, data, estrelas, observacao,
-          sprRoteirizado: semRot ? 0 : sprReal, sprMeta: semRot ? null : sprMeta, ciclo, semRoteirizacao:semRot, finalizadoEm};
-        if(manual) entrada.duracaoSegundos = calcularDuracaoManual(inicioManualEl.value, fimManualEl.value);
+          sprRoteirizado: semRot ? 0 : sprReal, sprMeta: semRot ? null : sprMeta, ciclo, semRoteirizacao:semRot};
         confirmBtn.disabled = true;
         try{
           const novo = await apiCreateRaioX(entrada);
           DB.raioX.push(novo);
           closeModal(); renderMain();
-        }catch(e){ alert('Não foi possível finalizar: '+e.message); confirmBtn.disabled = false; }
+        }catch(e){ alert('Não foi possível enviar: '+e.message); confirmBtn.disabled = false; }
       };
     });
   });

@@ -1,14 +1,10 @@
 /* Telas do papel Analista: programação, caixa de entrada e lembretes. */
 
-// Tempo de Execução — área de ação do flashcard, com 5 estados possíveis:
-// 1) já finalizado (raio-x existe) — mostra o resumo, com a duração;
-// 2) cronômetro rodando (clicou Iniciar) — timer ao vivo + Finalizar;
-// 3) liberado manual pelo supervisor (esqueceu de iniciar) — Finalizar pede
-//    início/fim digitados;
-// 4) janela de Iniciar fechada (passou 1h do horário, nunca iniciou) —
-//    trava, pede pra contatar o supervisor;
-// 5) dentro da janela (de 1h antes até 1h depois do horário), sem nada
-//    ainda — botão Iniciar.
+// Tempo de Execução — área de ação do flashcard, com 2 estados possíveis:
+// 1) já finalizado (raio-x existe) — mostra o resumo, com a duração (vem da
+//    planilha de roteirização importada, ver planilhaImport.controller.js —
+//    não tem mais cronômetro Iniciar/Finalizar dentro do Kronos);
+// 2) ainda não — botão pra enviar o Raio-X (estrelas, observação, SPR).
 function renderExecucaoActions(it, dateStr, analistaId, sprMeta, souEu){
   const raiox = DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===it.horaInicio && r.data===dateStr);
   if(raiox){
@@ -24,23 +20,9 @@ function renderExecucaoActions(it, dateStr, analistaId, sprMeta, souEu){
       </div>` : '';
     return `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}${raiox.semRoteirizacao ? ' · Sem roteirização' : raiox.sprRoteirizado!=null ? ` · SPR lançado ${escapeHtml(String(raiox.sprRoteirizado))}` : ''}${duracaoHtml}</div>${acoesSupervisor}`;
   }
-  if(!souEu) return ''; // sem raio-x ainda: Iniciar/Finalizar/travado só fazem sentido pra quem executa
+  if(!souEu) return ''; // sem raio-x ainda: enviar só faz sentido pra quem executa
   const dataAttrs = `data-finalizar-op="${escapeHtml(it.operacao)}" data-hora="${it.horaInicio}" data-data="${dateStr}" data-ciclo="${escapeHtml(it.ciclo)}" data-spr-meta="${sprMeta!=null?sprMeta:''}"`;
-  const exec = execucaoInicioPara(analistaId, it.operacao, it.ciclo, it.horaInicio, dateStr);
-  if(exec && exec.iniciadoEm!=null){
-    return `<div class="timer-live" data-timer-desde="${exec.iniciadoEm}">
-        <span class="timer-dot"></span><span class="timer-num mono">00:00</span><span class="timer-tag">em andamento</span>
-      </div>
-      <div class="flash-actions"><button class="btn btn-brand" ${dataAttrs}>${icon('square',12)} Finalizar operação</button></div>`;
-  }
-  if(exec && exec.liberadoManual){
-    return `<div class="flash-meta" style="color:var(--folga);font-weight:600;">${icon('unlock',12)} Liberado pelo supervisor — informe início e fim ao finalizar</div>
-      <div class="flash-actions"><button class="btn btn-brand" ${dataAttrs} data-manual="1">${icon('square',12)} Finalizar operação</button></div>`;
-  }
-  if(janelaIniciarFechada(dateStr, it.horaInicio)){
-    return `<div class="flash-meta" style="color:var(--alert);font-weight:600;">${icon('lock',12)} Não iniciado — contate seu supervisor pra liberar o preenchimento</div>`;
-  }
-  return `<div class="flash-actions"><button class="btn btn-brand" data-iniciar-op="${escapeHtml(it.operacao)}" data-hora="${it.horaInicio}" data-data="${dateStr}" data-ciclo="${escapeHtml(it.ciclo)}">${icon('play',12)} Iniciar operação</button></div>`;
+  return `<div class="flash-actions"><button class="btn btn-brand" ${dataAttrs}>${icon('send',12)} Enviar Raio-X</button></div>`;
 }
 
 // showLembretes só é true na própria Programação do analista (renderAnalista) —
@@ -64,18 +46,15 @@ function buildHourCardsHtml(items, rns, lembretes, ctx){
       // está olhando (ex.: supervisor na Programação Analista), mas só quem
       // está cobrindo consegue de fato confirmar (ver events.js).
       const ciente = it.isCobertura && DB.particularidadeCiente.some(c=>c.analistaId===analistaId && c.operacao===it.operacao && c.data===dateStr);
-      // Tempo de Execução (Iniciar/Finalizar) só é meu de verdade — a
-      // "Programação Analista" do supervisor reusa esta função pra ver a
-      // rota de qualquer analista, e ninguém aciona cronômetro alheio.
-      // podeIniciarOperacao (não status!=='wait') controla a janela: libera
-      // 1h antes do horário, então precisa aparecer mesmo com o slot ainda
-      // "A Iniciar" pela contagem normal. Supervisor vendo a operação de
-      // outra pessoa (souEuExec=false) não vê Iniciar/Finalizar, mas o
-      // resumo do Raio-X já finalizado aparece pra ele o tempo todo (sem
-      // janela), com Editar/Excluir — quem chega aqui já é da própria
-      // equipe (supProgramacao escopa por myAnalistas).
+      // Enviar Raio-X só é meu de verdade — a "Programação Analista" do
+      // supervisor reusa esta função pra ver a rota de qualquer analista, e
+      // ninguém envia Raio-X alheio. Supervisor vendo a operação de outra
+      // pessoa (souEuExec=false) não vê o botão de enviar, mas o resumo do
+      // Raio-X já enviado aparece pra ele o tempo todo, com Editar/Excluir —
+      // quem chega aqui já é da própria equipe (supProgramacao escopa por
+      // myAnalistas).
       const souEu = !it.isOff && analistaId===session?.userId;
-      const souEuExec = souEu && podeIniciarOperacao(dateStr, it.horaInicio);
+      const souEuExec = souEu;
       const raioxDaOperacao = !it.isOff && DB.raioX.some(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===it.horaInicio && r.data===dateStr);
       const mostrarExec = souEuExec || (!souEu && session.role==='supervisor' && raioxDaOperacao);
       return `<div class="flash-card flash-card-${categoriaOperacao(it)}${status==='atraso'?' flash-card-atraso':''}">
@@ -256,49 +235,38 @@ function renderProgramacaoIntegrada(lista, dateStr){
     linhas.push({ analista:a, slots });
   });
 
-  const statusLabels = { wait:['pill-wait','clock','A Iniciar'], live:['pill-live','circle-play','Em Andamento'], naoiniciado:['pill-naoiniciado','clock-alert','Não Iniciado'], done:['pill-done','circle-check-big','Finalizada'], atraso:['pill-atraso','octagon-alert','Não Finalizado'] };
+  const statusLabels = { wait:['pill-wait','clock','A Iniciar'], live:['pill-live','circle-play','Em Andamento'], done:['pill-done','circle-check-big','Finalizada'], atraso:['pill-atraso','octagon-alert','Não Finalizado'] };
   const filtro = uiState.progStatusFiltro;
 
   // Card minimalista de propósito: só hub + ciclo, pra grade ficar limpa e
   // alinhada com muitos analistas na tela — hora da janela/SPR REF/cobertura
   // ainda dá pra ver passando o mouse (title), particularidade e reunião
   // saíram daqui (quem quiser isso entra na Programação individual do
-  // analista). Status cruza o horário com o cronômetro (statusComExecucao,
-  // utils.js) — "Em Andamento" sem ninguém ter clicado Iniciar vira "Não
-  // Iniciado".
+  // analista). Status é só pelo relógio (computeStatus, utils.js) — não
+  // tem mais cronômetro Iniciar/Finalizar dentro do Kronos.
   //
-  // Tempo de execução real (Iniciar→Finalizar), não o horário da janela
-  // agendada (esse já dá pra ver na própria grade/hora da coluna): cruza
-  // execucaoInicio (hora que clicou Iniciar) com o duracaoSegundos do
-  // Raio-X (calculado a partir do clique em Finalizar, ver raioX.controller.js).
-  // Preenchimento manual liberado pelo supervisor não tem iniciadoEm real
-  // (a pessoa nunca clicou Iniciar) — nesse caso só mostra a duração.
-  const horaDe = ts => new Date(ts).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  // Tempo de execução: vem do duracaoSegundos do Raio-X, preenchido pela
+  // planilha de roteirização importada (ver planilhaImport.controller.js),
+  // não mais por um cronômetro clicado dentro do Kronos.
   const cardHtml = (it, hour, analistaId)=>{
-    const status = statusComExecucao(hour, dateStr, analistaId, it.operacao, it.ciclo, it.isOff);
+    const status = computeStatus(hour, dateStr, analistaId, it.operacao, it.isOff);
     const dim = filtro && filtro!==status;
     const [,iconStatus,labelStatus] = statusLabels[status] || [];
     const detalhe = `${it.operacao} — ${it.ciclo} · ${it.horaInicio}–${it.horaFim}${labelStatus ? ` · ${labelStatus}` : ''}` +
       (it.isCobertura ? ` · Cobrindo ${it.responsavelNome}` : it.isOff ? ` · Coberto por ${it.responsavelNome}` : '');
-    const borda = status==='atraso' ? ' flash-card-atraso' : status==='naoiniciado' ? ' flash-card-naoiniciado' : '';
+    const borda = status==='atraso' ? ' flash-card-atraso' : '';
 
     // raio_x não grava ciclo (bug de longa data no backend — ver ciclo
     // ausente na tabela, cicloDaOperacaoHistorico em utils.js), então o
     // cruzamento com o Raio-X é só por analista+operação+hora+data (sem
     // ciclo, que aqui sempre viria vazio e nunca bateria).
-    const exec = DB.execucaoInicio.find(e=>e.analistaId===analistaId && e.operacao===it.operacao && (e.ciclo||'')===(it.ciclo||'') && e.hora===hour && e.data===dateStr);
     const rx = DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===hour && r.data===dateStr);
     let tempoLabel = '', tempoCor = '';
     if(rx && rx.duracaoSegundos!=null && !rx.semRoteirizacao){
-      const dur = formatarDuracaoCompacta(rx.duracaoSegundos);
-      tempoLabel = (exec && exec.iniciadoEm!=null)
-        ? `${horaDe(exec.iniciadoEm)}–${horaDe(exec.iniciadoEm+rx.duracaoSegundos*1000)} · ${dur}`
-        : dur;
+      tempoLabel = formatarDuracaoCompacta(rx.duracaoSegundos);
       // Até 30min verde, 31-60min amarelo, acima de 1h vermelho — mesmo
       // esquema de cor do resto do app (var(--done)/--folga/--alert).
       tempoCor = rx.duracaoSegundos<=1800 ? 'var(--done)' : rx.duracaoSegundos<=3600 ? 'var(--folga)' : 'var(--alert)';
-    } else if(exec && exec.iniciadoEm!=null){
-      tempoLabel = `${horaDe(exec.iniciadoEm)}–`;
     }
 
     return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${dim?' prog-dim':''}" title="${escapeHtml(detalhe)}">

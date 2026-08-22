@@ -142,27 +142,10 @@ function slotTimestamp(dataStr, hora){
   return d.getTime();
 }
 
-// Tempo de Execução: cronômetro de "Iniciar"/"Finalizar" por operação, com
-// SLA fixo de 1h de relógio pra toda operação (ver execucaoInicio.controller.js
-// e raioX.controller.js, backend).
-const SLA_TEMPO_EXECUCAO_SEGUNDOS = 3600;
-
-function execucaoInicioPara(analistaId, operacao, ciclo, hora, dataStr){
-  return DB.execucaoInicio.find(e=> e.analistaId===analistaId && e.operacao===operacao && (e.ciclo||'')===(ciclo||'') && e.hora===hora && e.data===dataStr);
-}
-
-// "Iniciar" libera 1h antes do horário do slot (tem gente que já começa
-// adiantado) — passada 1h DO HORÁRIO sem nunca ter clicado, a janela fecha
-// e passa a exigir liberação manual do supervisor (ver janelaIniciarFechada).
-function podeIniciarOperacao(dataStr, hora){
-  return Date.now() >= slotTimestamp(dataStr, hora) - 60*60*1000;
-}
-function janelaIniciarFechada(dataStr, hora){
-  return Date.now() >= slotTimestamp(dataStr, hora) + 60*60*1000;
-}
-// Preenchimento manual (liberado pelo supervisor): dois horários HH:MM do
-// mesmo jeito que o turno normal — se "fim" for menor ou igual a "início",
-// assume que virou a madrugada (mesma lógica de slotTimestamp).
+// Duração entre dois horários "HH:MM" — se "fim" for menor ou igual a
+// "início", assume que virou a madrugada (mesma lógica de slotTimestamp).
+// Usado por hubsParaData (Gerar Escala de Fim de Semana) pra saber o
+// tamanho da janela de cada hub.
 function calcularDuracaoManual(horaInicioStr, horaFimStr){
   const [hi,mi] = horaInicioStr.split(':').map(Number);
   const [hf,mf] = horaFimStr.split(':').map(Number);
@@ -170,6 +153,13 @@ function calcularDuracaoManual(horaInicioStr, horaFimStr){
   if(fimMin <= iniMin) fimMin += 24*60;
   return (fimMin-iniMin)*60;
 }
+
+// Tempo de Execução: SLA fixo de 1h de relógio pra toda operação. A duração
+// real vem da planilha de roteirização importada pelo backend (ver
+// planilhaImport.controller.js) — não é mais medida por um cronômetro
+// Iniciar/Finalizar dentro do Kronos.
+const SLA_TEMPO_EXECUCAO_SEGUNDOS = 3600;
+
 function formatarDuracao(totalSegundos){
   const h = Math.floor(totalSegundos/3600), m = Math.floor((totalSegundos%3600)/60), s = totalSegundos%60;
   if(h>0) return `${h}h ${m}min`;
@@ -195,34 +185,6 @@ function computeStatus(hora, dataStr, analistaId, operacao, isOff){
   return atrasada();
 }
 
-// Cruza o status por horário (computeStatus, só relógio) com o cronômetro
-// de Tempo de Execução — dois ajustes em cima do relógio puro:
-// 1) "Em Andamento" pelo relógio mas sem ninguém ter clicado Iniciar (nem
-//    liberação manual do supervisor) vira um status à parte —
-//    "naoiniciado" — separa quem está atrasado pra COMEÇAR de quem só está
-//    com o horário rolando normalmente, já com o cronômetro andando.
-// 2) "A Iniciar" pelo relógio (ainda não chegou a hora do slot) mas que já
-//    clicou Iniciar — Iniciar libera 1h antes do horário oficial (ver
-//    podeIniciarOperacao) — também já é "Em Andamento" de verdade, não faz
-//    sentido mostrar "A Iniciar" pra quem já está trabalhando.
-// Não muda computeStatus em si (ele segue usado como sempre onde só o
-// relógio importa) — é um enriquecimento, só pra exibição em telas do
-// supervisor.
-function statusComExecucao(hora, dataStr, analistaId, operacao, ciclo, isOff){
-  const status = computeStatus(hora, dataStr, analistaId, operacao, isOff);
-  if(isOff) return status;
-  if(status==='wait'){
-    const exec = execucaoInicioPara(analistaId, operacao, ciclo, hora, dataStr);
-    return (exec && exec.iniciadoEm!=null) ? 'live' : status;
-  }
-  if(status==='live'){
-    const exec = execucaoInicioPara(analistaId, operacao, ciclo, hora, dataStr);
-    if(exec && (exec.iniciadoEm!=null || exec.liberadoManual)) return status;
-    return 'naoiniciado';
-  }
-  return status;
-}
-
 // emojiOnly: usado na escala em cards (flashcards) do analista pra deixar o
 // visual mais limpo — o emoji já carrega o significado, e o texto completo
 // ainda fica disponível no title (tooltip). Tabelas administrativas (Grade
@@ -238,7 +200,7 @@ function getSPR(supervisorId, operacao, ciclo){
 }
 
 function statusPill(status, emojiOnly){
-  const map = { wait:['pill-wait','clock','A Iniciar'], live:['pill-live','circle-play','Em Andamento'], done:['pill-done','circle-check-big','Finalizada'], off:['pill-off','moon','Ausente'], atraso:['pill-atraso','octagon-alert','Não Finalizado'], naoiniciado:['pill-naoiniciado','clock-alert','Não Iniciado'] };
+  const map = { wait:['pill-wait','clock','A Iniciar'], live:['pill-live','circle-play','Em Andamento'], done:['pill-done','circle-check-big','Finalizada'], off:['pill-off','moon','Ausente'], atraso:['pill-atraso','octagon-alert','Não Finalizado'] };
   const [cls,ic,text] = map[status] || map.wait;
   if(emojiOnly) return `<span class="pill pill-emoji ${cls}" title="${text}">${icon(ic,12)}</span>`;
   return `<span class="pill ${cls}">${icon(ic,12)} ${text}</span>`;

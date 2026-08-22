@@ -34,7 +34,7 @@ async function listRaioX(req, res) {
 // Finalização é sempre auto-declarada pelo próprio analista (ver
 // frontend/js/events.js) — ninguém finaliza operação de outra pessoa.
 async function createRaioX(req, res) {
-  const { analistaId, operacao, ciclo, hora, data, estrelas, observacao, sprRoteirizado, sprMeta, semRoteirizacao, duracaoSegundos, finalizadoEm } = req.body;
+  const { analistaId, operacao, ciclo, hora, data, estrelas, observacao, sprRoteirizado, sprMeta, semRoteirizacao } = req.body;
   if (!analistaId || !operacao || !hora || !data) {
     return res.status(400).json({
       error: "bad_request",
@@ -48,49 +48,6 @@ async function createRaioX(req, res) {
   const nota = Number(estrelas);
   if (!Number.isInteger(nota) || nota < 1 || nota > 5) {
     return res.status(400).json({ error: "bad_request", message: "estrelas deve ser um inteiro de 1 a 5" });
-  }
-
-  // Tempo de Execução: finalizar exige um "Iniciar" registrado (cronômetro,
-  // ver execucaoInicio.controller.js) ou uma duração explícita — só aceita
-  // se o supervisor tiver liberado o preenchimento manual pra esse slot
-  // (senão qualquer um poderia inventar uma duração no corpo da requisição).
-  // Não vale pra "sem roteirização" (não teve operação pra cronometrar) nem
-  // pra admin (correção direta, fora do fluxo normal).
-  let duracaoFinal = null, duracaoOrigemFinal = null;
-  if (!semRoteirizacao && !caller?.isAdmin) {
-    const existentes = await supabaseService.listWhere("execucaoInicio", [["analistaId", "==", analistaId], ["data", "==", data]]);
-    const doSlot = (r) => r.operacao === operacao && (r.ciclo || "") === (ciclo || "") && r.hora === hora;
-    if (duracaoSegundos != null) {
-      const liberado = existentes.find((r) => doSlot(r) && r.liberadoManual === true);
-      if (!liberado) {
-        return res.status(403).json({ error: "forbidden", message: "Preenchimento manual não foi liberado pelo supervisor para essa operação." });
-      }
-      const val = Number(duracaoSegundos);
-      if (!Number.isFinite(val) || val < 0) {
-        return res.status(400).json({ error: "bad_request", message: "duracaoSegundos inválido" });
-      }
-      duracaoFinal = Math.round(val);
-      duracaoOrigemFinal = "manual";
-    } else {
-      const inicio = existentes.find((r) => doSlot(r) && r.iniciadoEm != null);
-      if (!inicio) {
-        return res.status(400).json({
-          error: "bad_request",
-          message: 'É preciso clicar em "Iniciar operação" antes de finalizar (ou pedir liberação manual ao supervisor).',
-        });
-      }
-      // O relógio pra pra assim que o analista clica em "Finalizar operação"
-      // (finalizadoEm, capturado no frontend antes de abrir o modal do
-      // Raio-X) — sem isso, o tempo de preencher a observação (que pode
-      // levar minutos) contava contra o SLA da operação. Só usa o valor do
-      // cliente se ele fizer sentido (depois do início, não no futuro);
-      // caso contrário cai de volta pro comportamento antigo.
-      const clique = Number(finalizadoEm);
-      const agora = Date.now();
-      const fimEfetivo = Number.isFinite(clique) && clique >= inicio.iniciadoEm && clique <= agora ? clique : agora;
-      duracaoFinal = Math.round((fimEfetivo - inicio.iniciadoEm) / 1000);
-      duracaoOrigemFinal = "cronometro";
-    }
   }
 
   // Ciclo sem roteirização nesse horário: SPR e observação deixam de ser
@@ -130,8 +87,10 @@ async function createRaioX(req, res) {
     sprRoteirizado: sprRealFinal,
     sprMeta: sprMetaFinal,
     semRoteirizacao: !!semRoteirizacao,
-    duracaoSegundos: duracaoFinal,
-    duracaoOrigem: duracaoOrigemFinal,
+    // Preenchido depois pela planilha de roteirização importada (ver
+    // planilhaImport.controller.js, que casa por data+operação+ciclo).
+    duracaoSegundos: null,
+    duracaoOrigem: null,
     ts: Date.now(),
   });
   res.status(201).json(entry);
@@ -141,9 +100,9 @@ async function createRaioX(req, res) {
 // fato — diferente de createRaioX (auto-declarado pelo próprio analista no
 // momento em que fecha a operação), esse update é uma correção feita pelo
 // supervisor da equipe (ou admin), não pelo analista. Não mexe em
-// duracaoSegundos/duracaoOrigem (Tempo de Execução) de propósito — a
-// duração vem do cronômetro/preenchimento manual liberado, corrigir isso
-// aqui abriria brecha pra mascarar o indicador.
+// duracaoSegundos/duracaoOrigem (Tempo de Execução) de propósito — quem
+// corrige isso é a planilha de roteirização importada (planilhaImport.
+// controller.js), não a edição manual do Raio-X.
 async function assertSupervisorDaEquipe(req, existing) {
   const [caller, supervisorId] = await Promise.all([getCaller(req), supervisorIdDoAnalista(existing.analistaId)]);
   if (!caller) return null;

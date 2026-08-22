@@ -153,20 +153,6 @@ setInterval(async ()=>{
   }
 }, 10*60*1000);
 
-// Cronômetro ao vivo do card de operação (Tempo de Execução, ver
-// render-analista.js) — só atualiza o texto do timer a cada segundo, sem
-// re-renderizar a tela inteira (o que fecharia modais/menus abertos à toa).
-setInterval(()=>{
-  document.querySelectorAll('[data-timer-desde]').forEach(el=>{
-    const desde = Number(el.dataset.timerDesde);
-    if(!desde) return;
-    const totalSeg = Math.max(0, Math.floor((Date.now()-desde)/1000));
-    const h = Math.floor(totalSeg/3600), m = Math.floor((totalSeg%3600)/60), s = totalSeg%60;
-    const numEl = el.querySelector('.timer-num');
-    if(numEl) numEl.textContent = h>0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-  });
-}, 1000);
-
 // Linha "agora" da Programação Diária (ver renderFlashcardRow, render-
 // analista.js) — mesmo problema do cronômetro acima: sem isso, a bolinha
 // fica parada na posição de quando a tela renderizou pela última vez,

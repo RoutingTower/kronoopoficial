@@ -499,7 +499,7 @@ function supGrade(myAnalistas){
   ids.forEach(id=>{
     const slots = getDaySlots(id, dateStr);
     slots.forEach(s=>{
-      const status = statusComExecucao(s.horaInicio, dateStr, id, s.operacao, s.ciclo, s.isOff);
+      const status = computeStatus(s.horaInicio, dateStr, id, s.operacao, s.isOff);
       rows.push({chave:s.id, analistaId:id, analista:userById(id).name, op:s.operacao, ciclo:s.ciclo||'', hora:s.horaInicio, horaFim:s.horaFim, nome:s.responsavelNome, isCobertura:!!s.isCobertura, status});
     });
   });
@@ -520,7 +520,7 @@ function supGrade(myAnalistas){
     (f.nome==='all' || r.nome===f.nome) &&
     (f.status==='all' || r.status===f.status)
   );
-  const statusLabels = {wait:'A Iniciar', live:'Em Andamento', naoiniciado:'Não Iniciado', done:'Finalizada', atraso:'Não Finalizado'};
+  const statusLabels = {wait:'A Iniciar', live:'Em Andamento', done:'Finalizada', atraso:'Não Finalizado'};
   const select = (key, label, values) => `
     <select data-gradefilter="${key}">
       <option value="all">${label}: todos</option>
@@ -542,24 +542,14 @@ function supGrade(myAnalistas){
     ${select('analista','Analista', uniq('analista'))}
     ${select('op','Operação', uniq('op'))}
     ${select('nome','Responsável', uniq('nome'))}
-    ${select('status','Status', ['all','wait','live','naoiniciado','done','atraso'])}
+    ${select('status','Status', ['all','wait','live','done','atraso'])}
     <button class="btn" id="btnExportGrade">⬇ Exportar Excel</button>
   </div>
   <div class="card" style="margin-bottom:${(atrasoHoje>0||risco.length>0)?'16px':'0'};">
-  <table><thead><tr><th>Horário</th><th>Analista</th><th>Operação</th><th>Responsável</th><th>Status</th><th>Execução</th></tr></thead><tbody>
-  ${filtered.map(r=>{
-    const exec = DB.execucaoInicio.find(e=>e.analistaId===r.analistaId && e.operacao===r.op && (e.ciclo||'')===r.ciclo && e.hora===r.hora && e.data===dateStr);
-    // Só faz sentido liberar manual quem nunca clicou Iniciar e já perdeu a
-    // janela (1h depois do horário) — antes disso a pessoa ainda consegue
-    // iniciar normalmente (ver janelaIniciarFechada, utils.js).
-    let execCell = '';
-    if(exec && exec.liberadoManual && exec.iniciadoEm==null){
-      execCell = `<span class="pill pill-folga" title="Liberado por ${escapeHtml(userById(exec.liberadoPor)?.name||'—')}">🔓 Manual liberado</span>`;
-    } else if(!exec && r.status!=='done' && janelaIniciarFechada(dateStr, r.hora)){
-      execCell = `<button class="btn" data-liberar-manual="1" data-analista-id="${r.analistaId}" data-op="${escapeHtml(r.op)}" data-ciclo="${escapeHtml(r.ciclo)}" data-hora="${r.hora}" data-data="${dateStr}" title="Analista não iniciou o cronômetro — liberar preenchimento manual">🔓 Liberar manual</button>`;
-    }
-    return `<tr class="${r.isCobertura?'row-suplente':''}"><td class="mono">${r.hora}–${r.horaFim}</td><td style="cursor:pointer;" data-analista-timeline="${r.analistaId}" title="Ver histórico">${r.analista} ${r.isCobertura?'<span class="pill pill-suplente">🔁 Suplente</span>':''}</td><td>${r.op}</td><td>${r.nome}</td><td>${statusPill(r.status)}</td><td>${execCell}</td></tr>`;
-  }).join('') || '<tr><td colspan="6" class="empty">Nenhum registro para os filtros selecionados</td></tr>'}
+  <table><thead><tr><th>Horário</th><th>Analista</th><th>Operação</th><th>Responsável</th><th>Status</th></tr></thead><tbody>
+  ${filtered.map(r=>
+    `<tr class="${r.isCobertura?'row-suplente':''}"><td class="mono">${r.hora}–${r.horaFim}</td><td style="cursor:pointer;" data-analista-timeline="${r.analistaId}" title="Ver histórico">${r.analista} ${r.isCobertura?'<span class="pill pill-suplente">🔁 Suplente</span>':''}</td><td>${r.op}</td><td>${r.nome}</td><td>${statusPill(r.status)}</td></tr>`
+  ).join('') || '<tr><td colspan="5" class="empty">Nenhum registro para os filtros selecionados</td></tr>'}
   </tbody></table></div>
   ${atrasoHoje>0 ? `<div class="highlight-card" style="margin-bottom:14px;border-color:var(--alert);">
     <div class="section-title">🚨 ${atrasoHoje} operação(ões) de hoje com Raio-X pendente há mais de 1h</div>
@@ -575,7 +565,7 @@ function supGrade(myAnalistas){
 
 let gradeExportRows = [];
 function exportarGrade(){
-  const linhas = gradeExportRows.map(r=>[r.hora, r.analista, r.op, r.nome, r.isCobertura?'Suplente':'Titular', {wait:'A Iniciar',live:'Em Andamento',naoiniciado:'Não Iniciado',done:'Finalizada',atraso:'Não Finalizado'}[r.status]||r.status]);
+  const linhas = gradeExportRows.map(r=>[r.hora, r.analista, r.op, r.nome, r.isCobertura?'Suplente':'Titular', {wait:'A Iniciar',live:'Em Andamento',done:'Finalizada',atraso:'Não Finalizado'}[r.status]||r.status]);
   exportarRelatorioExcel(`grade-do-dia_${uiState.gradeFilters.data||hojeAgendaISO()}.xlsx`, ['Hora Início','Analista','Operação','Responsável','Tipo','Status'], linhas);
 }
 
@@ -1331,8 +1321,9 @@ function exportarSPR(){
 }
 
 // Tela irmã do Resultado SPR (sprResultadoBody acima) — mesmo layout, dados
-// vêm do cronômetro Iniciar/Finalizar (execucaoInicio.controller.js +
-// duracaoSegundos em raio_x) em vez do SPR. Diferença central: aqui existe
+// vêm do duracaoSegundos em raio_x (preenchido pela planilha de
+// roteirização importada, ver planilhaImport.controller.js) em vez do SPR.
+// Diferença central: aqui existe
 // um SLA fixo (SLA_TEMPO_EXECUCAO_SEGUNDOS, utils.js — 1h pra toda
 // operação), não uma meta cadastrada por operação como o SPR REF.
 let tempoChartData = null;
@@ -1437,7 +1428,7 @@ function tempoExecucaoBody(selecionados, picker){
       <div class="stat-label">Tempo médio de execução <span style="color:var(--text-faint);">(SLA 1h)</span></div>
       ${tendenciaPct!=null ? `<div class="trend-chip${tendenciaPct>0?' down':''}">${tendenciaPct<=0?'↓':'↑'} ${tendenciaPct>=0?'+':''}${tendenciaPct.toFixed(1)}% <span style="color:var(--text-faint);font-weight:400;">vs. período anterior</span></div>` : ''}
     </div>
-    <div class="stat-card"><div class="stat-num">${totalExecucoes}</div><div class="stat-label">Execuções cronometradas</div></div>
+    <div class="stat-card"><div class="stat-num">${totalExecucoes}</div><div class="stat-label">Execuções com tempo registrado</div></div>
     <div class="stat-card"><div class="stat-num">${operacoesAcimaSLA} <span style="font-size:19px;color:var(--text-faint);">de ${porHub.length}</span></div><div class="stat-label">Operações acima do SLA</div></div>
     <div class="stat-card"><div class="stat-num">${formatarDuracao(SLA_TEMPO_EXECUCAO_SEGUNDOS)}</div><div class="stat-label">SLA (todas as operações)</div></div>
   </div>
@@ -1470,7 +1461,7 @@ function tempoExecucaoBody(selecionados, picker){
   <div class="card">
   <div class="section-title">Detalhamento por operação</div>
   <table><thead><tr><th>Operação</th><th>Analista</th><th>Tempo médio</th><th>Execuções</th></tr></thead><tbody>
-  ${detalhe.map(d=>`<tr><td>${escapeHtml(d.operacao)}</td><td style="cursor:pointer;" data-analista-timeline="${d.analistaId}" title="Ver histórico">${escapeHtml(d.nome)}</td><td class="mono">${tempoBadge(Math.round(d.tempoMedio))}</td><td class="mono">${d.total}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">Sem execuções cronometradas no período</td></tr>'}
+  ${detalhe.map(d=>`<tr><td>${escapeHtml(d.operacao)}</td><td style="cursor:pointer;" data-analista-timeline="${d.analistaId}" title="Ver histórico">${escapeHtml(d.nome)}</td><td class="mono">${tempoBadge(Math.round(d.tempoMedio))}</td><td class="mono">${d.total}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">Sem execuções com tempo registrado no período</td></tr>'}
   </tbody></table>
   </div>`;
 }

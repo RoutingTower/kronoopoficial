@@ -139,7 +139,7 @@ let _loadDBInFlight = null;
 async function loadDB(){
   if(_loadDBInFlight) return _loadDBInFlight;
   _loadDBInFlight = (async ()=>{
-    const [users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, execucaoInicio, formularios, formularioRespostas] = await Promise.all([
+    const [users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas] = await Promise.all([
       apiRequest('GET', '/users'),
       apiRequest('GET', '/base-mestra'),
       apiRequest('GET', '/suplencias'),
@@ -154,11 +154,10 @@ async function loadDB(){
       apiRequest('GET', '/particularidades'),
       apiRequest('GET', '/particularidade-ciente'),
       apiRequest('GET', '/reuniao-presenca'),
-      apiRequest('GET', '/execucao-inicio'),
       apiRequest('GET', '/formularios'),
       apiRequest('GET', '/formulario-respostas'),
     ]);
-    DB = { users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, execucaoInicio, formularios, formularioRespostas };
+    DB = { users, baseMestra, suplencias, sprs, raioX, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas };
   })();
   try{ await _loadDBInFlight; }
   finally{ _loadDBInFlight = null; }
@@ -221,12 +220,6 @@ const apiCreateRaioX = (data) => apiRequest('POST', '/raio-x', data);
 // (ver raioX.controller.js).
 const apiUpdateRaioX = (id, patch) => apiRequest('PATCH', `/raio-x/${id}`, patch);
 const apiDeleteRaioX = (id) => apiRequest('DELETE', `/raio-x/${id}`);
-
-// Tempo de Execução — "Iniciar" grava o cronômetro no servidor (sobrevive a
-// reload); "liberar" é o supervisor autorizando preenchimento manual pra
-// quem esqueceu de clicar Iniciar (ver execucaoInicio.controller.js).
-const apiIniciarExecucao = (data) => apiRequest('POST', '/execucao-inicio', data);
-const apiLiberarExecucaoManual = (data) => apiRequest('POST', '/execucao-inicio/liberar', data);
 
 // baseMestra
 const apiCreateBaseMestra = (data) => apiRequest('POST', '/base-mestra', data);
