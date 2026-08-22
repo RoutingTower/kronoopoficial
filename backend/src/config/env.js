@@ -33,4 +33,9 @@ module.exports = {
     url: process.env.SUPABASE_URL || "",
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
   },
+  // Token compartilhado com o Apps Script da planilha de roteirização (ver
+  // backend/src/controllers/planilhaImport.controller.js) — esse endpoint
+  // fica FORA do requireAuth (routes/index.js), porque quem chama não é um
+  // usuário logado no Kronos, então se autentica com esse token no lugar.
+  planilhaImportToken: process.env.PLANILHA_IMPORT_TOKEN || "",
 };

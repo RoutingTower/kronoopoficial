@@ -130,6 +130,12 @@ create table raio_x (
   -- nullable pelo mesmo motivo de base_mestra.analista_id acima.
   analista_id   uuid references users(id),
   operacao      text not null,
+  -- Nulo em registros antigos (o campo veio bem depois, e por um bug o
+  -- controller aceitava "ciclo" no corpo da requisição mas nunca gravava —
+  -- corrigido junto com a importação da planilha de roteirização, que
+  -- precisa dele pra casar a linha certa quando o mesmo hub roda mais de
+  -- um ciclo no dia).
+  ciclo         text,
   hora          text not null,
   data          date not null,
   estrelas      smallint not null check (estrelas between 1 and 5),

@@ -122,6 +122,7 @@ async function createRaioX(req, res) {
   const entry = await supabaseService.create(COLLECTION, {
     analistaId,
     operacao,
+    ciclo: ciclo || null,
     hora,
     data,
     estrelas: nota,

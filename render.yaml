@@ -21,3 +21,5 @@ services:
         sync: false
       - key: ALLOWED_ORIGINS
         sync: false
+      - key: PLANILHA_IMPORT_TOKEN
+        sync: false

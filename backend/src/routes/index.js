@@ -20,6 +20,7 @@ const particularidadeCienteRoutes = require("./particularidadeCiente.routes");
 const reuniaoPresencaRoutes = require("./reuniaoPresenca.routes");
 const formulariosRoutes = require("./formularios.routes");
 const formularioRespostasRoutes = require("./formularioRespostas.routes");
+const planilhaImportRoutes = require("./planilhaImport.routes");
 
 const router = Router();
 
@@ -29,6 +30,11 @@ router.get("/health", (_req, res) => res.json({ status: "ok" }));
 // senha" na tela de login ainda não tem token (ver
 // backend/src/controllers/notificacoes.controller.js, esqueciSenha).
 router.post("/esqueci-senha", asyncHandler(esqueciSenha));
+
+// Também fora do requireAuth: quem chama é o Apps Script da planilha de
+// roteirização, não um usuário logado no Kronos — se autentica com um
+// token fixo (ver planilhaImport.controller.js), não um Supabase ID token.
+router.use("/planilha-import", planilhaImportRoutes);
 
 // Tudo abaixo exige um Supabase ID token válido — ver middleware/auth.js.
 router.use(requireAuth);
