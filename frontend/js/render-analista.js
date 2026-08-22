@@ -8,8 +8,12 @@
 function renderExecucaoActions(it, dateStr, analistaId, sprMeta, souEu){
   const raiox = DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===it.horaInicio && r.data===dateStr);
   if(raiox){
+    // Início/fim reais vêm da planilha de roteirização (hora_inicio_real/
+    // hora_fim_real) — registro anterior a essa importação não tem, aí
+    // mostra só a duração.
+    const horarioReal = (raiox.horaInicioReal && raiox.horaFimReal) ? `${raiox.horaInicioReal}–${raiox.horaFimReal} · ` : '';
     const duracaoHtml = raiox.duracaoSegundos!=null
-      ? ` · ${icon('timer',11)} ${formatarDuracao(raiox.duracaoSegundos)}${raiox.duracaoSegundos>SLA_TEMPO_EXECUCAO_SEGUNDOS ? ' <span style="color:var(--alert);font-weight:600;">acima do SLA</span>' : ''}`
+      ? ` · ${icon('timer',11)} ${horarioReal}${formatarDuracao(raiox.duracaoSegundos)}${raiox.duracaoSegundos>SLA_TEMPO_EXECUCAO_SEGUNDOS ? ' <span style="color:var(--alert);font-weight:600;">acima do SLA</span>' : ''}`
       : '';
     // Editar/Excluir só pro supervisor olhando a operação de alguém da
     // equipe (souEu=false) — preenchimento incorreto ou roteirização
@@ -263,7 +267,11 @@ function renderProgramacaoIntegrada(lista, dateStr){
     const rx = DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===hour && r.data===dateStr);
     let tempoLabel = '', tempoCor = '';
     if(rx && rx.duracaoSegundos!=null && !rx.semRoteirizacao){
-      tempoLabel = formatarDuracaoCompacta(rx.duracaoSegundos);
+      const dur = formatarDuracaoCompacta(rx.duracaoSegundos);
+      // Início/fim reais vêm da planilha de roteirização (hora_inicio_real/
+      // hora_fim_real) — registro anterior a essa importação ter esses
+      // campos não tem, aí mostra só a duração.
+      tempoLabel = (rx.horaInicioReal && rx.horaFimReal) ? `${rx.horaInicioReal}–${rx.horaFimReal} · ${dur}` : dur;
       // Até 30min verde, 31-60min amarelo, acima de 1h vermelho — mesmo
       // esquema de cor do resto do app (var(--done)/--folga/--alert).
       tempoCor = rx.duracaoSegundos<=1800 ? 'var(--done)' : rx.duracaoSegundos<=3600 ? 'var(--folga)' : 'var(--alert)';

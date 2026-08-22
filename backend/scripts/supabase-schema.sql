@@ -161,6 +161,12 @@ create table raio_x (
   -- fase ainda mais antiga do produto).
   duracao_segundos integer,
   duracao_origem    text,
+  -- Início/fim reais (HH:MM), só pra exibição — o card da Grade Integrada
+  -- mostra "hora_inicio_real–hora_fim_real · duração" quando tem os dois;
+  -- a duração em si (duracao_segundos) tem precisão de segundos e não
+  -- depende desses campos.
+  hora_inicio_real text,
+  hora_fim_real    text,
   ts            bigint not null
 );
 create index idx_raiox_analista on raio_x(analista_id);

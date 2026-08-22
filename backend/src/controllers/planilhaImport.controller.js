@@ -32,6 +32,14 @@ function duracaoEmSegundos(inicio, fim) {
   return fimSeg - ini;
 }
 
+// "HH:MM:SS" ou "HH:MM" -> "HH:MM" (sem segundos, com zero à esquerda) —
+// só pra exibição (início/fim reais no card da Grade Integrada). A
+// duração continua com precisão de segundos, guardada à parte.
+function paraHoraMinuto(valor) {
+  const m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(String(valor || "").trim());
+  return m ? `${m[1].padStart(2, "0")}:${m[2]}` : null;
+}
+
 // Corta listas de diagnóstico grandes (a planilha real manda dezenas de
 // milhares de linhas de histórico) — sem isso a resposta HTTP e o
 // Logger.log do Apps Script (que trunca saída grande) ficam inúteis.
@@ -42,10 +50,12 @@ function resumir(lista, limite = 20) {
 // Chamado pelo Apps Script da planilha de roteirização (fora do requireAuth
 // — ver routes/index.js), não por um usuário logado no Kronos. Por isso se
 // autentica com um token fixo (PLANILHA_IMPORT_TOKEN) em vez de um Supabase
-// ID token. Substitui o tempo de execução (duracao_segundos/duracao_origem)
-// do Raio-X já existente pra cada linha — nunca CRIA um Raio-X novo (a
-// finalização em si continua exigindo o fluxo normal, com estrelas e
-// observação; isso só corrige o tempo depois que ela já existe).
+// ID token. Substitui o tempo de execução (duracao_segundos/duracao_origem
+// e o início/fim reais, hora_inicio_real/hora_fim_real — usados pro card da
+// Grade Integrada mostrar o horário de verdade) do Raio-X já existente pra
+// cada linha — nunca CRIA um Raio-X novo (a finalização em si continua
+// exigindo o fluxo normal, com estrelas e observação; isso só corrige o
+// tempo depois que ela já existe).
 async function importarPlanilha(req, res) {
   const auth = req.headers.authorization || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
@@ -110,6 +120,8 @@ async function importarPlanilha(req, res) {
       duracaoSegundos,
       duracaoOrigem: "planilha",
       ciclo: ciclo || candidatos[0].ciclo || null,
+      horaInicioReal: paraHoraMinuto(inicioTxt),
+      horaFimReal: paraHoraMinuto(fimTxt),
     });
     atualizados++;
   }
