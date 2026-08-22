@@ -1,17 +1,42 @@
 const supabaseService = require("../services/supabaseService");
 const { planilhaImportToken } = require("../config/env");
 
-// Duração em segundos entre dois "HH:mm", cruzando meia-noite se o fim for
-// menor/igual ao início — mesma lógica de calcularDuracaoManual no frontend
-// (frontend/js/utils.js), só que calculada aqui a partir do horário real da
-// planilha, não do que o analista digitou.
+// A planilha manda a data como texto — aceita tanto "DD/MM/YYYY" (o que a
+// aba realmente usa) quanto "YYYY-MM-DD" (caso um dia a formatação mude),
+// sempre devolvendo ISO pra bater com a coluna raio_x.data.
+function paraDataISO(valor) {
+  const s = String(valor || "").trim();
+  const br = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+  if (br) return `${br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}`;
+  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s);
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, "0")}-${iso[3].padStart(2, "0")}`;
+  return null;
+}
+
+// Aceita "HH:MM" ou "HH:MM:SS" (a planilha manda com segundos).
+function paraSegundosDoDia(valor) {
+  const m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(String(valor || "").trim());
+  if (!m) return null;
+  return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3] || 0);
+}
+
+// Duração em segundos entre início e fim, cruzando meia-noite se o fim for
+// menor/igual ao início (mesma ideia de calcularDuracaoManual no frontend,
+// só que com precisão de segundos, já que a planilha traz os segundos).
 function duracaoEmSegundos(inicio, fim) {
-  const [hi, mi] = inicio.split(":").map(Number);
-  const [hf, mf] = fim.split(":").map(Number);
-  let iniMin = hi * 60 + mi;
-  let fimMin = hf * 60 + mf;
-  if (fimMin <= iniMin) fimMin += 24 * 60;
-  return (fimMin - iniMin) * 60;
+  const ini = paraSegundosDoDia(inicio);
+  const fimSeg0 = paraSegundosDoDia(fim);
+  if (ini == null || fimSeg0 == null) return null;
+  let fimSeg = fimSeg0;
+  if (fimSeg <= ini) fimSeg += 24 * 3600;
+  return fimSeg - ini;
+}
+
+// Corta listas de diagnóstico grandes (a planilha real manda dezenas de
+// milhares de linhas de histórico) — sem isso a resposta HTTP e o
+// Logger.log do Apps Script (que trunca saída grande) ficam inúteis.
+function resumir(lista, limite = 20) {
+  return { total: lista.length, amostra: lista.slice(0, limite) };
 }
 
 // Chamado pelo Apps Script da planilha de roteirização (fora do requireAuth
@@ -31,19 +56,38 @@ async function importarPlanilha(req, res) {
   const linhas = Array.isArray(req.body.linhas) ? req.body.linhas : [];
   const todosRaioX = await supabaseService.listAll("raioX");
 
+  // Índice por data+operação — a planilha manda dezenas de milhares de
+  // linhas de histórico; varrer o array inteiro pra cada uma delas seria
+  // lento demais dentro do tempo de uma requisição HTTP.
+  const porDataOperacao = new Map();
+  for (const r of todosRaioX) {
+    const chave = `${r.data}|${r.operacao}`;
+    if (!porDataOperacao.has(chave)) porDataOperacao.set(chave, []);
+    porDataOperacao.get(chave).push(r);
+  }
+
   let atualizados = 0;
+  let semDadosSuficientes = 0; // fim/início em branco (operação ainda em curso na planilha) — não é erro
   const naoEncontrados = [];
   const ambiguos = [];
-  const invalidos = [];
+  const invalidos = []; // data/horário que não bateu em nenhum formato conhecido
 
   for (const linha of linhas) {
-    const data = String(linha.data || "").trim();
     const operacao = String(linha.operacao || "").trim();
     const ciclo = String(linha.ciclo || "").trim();
-    const inicio = String(linha.inicio || "").trim();
-    const fim = String(linha.fim || "").trim();
-    if (!data || !operacao || !/^\d{1,2}:\d{2}$/.test(inicio) || !/^\d{1,2}:\d{2}$/.test(fim)) {
-      invalidos.push(linha);
+    const inicioTxt = String(linha.inicio || "").trim();
+    const fimTxt = String(linha.fim || "").trim();
+    const dataTxt = String(linha.data || "").trim();
+
+    if (!operacao || !dataTxt || !inicioTxt || !fimTxt) {
+      semDadosSuficientes++;
+      continue;
+    }
+
+    const dataISO = paraDataISO(dataTxt);
+    const duracaoSegundos = duracaoEmSegundos(inicioTxt, fimTxt);
+    if (!dataISO || duracaoSegundos == null) {
+      invalidos.push({ data: dataTxt, operacao, ciclo, inicio: inicioTxt, fim: fimTxt });
       continue;
     }
 
@@ -51,19 +95,17 @@ async function importarPlanilha(req, res) {
     // registro antigo (sem ciclo gravado, ver comentário em raio_x no
     // supabase-schema.sql) conta como "qualquer ciclo" pra não deixar de
     // achar um Raio-X real só porque ele é anterior à correção do bug.
-    const candidatos = todosRaioX.filter(
-      (r) => r.data === data && r.operacao === operacao && (!ciclo || !r.ciclo || r.ciclo === ciclo)
-    );
+    const mesmaDataOperacao = porDataOperacao.get(`${dataISO}|${operacao}`) || [];
+    const candidatos = mesmaDataOperacao.filter((r) => !ciclo || !r.ciclo || r.ciclo === ciclo);
     if (candidatos.length === 0) {
-      naoEncontrados.push({ data, operacao, ciclo });
+      naoEncontrados.push({ data: dataISO, operacao, ciclo });
       continue;
     }
     if (candidatos.length > 1) {
-      ambiguos.push({ data, operacao, ciclo, qtd: candidatos.length });
+      ambiguos.push({ data: dataISO, operacao, ciclo, qtd: candidatos.length });
       continue;
     }
 
-    const duracaoSegundos = duracaoEmSegundos(inicio, fim);
     await supabaseService.update("raioX", candidatos[0].id, {
       duracaoSegundos,
       duracaoOrigem: "planilha",
@@ -72,7 +114,14 @@ async function importarPlanilha(req, res) {
     atualizados++;
   }
 
-  res.json({ recebidas: linhas.length, atualizados, naoEncontrados, ambiguos, invalidos });
+  res.json({
+    recebidas: linhas.length,
+    atualizados,
+    semDadosSuficientes,
+    naoEncontrados: resumir(naoEncontrados),
+    ambiguos: resumir(ambiguos),
+    invalidos: resumir(invalidos),
+  });
 }
 
 module.exports = { importarPlanilha };
