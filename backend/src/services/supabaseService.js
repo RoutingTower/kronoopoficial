@@ -65,9 +65,29 @@ function tableName(collection) {
   return toSnake(collection);
 }
 
+// A API do Supabase (PostgREST) limita cada resposta a 1000 linhas por
+// padrão, mesmo sem LIMIT explícito no select — sem essa paginação, tabelas
+// que passam de 1000 linhas (ex.: raio_x, depois da importação em massa da
+// planilha) tinham parte dos registros simplesmente OMITIDOS do resultado,
+// silenciosamente (sem erro), dependendo de qual "página" o Postgres decide
+// devolver. Ordena por id (chave estável) pra garantir que cada página
+// pegue um recorte diferente, sem pular nem repetir linha.
+const PAGE_SIZE = 1000;
+async function fetchAllPages(buildQuery) {
+  const linhas = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await buildQuery().order("id", { ascending: true }).range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    linhas.push(...data);
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return linhas;
+}
+
 async function listAll(collection) {
-  const { data, error } = await getClient().from(tableName(collection)).select("*");
-  if (error) throw error;
+  const data = await fetchAllPages(() => getClient().from(tableName(collection)).select("*"));
   return data.map((row) => rowToCamel(collection, row));
 }
 
@@ -75,14 +95,15 @@ async function listAll(collection) {
 // em camelCase, convertido pra snake_case aqui como o resto do arquivo.
 const SUPABASE_OPS = { ">=": "gte", "<=": "lte", "==": "eq" };
 async function listWhere(collection, conditions) {
-  let query = getClient().from(tableName(collection)).select("*");
-  for (const [field, op, value] of conditions) {
-    const method = SUPABASE_OPS[op];
-    if (!method) throw new Error(`operador não suportado em listWhere: ${op}`);
-    query = query[method](toSnake(field), value);
-  }
-  const { data, error } = await query;
-  if (error) throw error;
+  const data = await fetchAllPages(() => {
+    let query = getClient().from(tableName(collection)).select("*");
+    for (const [field, op, value] of conditions) {
+      const method = SUPABASE_OPS[op];
+      if (!method) throw new Error(`operador não suportado em listWhere: ${op}`);
+      query = query[method](toSnake(field), value);
+    }
+    return query;
+  });
   return data.map((row) => rowToCamel(collection, row));
 }
 
