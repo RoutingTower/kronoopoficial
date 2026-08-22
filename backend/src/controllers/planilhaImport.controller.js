@@ -40,6 +40,22 @@ function paraHoraMinuto(valor) {
   return m ? `${m[1].padStart(2, "0")}:${m[2]}` : null;
 }
 
+// raio_x.data é o "dia operacional" do turno (o turno inteiro conta pro
+// dia em que começou, mesmo virando a madrugada — mesma convenção de
+// hourSortValue/slotTimestamp no frontend), mas a planilha registra a data
+// literal do relógio: uma operação de madrugada que o Kronos guarda como
+// "21/08" (turno começou dia 21) aparece na planilha como "22/08" (a hora
+// real já é depois da meia-noite). Sem esse ajuste, toda operação de
+// madrugada nunca batia com o Raio-X correspondente.
+function dataCalendarioDoRaioX(dataOperacional, hora) {
+  const h = parseInt(String(hora).split(":")[0], 10);
+  if (h >= 7) return dataOperacional; // turno começou de dia, mesma data nos dois
+  const [y, m, d] = dataOperacional.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + 1);
+  return dt.toISOString().slice(0, 10);
+}
+
 // Corta listas de diagnóstico grandes (a planilha real manda dezenas de
 // milhares de linhas de histórico) — sem isso a resposta HTTP e o
 // Logger.log do Apps Script (que trunca saída grande) ficam inúteis.
@@ -66,12 +82,13 @@ async function importarPlanilha(req, res) {
   const linhas = Array.isArray(req.body.linhas) ? req.body.linhas : [];
   const todosRaioX = await supabaseService.listAll("raioX");
 
-  // Índice por data+operação — a planilha manda dezenas de milhares de
-  // linhas de histórico; varrer o array inteiro pra cada uma delas seria
+  // Índice por data (a que aparece na planilha, não a operacional — ver
+  // dataCalendarioDoRaioX) + operação. A planilha manda dezenas de milhares
+  // de linhas de histórico; varrer o array inteiro pra cada uma delas seria
   // lento demais dentro do tempo de uma requisição HTTP.
   const porDataOperacao = new Map();
   for (const r of todosRaioX) {
-    const chave = `${r.data}|${r.operacao}`;
+    const chave = `${dataCalendarioDoRaioX(r.data, r.hora)}|${r.operacao}`;
     if (!porDataOperacao.has(chave)) porDataOperacao.set(chave, []);
     porDataOperacao.get(chave).push(r);
   }
