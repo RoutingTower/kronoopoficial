@@ -154,7 +154,13 @@ function supGerarEscalaMensal(myAnalistas){
       ${naoCobertos>0 ? `<div class="help-text" style="color:var(--danger,#e05252);">⚠️ ${naoCobertos} operação(ões) não coube em ninguém entre os cadastros ativos (todo mundo já teve esse hub, ou não bate com a jornada de ninguém) — ajuste manualmente abaixo.</div>` : ''}
       <div style="overflow-x:auto;">
       <table><thead><tr><th>Operação</th><th>Ciclo</th><th>Horário</th><th>UF</th><th>Novo titular</th></tr></thead><tbody>
-      ${res.linhas.map((l,idx)=>`<tr ${!l.analistaId?'style="background:rgba(224,82,82,0.08);"':''}>
+      ${res.linhas
+        .map((l,idx)=>({l,idx,nome:l.analistaId ? (userById(l.analistaId)?.name||'') : ''}))
+        // Ordena as LINHAS pelo nome do titular já atribuído (não só as
+        // opções de cada dropdown) — sem titular vai pro fim, não some no
+        // meio da lista por "" comparar como menor que qualquer nome.
+        .sort((x,y)=> !x.nome && !y.nome ? 0 : !x.nome ? 1 : !y.nome ? -1 : x.nome.localeCompare(y.nome,'pt-BR'))
+        .map(({l,idx})=>`<tr ${!l.analistaId?'style="background:rgba(224,82,82,0.08);"':''}>
         <td>${escapeHtml(l.operacao)}</td>
         <td>${escapeHtml(l.ciclo||'')}</td>
         <td class="mono">${l.horaInicio}–${l.horaFim}</td>
@@ -173,11 +179,24 @@ function supGerarEscalaMensal(myAnalistas){
     </div>`;
   }
 
+  // Vigência das operações publicadas: mês inteiro por padrão, mas dá pra
+  // encurtar (ex.: escala provisória de metade do mês) — sempre dentro do
+  // mês escolhido (min/max do input travam nisso, e o publish confirma de
+  // novo por segurança).
+  const primeiroDiaMes = `${mes}-01`;
+  const ultimoDiaMes = ultimoDiaDoMesISO(mes);
+  const vigInicio = uiState.escalaMensalDataInicio || primeiroDiaMes;
+  const vigFim = uiState.escalaMensalDataFim || ultimoDiaMes;
+
   return `
   <div class="section-title">Gerar Escala do Mês</div>
   <div class="help-text">Escolha o mês e clique em Gerar: o sistema redistribui os hubs vigentes entre os cadastros ativos da equipe (analistas desativados ficam de fora do sorteio), sem repetir com ninguém um hub que já teve (histórico completo), respeitando o horário de jornada de cada um e variando o estado (UF) da carteira de cada pessoa. A proposta fica editável antes de publicar — publicar cria uma operação fixa nova pra cada linha com titular, sem mexer no que já existe.</div>
   <div class="card" style="margin-bottom:22px;">
-    <div class="field" style="max-width:220px;"><label>Mês</label><input type="month" id="escalaMensalMesInput" value="${mes}"></div>
+    <div class="grid-3">
+      <div class="field" style="margin-bottom:0;"><label>Mês</label><input type="month" id="escalaMensalMesInput" value="${mes}"></div>
+      <div class="field" style="margin-bottom:0;"><label>Vigência — início</label><input type="date" id="escalaMensalInicioInput" value="${vigInicio}" min="${primeiroDiaMes}" max="${ultimoDiaMes}"></div>
+      <div class="field" style="margin-bottom:0;"><label>Vigência — fim</label><input type="date" id="escalaMensalFimInput" value="${vigFim}" min="${primeiroDiaMes}" max="${ultimoDiaMes}"></div>
+    </div>
     <div style="display:flex;justify-content:flex-end;margin-top:14px;">
       <button class="btn btn-brand" data-gerar-escala-mensal="1">Gerar escala</button>
     </div>

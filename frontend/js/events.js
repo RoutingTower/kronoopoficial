@@ -975,8 +975,20 @@ function bindMainEvents(){
   const escalaMensalMesInput = document.getElementById('escalaMensalMesInput');
   if(escalaMensalMesInput) escalaMensalMesInput.addEventListener('change', ()=>{
     uiState.escalaMensalMes = escalaMensalMesInput.value;
+    // Vigência custom era do mês anterior — volta a acompanhar o mês novo
+    // (1º ao último dia) em vez de arrastar uma data que nem existe nele.
+    uiState.escalaMensalDataInicio = null;
+    uiState.escalaMensalDataFim = null;
     uiState.escalaMensalResultado = null;
     renderMain();
+  });
+  const escalaMensalInicioInput = document.getElementById('escalaMensalInicioInput');
+  if(escalaMensalInicioInput) escalaMensalInicioInput.addEventListener('change', ()=>{
+    uiState.escalaMensalDataInicio = escalaMensalInicioInput.value;
+  });
+  const escalaMensalFimInput = document.getElementById('escalaMensalFimInput');
+  if(escalaMensalFimInput) escalaMensalFimInput.addEventListener('change', ()=>{
+    uiState.escalaMensalDataFim = escalaMensalFimInput.value;
   });
   main.querySelectorAll('[data-gerar-escala-mensal]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -1003,8 +1015,18 @@ function bindMainEvents(){
   const btnConfirmarEscalaMensal = document.getElementById('btnConfirmarEscalaMensal');
   if(btnConfirmarEscalaMensal) btnConfirmarEscalaMensal.addEventListener('click', async ()=>{
     const res = uiState.escalaMensalResultado;
-    const dataInicio = `${res.mes}-01`;
-    const dataFim = ultimoDiaDoMesISO(res.mes);
+    // Vigência editável (ver campos Início/Fim, render-supervisor.js) — cai
+    // pro mês inteiro se a pessoa não mexeu. Clampa nos limites do mês de
+    // novo aqui (segunda camada, além do min/max do input) porque o
+    // resultado pode ter sido gerado antes de uma troca de mês que devia ter
+    // limpo esses campos.
+    const primeiroDiaMes = `${res.mes}-01`;
+    const ultimoDiaMes = ultimoDiaDoMesISO(res.mes);
+    const dataInicio = uiState.escalaMensalDataInicio && uiState.escalaMensalDataInicio>=primeiroDiaMes && uiState.escalaMensalDataInicio<=ultimoDiaMes
+      ? uiState.escalaMensalDataInicio : primeiroDiaMes;
+    const dataFim = uiState.escalaMensalDataFim && uiState.escalaMensalDataFim>=primeiroDiaMes && uiState.escalaMensalDataFim<=ultimoDiaMes
+      ? uiState.escalaMensalDataFim : ultimoDiaMes;
+    if(dataInicio > dataFim){ alert('A data de início da vigência não pode ser depois da data de fim.'); return; }
     const linhas = res.linhas.filter(l=>l.analistaId);
     let ok=0, fail=0;
     openProgressModal('Publicando escala do mês...');
