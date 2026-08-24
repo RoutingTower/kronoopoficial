@@ -761,7 +761,11 @@ function gerarEscalaMensal(analistaIds, idsEquipe){
     const chave = `${b.operacao}|${b.ciclo}|${b.horaInicio}|${b.horaFim}`;
     if(vistos.has(chave)) return;
     vistos.add(chave);
-    hubs.push({ operacao:b.operacao, ciclo:b.ciclo, horaInicio:b.horaInicio, horaFim:b.horaFim });
+    // dias carregado do registro original — sem isso, um hub que só roda em
+    // alguns dias da semana (dias não vazio) virava "todos os dias" na
+    // escala nova, publicado sob outro titular (ver dias:[] hardcoded que
+    // existia em events.js antes desse fix).
+    hubs.push({ operacao:b.operacao, ciclo:b.ciclo, horaInicio:b.horaInicio, horaFim:b.horaFim, dias:b.dias||[] });
   });
 
   const jaTeve = new Set(

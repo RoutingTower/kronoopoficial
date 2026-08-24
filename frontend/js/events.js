@@ -1032,7 +1032,11 @@ function bindMainEvents(){
     openProgressModal('Publicando escala do mês...');
     for(const [idx, l] of linhas.entries()){
       const entrada = {analistaId:l.analistaId, operacao:l.operacao, ciclo:l.ciclo,
-        horaInicio:l.horaInicio, horaFim:l.horaFim, titular:userById(l.analistaId)?.name||'', dias:[],
+        horaInicio:l.horaInicio, horaFim:l.horaFim, titular:userById(l.analistaId)?.name||'',
+        // Dias de funcionamento do hub original (ver gerarEscalaMensal,
+        // utils.js) — antes vinha sempre [] (= todos os dias), perdendo a
+        // restrição de quem só roda em certos dias da semana.
+        dias:l.dias||[],
         dataInicio, dataFim};
       try{ DB.baseMestra.push(await apiCreateBaseMestra(entrada)); ok++; }
       catch(e){ console.error('KronoOP: falha ao publicar escala do mês.', e); fail++; }
