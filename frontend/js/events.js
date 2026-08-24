@@ -939,6 +939,18 @@ function bindMainEvents(){
     renderMain();
   });
 
+  // Trocar sábado↔domingo direto poupa reconstruir as duas listas do zero
+  // quando o supervisor alterna o fim de semana (a mesma galera costuma só
+  // trocar de dia). Zera os resultados já gerados, senão eles continuariam
+  // apontando pra quem estava escalado ANTES da troca.
+  const btnInverterEscalaDom = document.getElementById('btnInverterEscalaDom');
+  if(btnInverterEscalaDom) btnInverterEscalaDom.addEventListener('click', ()=>{
+    [uiState.escalaDomSelecionadosSab, uiState.escalaDomSelecionadosDom] = [uiState.escalaDomSelecionadosDom, uiState.escalaDomSelecionadosSab];
+    uiState.escalaDomResultadoSab = null;
+    uiState.escalaDomResultadoDom = null;
+    renderMain();
+  });
+
   const btnGerarEscalaDom = document.getElementById('btnGerarEscalaDom');
   if(btnGerarEscalaDom) btnGerarEscalaDom.addEventListener('click', ()=>{
     const selSab = uiState.escalaDomSelecionadosSab;

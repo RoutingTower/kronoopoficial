@@ -483,7 +483,8 @@ function supGerarEscalaDomingo(myAnalistas){
       ${escalaDomAnalistaPicker('sab', 'Quem trabalha no sábado', uiState.escalaDomSelecionadosSab)}
       ${escalaDomAnalistaPicker('dom', 'Quem trabalha no domingo', uiState.escalaDomSelecionadosDom)}
     </div>
-    <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+      <button class="btn" id="btnInverterEscalaDom" title="Troca quem está no sábado com quem está no domingo">⇄ Inverter sábado / domingo</button>
       <button class="btn btn-brand" id="btnGerarEscalaDom">Gerar escala</button>
     </div>
   </div>
