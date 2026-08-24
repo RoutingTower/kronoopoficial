@@ -125,7 +125,10 @@ let baseMestraExportRows = [];
 // espírito do Gerar Escala de Fim de Semana, só que pro mês inteiro e
 // criando operação fixa (Base Mestra) em vez de cobertura avulsa.
 function supGerarEscalaMensal(myAnalistas){
-  const analistasAtivos = myAnalistas.filter(a=>a.active);
+  // Ordem alfabética só pro resumo e pro dropdown "Novo titular" — a lista
+  // de candidatos que a geração em si usa (candidatoIds, events.js) é outra
+  // variável, não mexe na lógica de distribuição.
+  const analistasAtivos = myAnalistas.filter(a=>a.active).sort((a,b)=>a.name.localeCompare(b.name, 'pt-BR'));
   if(!uiState.escalaMensalMes) uiState.escalaMensalMes = addMonthsISO(todayISO(), 1).slice(0,7);
   const mes = uiState.escalaMensalMes;
   const res = uiState.escalaMensalResultado;
