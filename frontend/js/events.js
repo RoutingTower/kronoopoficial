@@ -1862,10 +1862,18 @@ function bindMainEvents(){
       const id = btn.dataset.excluirCobertura;
       if(!confirm(tipo==='ausencia' ? 'Excluir esta folga/férias?' : 'Excluir esta cobertura avulsa?')) return;
       try{
-        if(tipo==='ausencia'){ await apiDeleteAusencia(id); DB.ausencias = DB.ausencias.filter(x=>x.id!==id); }
-        else{ await apiDeleteSuplencia(id); DB.suplencias = DB.suplencias.filter(x=>x.id!==id); }
-        renderMain();
-      }catch(e){ alert('Não foi possível excluir: '+e.message); }
+        if(tipo==='ausencia'){ await apiDeleteAusencia(id); }
+        else{ await apiDeleteSuplencia(id); }
+      }catch(e){
+        // 404 = já não existe no banco (outra aba/sessão já excluiu, ou o
+        // DB local ficou com uma linha fantasma de antes de um refresh) —
+        // trata como sucesso: o resultado que a pessoa queria (a linha
+        // sumir) já é verdade, não faz sentido travar nisso com um alerta.
+        if(e.status !== 404){ alert('Não foi possível excluir: '+e.message); return; }
+      }
+      DB.ausencias = DB.ausencias.filter(x=>x.id!==id);
+      DB.suplencias = DB.suplencias.filter(x=>x.id!==id);
+      renderMain();
     });
   });
 
@@ -2021,11 +2029,15 @@ function bindMainEvents(){
     openProgressModal('Excluindo coberturas...');
     for(const [idx, alvo] of alvos.entries()){
       try{
-        if(alvo.tipo==='ausencia'){ await apiDeleteAusencia(alvo.id); DB.ausencias = DB.ausencias.filter(x=>x.id!==alvo.id); }
-        else{ await apiDeleteSuplencia(alvo.id); DB.suplencias = DB.suplencias.filter(x=>x.id!==alvo.id); }
+        if(alvo.tipo==='ausencia'){ await apiDeleteAusencia(alvo.id); } else { await apiDeleteSuplencia(alvo.id); }
         ok++;
+      }catch(e){
+        // 404 = já não existia (mesma lógica do excluir individual, acima)
+        // — conta como sucesso, não como falha.
+        if(e.status===404) ok++; else fail++;
       }
-      catch(e){ fail++; }
+      DB.ausencias = DB.ausencias.filter(x=>x.id!==alvo.id);
+      DB.suplencias = DB.suplencias.filter(x=>x.id!==alvo.id);
       updateProgressModal(idx+1, alvos.length);
     }
     closeModal();

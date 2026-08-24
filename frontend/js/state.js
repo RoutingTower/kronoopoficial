@@ -201,7 +201,9 @@ async function apiRequest(method, path, body, _attempt, _refreshed){
       throw new Error('Sua sessão expirou. Atualize a página (F5) e faça login de novo antes de tentar de novo.');
     }
     const parsed = await res.json().catch(()=>({}));
-    throw new Error(parsed.message || `${method} ${path} -> ${res.status}`);
+    const err = new Error(parsed.message || `${method} ${path} -> ${res.status}`);
+    err.status = res.status;
+    throw err;
   }
   return res.status === 204 ? null : res.json();
 }
