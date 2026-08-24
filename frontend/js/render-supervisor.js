@@ -428,7 +428,21 @@ function escalaDomPropostaHtml(dia, label, dataStr, res, myAnalistas){
     ${naoCobertos>0 ? `<div class="help-text" style="color:var(--danger,#e05252);">⚠️ ${naoCobertos} operação(ões) não coube em ninguém (capacidade ou janela de 8h esgotada) — ajuste manualmente abaixo ou escale mais gente.</div>` : ''}
     <div style="overflow-x:auto;">
     <table><thead><tr><th>Horário</th><th>Operação</th><th>Ciclo</th><th>Quem cobre</th></tr></thead><tbody>
-    ${res.linhas.map((l,idx)=>{
+    ${res.linhas
+      .map((l,idx)=>({l,idx,nome:l.escaladoId ? (userById(l.escaladoId)?.name||'') : ''}))
+      // Ordena as LINHAS por quem já foi escalado pra cobrir (não só as
+      // opções do dropdown), e dentro da mesma pessoa por horário — "não
+      // cobrir" vai pro fim. idx preservado do array original, então o
+      // dropdown de cada linha continua salvando no lugar certo
+      // (data-escaladom-idx). hourSortValue trata madrugada como
+      // continuação da noite (não como início do dia).
+      .sort((x,y)=>{
+        if(!x.nome && !y.nome) return hourSortValue(x.l.horaInicio)-hourSortValue(y.l.horaInicio);
+        if(!x.nome) return 1;
+        if(!y.nome) return -1;
+        return x.nome.localeCompare(y.nome,'pt-BR') || hourSortValue(x.l.horaInicio)-hourSortValue(y.l.horaInicio);
+      })
+      .map(({l,idx})=>{
       const propria = l.analistaId && l.analistaId===l.escaladoId;
       return `<tr ${!l.escaladoId?'style="background:rgba(224,82,82,0.08);"':''}>
         <td class="mono">${l.horaInicio}–${l.horaFim}</td>
