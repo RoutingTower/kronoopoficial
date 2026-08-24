@@ -34,7 +34,7 @@ async function listRaioX(req, res) {
 // Finalização é sempre auto-declarada pelo próprio analista (ver
 // frontend/js/events.js) — ninguém finaliza operação de outra pessoa.
 async function createRaioX(req, res) {
-  const { analistaId, operacao, ciclo, hora, data, estrelas, observacao, sprRoteirizado, sprMeta, semRoteirizacao } = req.body;
+  const { analistaId, operacao, ciclo, hora, data, estrelas, observacao, sprRoteirizado, sprMeta, semRoteirizacao, orfaos } = req.body;
   if (!analistaId || !operacao || !hora || !data) {
     return res.status(400).json({
       error: "bad_request",
@@ -48,6 +48,16 @@ async function createRaioX(req, res) {
   const nota = Number(estrelas);
   if (!Number.isInteger(nota) || nota < 1 || nota > 5) {
     return res.status(400).json({ error: "bad_request", message: "estrelas deve ser um inteiro de 1 a 5" });
+  }
+  // Órfãos: opcional de verdade (diferente do SPR) — nulo é "não informado",
+  // não "zero". Quem marca "Sem órfãos" no front manda 0 explicitamente.
+  let orfaosFinal = null;
+  if (orfaos !== undefined && orfaos !== null && orfaos !== "") {
+    const n = Number(orfaos);
+    if (!Number.isInteger(n) || n < 0) {
+      return res.status(400).json({ error: "bad_request", message: "orfaos deve ser um número inteiro maior ou igual a 0" });
+    }
+    orfaosFinal = n;
   }
 
   // Ciclo sem roteirização nesse horário: SPR e observação deixam de ser
@@ -104,6 +114,7 @@ async function createRaioX(req, res) {
     sprRoteirizado: sprRealFinal,
     sprMeta: sprMetaFinal,
     semRoteirizacao: !!semRoteirizacao,
+    orfaos: orfaosFinal,
     // Preenchido depois pela planilha de roteirização importada (ver
     // planilhaImport.controller.js, que casa por data+operação+ciclo).
     duracaoSegundos: null,
@@ -135,7 +146,7 @@ async function updateRaioX(req, res) {
     return res.status(403).json({ error: "forbidden", message: "Só o supervisor da equipe (ou admin) pode editar uma finalização." });
   }
 
-  const { estrelas, observacao, sprRoteirizado, sprMeta, semRoteirizacao } = req.body;
+  const { estrelas, observacao, sprRoteirizado, sprMeta, semRoteirizacao, orfaos } = req.body;
   const patch = {};
   if (estrelas !== undefined) {
     const nota = Number(estrelas);
@@ -168,6 +179,20 @@ async function updateRaioX(req, res) {
       patch.sprRoteirizado = sprReal;
     }
     if (sprMeta !== undefined) patch.sprMeta = sprMeta === null || sprMeta === "" ? null : Number(sprMeta);
+  }
+  // Órfãos é independente de semRoteirizacao (dá pra corrigir sem mexer no
+  // resto) — mesma regra de opcional-de-verdade do createRaioX: "" ou null
+  // volta a ser "não informado", nunca zero.
+  if (orfaos !== undefined) {
+    if (orfaos === null || orfaos === "") {
+      patch.orfaos = null;
+    } else {
+      const n = Number(orfaos);
+      if (!Number.isInteger(n) || n < 0) {
+        return res.status(400).json({ error: "bad_request", message: "orfaos deve ser um número inteiro maior ou igual a 0" });
+      }
+      patch.orfaos = n;
+    }
   }
 
   const updated = await supabaseService.update(COLLECTION, req.params.id, patch);

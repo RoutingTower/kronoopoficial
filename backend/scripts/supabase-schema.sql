@@ -172,6 +172,11 @@ create table raio_x (
   -- depende desses campos.
   hora_inicio_real text,
   hora_fim_real    text,
+  -- Quantidade de pedidos órfãos na operação — opcional de propósito
+  -- (diferente do SPR, não é obrigatório pra fechar o Raio-X): nulo quer
+  -- dizer "não informado", não "zero". Quem preenche escolhe explicitamente
+  -- marcar "sem órfãos" (grava 0) em vez de deixar em branco.
+  orfaos        integer check (orfaos is null or orfaos >= 0),
   ts            bigint not null
 );
 create index idx_raiox_analista on raio_x(analista_id);

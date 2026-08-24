@@ -22,7 +22,10 @@ function renderExecucaoActions(it, dateStr, analistaId, sprMeta, souEu){
         <button class="btn" data-editar-raiox="${raiox.id}">${icon('pencil',12)} Editar</button>
         <button class="btn btn-danger" data-excluir-raiox="${raiox.id}">${icon('trash-2',12)} Excluir</button>
       </div>` : '';
-    return `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}${raiox.semRoteirizacao ? ' · Sem roteirização' : raiox.sprRoteirizado!=null ? ` · SPR lançado ${escapeHtml(String(raiox.sprRoteirizado))}` : ''}${duracaoHtml}</div>${acoesSupervisor}`;
+    // Órfãos é independente de semRoteirizacao (pode ter órfão registrado
+    // mesmo sem roteirização) — nulo é "não informado", não mostra nada.
+    const orfaosHtml = raiox.orfaos!=null ? ` · Órfãos ${raiox.orfaos}` : '';
+    return `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}${raiox.semRoteirizacao ? ' · Sem roteirização' : raiox.sprRoteirizado!=null ? ` · SPR lançado ${escapeHtml(String(raiox.sprRoteirizado))}` : ''}${orfaosHtml}${duracaoHtml}</div>${acoesSupervisor}`;
   }
   if(!souEu) return ''; // sem raio-x ainda: enviar só faz sentido pra quem executa
   // Ainda sem Raio-X — a planilha de roteirização pode já ter registrado o
@@ -313,6 +316,14 @@ function renderProgramacaoIntegrada(lista, dateStr){
     // não depende de reparar na cor.
     const alertaHtml = status==='atraso' ? `<span class="pill pill-atraso prog-alerta">${icon('octagon-alert',10)} Não finalizado</span>` : '';
 
+    // SPR e Órfãos vêm do próprio Raio-X (preenchido pelo analista), não da
+    // planilha — por isso aparecem mesmo quando ainda não há duracaoSegundos
+    // (rx existe mas a planilha não trouxe fim ainda). Órfãos é opcional de
+    // verdade: nulo é "não informado", não mostra nada (não é "zero").
+    const sprLabel = rx && !rx.semRoteirizacao && rx.sprRoteirizado!=null ? `SPR ${rx.sprRoteirizado}` : '';
+    const orfaosLabel = rx && rx.orfaos!=null ? `Órf ${rx.orfaos}` : '';
+    const sprOrfaosLabel = [sprLabel, orfaosLabel].filter(Boolean).join(' · ');
+
     // Passar o mouse no card dá acesso ao texto do Raio-X (observação) sem
     // precisar abrir Editar — hoje esse texto só aparece ali, e o card
     // compacto da Grade não tem espaço pra mostrar de cara. Vai no "title"
@@ -322,7 +333,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
     // overflow do CSS). O nativo não sofre disso, e quebra linha sozinho.
     const obsTexto = rx && rx.observacao ? rx.observacao.trim() : '';
     const resumoRaiox = obsTexto
-      ? `\n\n${'★'.repeat(Math.max(0,Math.min(5,rx.estrelas||0)))}${rx.semRoteirizacao ? ' · Sem roteirização' : rx.sprRoteirizado!=null ? ` · SPR ${rx.sprRoteirizado}` : ''}\n${obsTexto}`
+      ? `\n\n${'★'.repeat(Math.max(0,Math.min(5,rx.estrelas||0)))}${rx.semRoteirizacao ? ' · Sem roteirização' : rx.sprRoteirizado!=null ? ` · SPR ${rx.sprRoteirizado}` : ''}${rx.orfaos!=null ? ` · Órfãos ${rx.orfaos}` : ''}\n${obsTexto}`
       : '';
 
     return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${dim?' prog-dim':''}" title="${escapeHtml(detalhe+resumoRaiox)}">
@@ -330,6 +341,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
       <span class="prog-ciclo">${escapeHtml(it.ciclo)}</span>
       ${horarioLabel ? `<span class="prog-horario mono">${horarioLabel}</span>` : ''}
       ${tempoLabel ? `<span class="prog-horario mono"${tempoCor?` style="color:${tempoCor};"`:''}>${tempoLabel}</span>` : ''}
+      ${sprOrfaosLabel ? `<span class="prog-horario mono">${sprOrfaosLabel}</span>` : ''}
       ${timerHtml}
       ${alertaHtml}
     </div>`;

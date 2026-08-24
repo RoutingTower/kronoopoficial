@@ -330,6 +330,13 @@ function bindMainEvents(){
           <input type="number" id="raioxSprReal" step="any" placeholder="Ex.: 108">
         </div>
         <div class="field">
+          <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" id="raioxSemOrfaos"> Sem órfãos</label>
+        </div>
+        <div class="field">
+          <label>Órfãos (opcional)</label>
+          <input type="number" id="raioxOrfaos" step="1" min="0" placeholder="Quantidade de pedidos órfãos">
+        </div>
+        <div class="field">
           <label>Observação (Raio-X da operação)</label>
           <textarea id="raioxObs" rows="5" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;" placeholder="Descreva com detalhes o que aconteceu nessa operação..."></textarea>
           <div id="raioxCounter" style="font-size:11.5px;color:var(--text-faint);margin-top:4px;">0 / ${RAIOX_MIN_OBS_LEN} caracteres mínimos</div>
@@ -344,12 +351,21 @@ function bindMainEvents(){
       const semRotEl = document.getElementById('raioxSemRot');
       const obsEl = document.getElementById('raioxObs');
       const sprRealEl = document.getElementById('raioxSprReal');
+      const semOrfaosEl = document.getElementById('raioxSemOrfaos');
+      const orfaosEl = document.getElementById('raioxOrfaos');
       const counterEl = document.getElementById('raioxCounter');
       const confirmBtn = document.getElementById('confirmFinalizar');
       function updateState(){
         const semRot = semRotEl.checked;
         sprRealEl.disabled = semRot;
         sprRealEl.style.opacity = semRot ? '0.4' : '1';
+        // Órfãos não se aplica sem roteirização (nada foi roteirizado pra
+        // sobrar órfão), e "Sem órfãos" marcado já fixa o valor em 0 — nos
+        // dois casos o campo numérico fica travado.
+        const semOrfaos = semOrfaosEl.checked;
+        orfaosEl.disabled = semRot || semOrfaos;
+        orfaosEl.style.opacity = (semRot || semOrfaos) ? '0.4' : '1';
+        if(semOrfaos) orfaosEl.value = '0';
         const len = obsEl.value.trim().length;
         if(semRot){
           counterEl.textContent = 'Observação opcional (sem roteirização nesse horário)';
@@ -376,14 +392,18 @@ function bindMainEvents(){
       semRotEl.addEventListener('change', updateState);
       obsEl.addEventListener('input', updateState);
       sprRealEl.addEventListener('input', updateState);
+      semOrfaosEl.addEventListener('change', updateState);
       confirmBtn.onclick = async ()=>{
         const semRot = semRotEl.checked;
         const observacao = obsEl.value.trim();
         const sprReal = Number(sprRealEl.value);
         if(estrelas<1) return;
         if(!semRot && (observacao.length<RAIOX_MIN_OBS_LEN || sprRealEl.value.trim()==='' || Number.isNaN(sprReal))) return;
+        // Nulo = "não informado" (registro antigo ou ninguém preencheu ainda);
+        // 0 é uma resposta de verdade ("Sem órfãos" marcado), não o padrão.
+        const orfaos = semRot ? null : (semOrfaosEl.checked ? 0 : (orfaosEl.value.trim()==='' ? null : Number(orfaosEl.value)));
         const entrada = {analistaId:session.userId, operacao:op, hora, data, estrelas, observacao,
-          sprRoteirizado: semRot ? 0 : sprReal, sprMeta: semRot ? null : sprMeta, ciclo, semRoteirizacao:semRot};
+          sprRoteirizado: semRot ? 0 : sprReal, sprMeta: semRot ? null : sprMeta, ciclo, semRoteirizacao:semRot, orfaos};
         confirmBtn.disabled = true;
         try{
           const novo = await apiCreateRaioX(entrada);
@@ -422,6 +442,13 @@ function bindMainEvents(){
           <input type="number" id="raioxEditSprReal" step="any" value="${r.semRoteirizacao ? '' : escapeHtml(String(r.sprRoteirizado ?? ''))}">
         </div>
         <div class="field">
+          <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" id="raioxEditSemOrfaos" ${r.orfaos===0?'checked':''}> Sem órfãos</label>
+        </div>
+        <div class="field">
+          <label>Órfãos (opcional)</label>
+          <input type="number" id="raioxEditOrfaos" step="1" min="0" value="${r.orfaos!=null && r.orfaos>0 ? r.orfaos : ''}">
+        </div>
+        <div class="field">
           <label>Observação (Raio-X da operação)</label>
           <textarea id="raioxEditObs" rows="5" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;">${escapeHtml(r.semRoteirizacao ? '' : (r.observacao||''))}</textarea>
           <div id="raioxEditCounter" style="font-size:11.5px;color:var(--text-faint);margin-top:4px;"></div>
@@ -436,12 +463,18 @@ function bindMainEvents(){
       const semRotEl = document.getElementById('raioxEditSemRot');
       const obsEl = document.getElementById('raioxEditObs');
       const sprRealEl = document.getElementById('raioxEditSprReal');
+      const semOrfaosEl = document.getElementById('raioxEditSemOrfaos');
+      const orfaosEl = document.getElementById('raioxEditOrfaos');
       const counterEl = document.getElementById('raioxEditCounter');
       const confirmBtn = document.getElementById('confirmEditarRaiox');
       function updateState(){
         const semRot = semRotEl.checked;
         sprRealEl.disabled = semRot;
         sprRealEl.style.opacity = semRot ? '0.4' : '1';
+        const semOrfaos = semOrfaosEl.checked;
+        orfaosEl.disabled = semRot || semOrfaos;
+        orfaosEl.style.opacity = (semRot || semOrfaos) ? '0.4' : '1';
+        if(semOrfaos) orfaosEl.value = '0';
         const len = obsEl.value.trim().length;
         counterEl.textContent = semRot ? 'Observação opcional (sem roteirização nesse horário)' : `${len} / ${RAIOX_MIN_OBS_LEN} caracteres mínimos`;
         counterEl.style.color = (semRot || len>=RAIOX_MIN_OBS_LEN) ? 'var(--done)' : 'var(--text-faint)';
@@ -458,6 +491,7 @@ function bindMainEvents(){
       });
       semRotEl.addEventListener('change', updateState);
       obsEl.addEventListener('input', updateState);
+      semOrfaosEl.addEventListener('change', updateState);
       updateState();
       confirmBtn.onclick = async ()=>{
         const semRot = semRotEl.checked;
@@ -465,7 +499,8 @@ function bindMainEvents(){
         const sprReal = Number(sprRealEl.value);
         if(estrelas<1) return;
         if(!semRot && (observacao.length<RAIOX_MIN_OBS_LEN || sprRealEl.value.trim()==='' || Number.isNaN(sprReal))) return;
-        const patch = {estrelas, observacao, semRoteirizacao:semRot, sprRoteirizado: semRot ? 0 : sprReal, sprMeta: semRot ? null : r.sprMeta};
+        const orfaos = semRot ? null : (semOrfaosEl.checked ? 0 : (orfaosEl.value.trim()==='' ? null : Number(orfaosEl.value)));
+        const patch = {estrelas, observacao, semRoteirizacao:semRot, sprRoteirizado: semRot ? 0 : sprReal, sprMeta: semRot ? null : r.sprMeta, orfaos};
         confirmBtn.disabled = true;
         try{
           const atualizado = await apiUpdateRaioX(r.id, patch);
