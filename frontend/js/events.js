@@ -1973,6 +1973,17 @@ function bindMainEvents(){
   main.querySelectorAll('[data-particularidadesfiltro]').forEach(inp=>{
     inp.addEventListener('change', ()=>{ uiState.particularidadesFiltro[inp.dataset.particularidadesfiltro] = inp.value; renderMain(); });
   });
+
+  main.querySelectorAll('[data-basemestrafiltro]').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const key = inp.dataset.basemestrafiltro;
+      uiState.baseMestraFiltro[key] = inp.value;
+      if((key==='vigenciaInicio'||key==='vigenciaFim') && uiState.baseMestraFiltro.vigenciaInicio && uiState.baseMestraFiltro.vigenciaFim && uiState.baseMestraFiltro.vigenciaInicio > uiState.baseMestraFiltro.vigenciaFim){
+        uiState.baseMestraFiltro[key==='vigenciaInicio'?'vigenciaFim':'vigenciaInicio'] = inp.value;
+      }
+      renderMain();
+    });
+  });
   const btnExportParticularidades = document.getElementById('btnExportParticularidades');
   if(btnExportParticularidades) btnExportParticularidades.addEventListener('click', ()=>{
     exportarRelatorioExcel('particularidades-auditoria.xlsx', ['Operação','Titular','Conteúdo','Atualizado por','Atualizado em'], particularidadesAuditoriaExportRows);

@@ -207,8 +207,27 @@ function supGerarEscalaMensal(myAnalistas){
 
 function supBaseMestra(myAnalistas){
   const ids = myAnalistas.map(a=>a.id);
-  const rows = DB.baseMestra.filter(b=>ids.includes(b.analistaId));
-  baseMestraExportRows = rows.filter(b=>b.dataFim>=todayISO());
+  const allRows = DB.baseMestra.filter(b=>ids.includes(b.analistaId));
+  baseMestraExportRows = allRows.filter(b=>b.dataFim>=todayISO());
+
+  const f = uiState.baseMestraFiltro;
+  // Titular por nome (não id): registros órfãos (titular sem conta de
+  // login, ver comentário do schema) só têm o texto, não um analistaId pra
+  // casar com myAnalistas — filtrar pelo nome cobre os dois casos.
+  const titularesUnicos = [...new Set(allRows.map(b=>b.titular))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const temFiltro = !!(f.operacao || f.horario || f.titular!=='all' || f.vigenciaInicio || f.vigenciaFim);
+  const rows = allRows.filter(b=>
+    (!f.operacao || b.operacao.toLowerCase().includes(f.operacao.toLowerCase())) &&
+    (!f.horario || `${b.horaInicio}–${b.horaFim}`.includes(f.horario)) &&
+    (f.titular==='all' || b.titular===f.titular) &&
+    // Vigência = faixa que o registro cobre (dataInicio→dataFim), não uma
+    // data só — filtro é por SOBREPOSIÇÃO com o período informado, não
+    // exigindo bater exatamente. Só "de" preenchido: tudo que ainda vale a
+    // partir dali. Só "até": tudo que já valia até lá.
+    (!f.vigenciaInicio || b.dataFim>=f.vigenciaInicio) &&
+    (!f.vigenciaFim || b.dataInicio<=f.vigenciaFim)
+  );
+
   return `
   <div class="csv-row">
     <span class="csv-label">Carga em massa das operações do titular (Excel)</span>
@@ -220,10 +239,24 @@ function supBaseMestra(myAnalistas){
   <div class="action-row-end" style="margin-bottom:14px;">
     <button class="btn btn-brand" id="btnNovaMestra">+ Nova entrada</button>
   </div>
+  <div class="filter-row">
+    <input placeholder="Filtrar por operação..." data-basemestrafiltro="operacao" value="${escapeHtml(f.operacao)}">
+    <input placeholder="Filtrar por horário (ex: 19:00)" data-basemestrafiltro="horario" value="${escapeHtml(f.horario)}">
+    <select data-basemestrafiltro="titular">
+      <option value="all">Titular: todos</option>
+      ${titularesUnicos.map(t=>`<option value="${escapeHtml(t)}" ${f.titular===t?'selected':''}>${escapeHtml(t)}</option>`).join('')}
+    </select>
+    <label style="font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">Vigente de
+      <input type="date" data-basemestrafiltro="vigenciaInicio" value="${f.vigenciaInicio}">
+    </label>
+    <label style="font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">até
+      <input type="date" data-basemestrafiltro="vigenciaFim" value="${f.vigenciaFim}">
+    </label>
+  </div>
   <div class="card">
   <table><thead><tr><th>Operação</th><th>Ciclo</th><th>SPR</th><th>Horário</th><th>Dias</th><th>Titular</th><th>Vigência</th><th></th></tr></thead><tbody>
   ${rows.map(b=>`<tr><td>${b.operacao}</td><td>${b.ciclo}</td><td class="mono">${getSPR(session.userId, b.operacao, b.ciclo) ?? '—'}</td><td class="mono">${b.horaInicio}–${b.horaFim}</td><td class="jornada-tag">${diasBaseMestraLabel(b)}</td><td>${b.titular}</td><td class="mono" style="color:var(--text-muted);">${b.dataInicio} → ${b.dataFim}</td>
-  <td style="text-align:right;white-space:nowrap;"><button class="btn" data-editar-mestra="${b.id}">Editar</button> <button class="btn btn-danger" data-excluir-mestra="${b.id}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="8" class="empty">Nenhuma operação fixa cadastrada</td></tr>'}
+  <td style="text-align:right;white-space:nowrap;"><button class="btn" data-editar-mestra="${b.id}">Editar</button> <button class="btn btn-danger" data-excluir-mestra="${b.id}">Excluir</button></td></tr>`).join('') || `<tr><td colspan="8" class="empty">Nenhuma operação fixa${temFiltro?' pra esse filtro':' cadastrada'}</td></tr>`}
   </tbody></table></div>`;
 }
 
