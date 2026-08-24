@@ -240,11 +240,31 @@ const NAV = {
 let activeNavKey = null;
 
 
+// Supervisor que delegou a Programação (só leitura) pro usuário logado —
+// ver renderDelegacaoProgramacao, Configurações. null se ninguém delegou (a
+// grande maioria dos analistas, o caso comum).
+function meuSupervisorDelegante(){
+  if(session.role!=='analista') return null;
+  const eu = userById(session.userId);
+  if(!eu?.supervisorId) return null;
+  const sup = userById(eu.supervisorId);
+  return sup?.delegadoProgramacaoId===session.userId ? sup : null;
+}
+
+// NAV[role] + a aba extra de quem foi delegado — computado toda vez (não
+// cacheado) porque o supervisor pode ativar/desativar a qualquer momento e
+// o menu precisa refletir isso no próximo render, sem precisar de logout.
+function navItemsDoRole(){
+  const base = NAV[session.role];
+  if(meuSupervisorDelegante()) return [...base, {k:'programacaogeral', label:'Programação Geral', icon:'calendar-range'}];
+  return base;
+}
+
 // Ordena/filtra os itens de NAV[role] conforme a personalização salva em
 // user.navConfig = { order:[chave,...], hidden:[chave,...] }. Chaves novas
 // (adicionadas ao produto depois da personalização) entram no fim, visíveis.
 function visibleNavItems(){
-  const defaultItems = NAV[session.role];
+  const defaultItems = navItemsDoRole();
   const cfg = userById(session.userId)?.navConfig;
   if(!cfg) return defaultItems;
   const byKey = k => defaultItems.find(i=>i.k===k);
@@ -314,7 +334,7 @@ function updateNavBadges(){
 
 function openMenuConfigModal(){
   const me = userById(session.userId);
-  const defaultItems = NAV[session.role];
+  const defaultItems = navItemsDoRole();
   const defaultKeys = defaultItems.map(i=>i.k);
   const cfg = me.navConfig || { order: defaultKeys, hidden: [] };
   let order = [...cfg.order.filter(k=>defaultKeys.includes(k)), ...defaultKeys.filter(k=>!cfg.order.includes(k))];
@@ -397,7 +417,7 @@ function renderMain(){
     activeNavKey = 'recados';
   }
   if(activeNavKey==='configuracoes') main.innerHTML = renderConfiguracoes();
-  else if(session.role==='analista') main.innerHTML = activeNavKey==='recados' ? renderRecadosAnalista() : activeNavKey==='feedback' ? renderFeedbackAnalista() : activeNavKey==='resultadospr' ? analistaResultadoSPR() : activeNavKey==='tempoexecucao' ? analistaTempoExecucao() : activeNavKey==='formularios' ? analistaFormularios() : renderAnalista();
+  else if(session.role==='analista') main.innerHTML = activeNavKey==='recados' ? renderRecadosAnalista() : activeNavKey==='feedback' ? renderFeedbackAnalista() : activeNavKey==='resultadospr' ? analistaResultadoSPR() : activeNavKey==='tempoexecucao' ? analistaTempoExecucao() : activeNavKey==='formularios' ? analistaFormularios() : activeNavKey==='programacaogeral' ? renderProgramacaoGeralAnalista() : renderAnalista();
   else if(session.role==='supervisor') main.innerHTML = renderSupervisor();
   else if(session.role==='coordenador') main.innerHTML = renderCoordenador();
   bindMainEvents();
@@ -459,6 +479,31 @@ function renderConfiguracoes(){
   <div class="card" style="max-width:420px;margin-top:16px;">
     <div class="section-title">Atualizar dados</div>
     <button class="btn" id="cfgRefreshData">🔄 Atualizar dados agora</button>
+  </div>
+  ${session.role==='supervisor' ? renderDelegacaoProgramacao(me) : ''}`;
+}
+
+// Deixa o supervisor liberar a "Programação Analista" (só leitura — mesma
+// tela dele, sem os botões de Enviar/Editar/Excluir Raio-X, que continuam
+// travados por session.role==='supervisor' nos lugares certos) pra UM
+// analista da própria equipe cobrir enquanto ele estiver de folga. Vira uma
+// aba extra no menu do analista (ver visibleNavItems) só enquanto ativo.
+function renderDelegacaoProgramacao(me){
+  const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
+  const delegadoId = me.delegadoProgramacaoId || '';
+  const delegado = delegadoId ? userById(delegadoId) : null;
+  return `<div class="card" style="max-width:420px;margin-top:16px;">
+    <div class="section-title">Delegar Programação (folga)</div>
+    <div class="help-text">Libera a "Programação Analista" (só leitura, sem editar Raio-X de ninguém) pra um analista da equipe acompanhar enquanto você estiver de folga.</div>
+    ${delegado ? `<div class="flash-meta" style="margin:8px 0;">Ativo pra <b>${escapeHtml(delegado.name)}</b> agora.</div>` : ''}
+    <div class="field">
+      <label>Analista</label>
+      <select id="cfgDelegadoSel" ${delegado?'disabled':''}>
+        <option value="">Selecione...</option>
+        ${myAnalistas.map(a=>`<option value="${a.id}" ${delegadoId===a.id?'selected':''}>${escapeHtml(a.name)}</option>`).join('')}
+      </select>
+    </div>
+    <button class="btn ${delegado?'btn-danger':'btn-brand'}" id="cfgToggleDelegacao" data-ativo="${delegado?'1':'0'}">${delegado?'Desativar':'Ativar'}</button>
   </div>`;
 }
 

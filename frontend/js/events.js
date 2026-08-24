@@ -2304,4 +2304,23 @@ function bindMainEvents(){
       cfgRefreshData.textContent = label;
     }
   });
+
+  const cfgToggleDelegacao = document.getElementById('cfgToggleDelegacao');
+  if(cfgToggleDelegacao) cfgToggleDelegacao.addEventListener('click', async ()=>{
+    const ativo = cfgToggleDelegacao.dataset.ativo==='1';
+    let novoId = null;
+    if(!ativo){
+      novoId = document.getElementById('cfgDelegadoSel').value;
+      if(!novoId){ alert('Selecione um analista da equipe.'); return; }
+    }
+    cfgToggleDelegacao.disabled = true;
+    try{
+      const atualizado = await apiUpdateUser(session.userId, { delegadoProgramacaoId: novoId });
+      DB.users = DB.users.map(x=>x.id===session.userId ? atualizado : x);
+      renderMain();
+    }catch(e){
+      alert('Não foi possível atualizar: '+e.message);
+      cfgToggleDelegacao.disabled = false;
+    }
+  });
 }

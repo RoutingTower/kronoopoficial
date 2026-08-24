@@ -23,7 +23,12 @@ create table users (
   supervisor_id   uuid references users(id) on delete set null,
   coordenador_id  uuid references users(id) on delete set null,
   jornada         jsonb,
-  nav_config      jsonb
+  nav_config      jsonb,
+  -- Só usado quando role='supervisor': analista da própria equipe liberado
+  -- pra ver a "Programação Analista" (só leitura, ver render-supervisor.js
+  -- supProgramacao) enquanto o supervisor estiver de folga. Nulo = ninguém
+  -- delegado. Ver users.controller.js updateUser.
+  delegado_programacao_id uuid references users(id) on delete set null
 );
 create index idx_users_supervisor on users(supervisor_id);
 create index idx_users_coordenador on users(coordenador_id);

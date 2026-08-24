@@ -92,7 +92,11 @@ async function updateUser(req, res) {
       // reautenticação recente pra essa chamada chegar aqui. Senha não passa
       // por aqui: troca direto no Auth via SDK client-side (não fica em
       // nenhuma coleção do Firestore).
-      if (!bodyKeys.every((k) => k === "navConfig" || k === "email")) {
+      // delegadoProgramacaoId: só supervisor mexe no próprio (liberar a
+      // Programação Analista, só leitura, pra um analista da equipe cobrir
+      // na folga — ver render-supervisor.js supProgramacao).
+      const selfKeys = caller.role === "supervisor" ? ["navConfig", "email", "delegadoProgramacaoId"] : ["navConfig", "email"];
+      if (!bodyKeys.every((k) => selfKeys.includes(k))) {
         return res.status(403).json({ error: "forbidden", message: "Você só pode editar sua própria personalização de menu e e-mail." });
       }
     } else if (!isSupervisorDaEquipe && !isCoordenadorDaEquipe) {
@@ -100,8 +104,15 @@ async function updateUser(req, res) {
     }
   }
 
+  if (req.body.delegadoProgramacaoId !== undefined && req.body.delegadoProgramacaoId !== null) {
+    const alvo = await supabaseService.getById(COLLECTION, req.body.delegadoProgramacaoId);
+    if (!alvo || alvo.role !== "analista" || alvo.supervisorId !== caller.id) {
+      return res.status(400).json({ error: "bad_request", message: "Só é possível delegar a Programação pra um analista da própria equipe." });
+    }
+  }
+
   const patch = {};
-  for (const key of ["name", "email", "active", "supervisorId", "coordenadorId", "jornada", "navConfig"]) {
+  for (const key of ["name", "email", "active", "supervisorId", "coordenadorId", "jornada", "navConfig", "delegadoProgramacaoId"]) {
     if (req.body[key] !== undefined) patch[key] = req.body[key];
   }
   if (req.body.email !== undefined) {

@@ -417,6 +417,25 @@ function statCardContagem(proxima, iconHtml, label, semLabel){
   return `<div class="stat-card"><div class="stat-num">${proxima.diasFaltando===0?'Hoje':proxima.diasFaltando}</div><div class="stat-label">${iconHtml} ${label} · ${formatarDataCurta(proxima.data)}${sufixoDias}</div></div>`;
 }
 
+// Aba extra de quem foi delegado pelo supervisor (ver
+// renderDelegacaoProgramacao, ui.js) — mesma tela do supervisor
+// (supProgramacao), só que escopada pela equipe do supervisor QUE delegou,
+// não por session.userId (que aqui é o analista, não um supervisor de
+// verdade). Continua só leitura sem esforço extra: os únicos botões
+// daquela tela (Editar/Excluir Raio-X de colega) já são travados por
+// session.role==='supervisor' dentro de renderExecucaoActions — o analista
+// delegado mantém role 'analista', então nunca aparecem, mesmo olhando a
+// operação de outra pessoa.
+function renderProgramacaoGeralAnalista(){
+  const sup = meuSupervisorDelegante();
+  if(!sup){
+    return `<div class="page-head"><div><h1 class="page-title">Programação Geral</h1></div></div>
+      <div class="empty">Seu supervisor desativou esse acesso.</div>`;
+  }
+  const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===sup.id);
+  return `<div class="page-head"><div><h1 class="page-title">Programação Geral</h1><div class="page-desc">Cobrindo ${escapeHtml(sup.name)} · somente leitura</div></div></div>${supProgramacao(myAnalistas)}`;
+}
+
 function renderAnalista(){
   const dateStr = uiState.analistaDate;
   const todaySlots = getDaySlots(session.userId, dateStr);
