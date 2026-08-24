@@ -475,7 +475,7 @@ function supGerarEscalaDomingo(myAnalistas){
 
   return `
   <div class="section-title">Gerar Escala de Fim de Semana</div>
-  <div class="help-text">Quem trabalha no sábado folga no domingo, e quem trabalha no domingo folga no sábado — selecione cada equipe separadamente (ninguém pode estar nas duas). O sistema monta a escala do dia inteiro pra cada um: até 6 operações por pessoa, priorizando a carteira própria (🏠), equilibrando o total entre todos e variando o estado (UF) dos hubs extras, sem passar de 8h de turno.</div>
+  <div class="help-text">Quem trabalha no sábado folga no domingo, e quem trabalha no domingo folga no sábado — selecione cada equipe separadamente (dá pra colocar a mesma pessoa nas duas, mas confirma antes, já que ela passa a trabalhar o fim de semana inteiro). O sistema monta a escala do dia inteiro pra cada um: até 6 operações por pessoa, priorizando a carteira própria (🏠), equilibrando o total entre todos e variando o estado (UF) dos hubs extras, sem passar de 8h de turno.</div>
   <div class="card" style="margin-bottom:22px;">
     <div class="field" style="max-width:220px;"><label>Sábado</label><input type="date" id="escalaDomSabadoInput" value="${sabado}"></div>
     <div class="help-text" style="margin-top:-8px;margin-bottom:14px;">Domingo: ${domingo} (dia seguinte, automático)</div>

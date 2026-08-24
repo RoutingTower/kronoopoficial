@@ -36,18 +36,17 @@ function bindMultiselect(main, toggleId, todosId, chkClass, filtro, key, openKey
 // inteiro — re-montar tudo a cada tecla digitada perderia o foco/cursor do
 // campo de busca.
 // Mesmo modal serve os dois dias (dia = 'sab'|'dom'): analista inativo
-// nunca aparece, e quem já foi escalado no OUTRO dia some da lista — regra
-// de folga cruzada (quem trabalha sábado folga domingo e vice-versa) é
-// aplicada aqui, na origem, não só validada depois.
-function escalaDomElegiveis(myAnalistas, dia){
-  const outroKey = dia==='sab' ? 'escalaDomSelecionadosDom' : 'escalaDomSelecionadosSab';
-  const outro = new Set(uiState[outroKey]);
-  return myAnalistas.filter(a=>a.active && !outro.has(a.id));
+// nunca aparece. Trabalhar os dois dias do fim de semana é raro (a regra
+// normal é folga cruzada: quem trabalha sábado folga domingo), mas dá pra
+// forçar — quem já está escalado no OUTRO dia continua na lista, só marcado
+// com um aviso, e escolher confirma antes de aceitar (ver onclick abaixo).
+function escalaDomElegiveis(myAnalistas){
+  return myAnalistas.filter(a=>a.active);
 }
 function escalaDomModalBody(dia){
   const titulo = dia==='sab' ? 'Quem trabalha no sábado' : 'Quem trabalha no domingo';
   return `<h3>${titulo}</h3>
-    <div class="help-text" style="margin-top:-4px;margin-bottom:10px;">Só analistas ativos aparecem aqui, e quem já foi escalado pro outro dia do fim de semana some da lista — a mesma pessoa não pode trabalhar os dois dias.</div>
+    <div class="help-text" style="margin-top:-4px;margin-bottom:10px;">Só analistas ativos aparecem aqui. A regra normal é folga cruzada (quem trabalha sábado folga domingo) — quem já foi escalado pro outro dia aparece marcado; escolher mesmo assim pede confirmação, porque a pessoa passa a trabalhar os dois dias do fim de semana.</div>
     <div class="field" style="margin-bottom:10px;"><input type="text" id="escalaDomBusca" placeholder="Buscar por nome..."></div>
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
       <button type="button" class="btn" id="btnEscalaDomModalTodos" style="padding:4px 10px;font-size:11.5px;">Selecionar todos</button>
@@ -70,24 +69,35 @@ function escalaDomModalBody(dia){
 }
 function escalaDomRenderLists(myAnalistas, dia){
   const key = dia==='sab' ? 'escalaDomSelecionadosSab' : 'escalaDomSelecionadosDom';
-  const elegiveis = escalaDomElegiveis(myAnalistas, dia);
+  const outroKey = dia==='sab' ? 'escalaDomSelecionadosDom' : 'escalaDomSelecionadosSab';
+  const outroDiaLabel = dia==='sab' ? 'domingo' : 'sábado';
+  const outro = new Set(uiState[outroKey]);
+  const elegiveis = escalaDomElegiveis(myAnalistas);
   const elegiveisIds = new Set(elegiveis.map(a=>a.id));
-  // Se alguém que já estava selecionado deixou de ser elegível nesse meio
-  // tempo (foi escalado pro outro dia, ou desativado), tira daqui também —
-  // não deixa o estado ficar inconsistente com o que a tela mostra.
+  // Só tira quem deixou de ser elegível de verdade (desativado nesse meio
+  // tempo) — estar no outro dia não desqualifica mais ninguém daqui.
   uiState[key] = uiState[key].filter(id=>elegiveisIds.has(id));
   const sel = uiState[key];
   const busca = normalizarNome(document.getElementById('escalaDomBusca')?.value || '');
   const bate = a => !busca || normalizarNome(a.name).includes(busca);
   const disponiveis = elegiveis.filter(a=>!sel.includes(a.id) && bate(a));
   const escalados = elegiveis.filter(a=>sel.includes(a.id) && bate(a));
-  document.getElementById('escalaDomListaDisponiveis').innerHTML = disponiveis.map(a=>`<button type="button" class="escaladom-item" data-id="${a.id}">${escapeHtml(a.name)}</button>`).join('')
+  document.getElementById('escalaDomListaDisponiveis').innerHTML = disponiveis.map(a=>`<button type="button" class="escaladom-item" data-id="${a.id}">${escapeHtml(a.name)}${outro.has(a.id) ? ` <span style="color:var(--alert);font-weight:600;">· já no ${outroDiaLabel}</span>` : ''}</button>`).join('')
     || '<div class="help-text" style="padding:8px;">Ninguém encontrado</div>';
   document.getElementById('escalaDomListaEscalados').innerHTML = escalados.map(a=>`<button type="button" class="escaladom-item checked" data-id="${a.id}">${escapeHtml(a.name)}</button>`).join('')
     || '<div class="help-text" style="padding:8px;">Ninguém ainda</div>';
   document.getElementById('escalaDomContador').textContent = `${sel.length} selecionado${sel.length===1?'':'s'}`;
   document.querySelectorAll('#escalaDomListaDisponiveis .escaladom-item').forEach(btn=>{
-    btn.onclick = ()=>{ if(!sel.includes(btn.dataset.id)) sel.push(btn.dataset.id); escalaDomRenderLists(myAnalistas, dia); };
+    btn.onclick = ()=>{
+      const id = btn.dataset.id;
+      if(sel.includes(id)) return;
+      if(outro.has(id)){
+        const nome = elegiveis.find(a=>a.id===id)?.name || 'Essa pessoa';
+        if(!confirm(`${nome} já está escalado(a) pro ${outroDiaLabel}. Colocar também neste dia? Vai trabalhar os dois dias do fim de semana.`)) return;
+      }
+      sel.push(id);
+      escalaDomRenderLists(myAnalistas, dia);
+    };
   });
   document.querySelectorAll('#escalaDomListaEscalados .escaladom-item').forEach(btn=>{
     btn.onclick = ()=>{ uiState[key] = sel.filter(id=>id!==btn.dataset.id); escalaDomRenderLists(myAnalistas, dia); };
@@ -95,9 +105,18 @@ function escalaDomRenderLists(myAnalistas, dia){
 }
 function wireEscalaDomModal(myAnalistas, dia){
   const key = dia==='sab' ? 'escalaDomSelecionadosSab' : 'escalaDomSelecionadosDom';
+  const outroKey = dia==='sab' ? 'escalaDomSelecionadosDom' : 'escalaDomSelecionadosSab';
   escalaDomRenderLists(myAnalistas, dia);
   document.getElementById('escalaDomBusca').addEventListener('input', ()=> escalaDomRenderLists(myAnalistas, dia));
-  document.getElementById('btnEscalaDomModalTodos').onclick = ()=>{ uiState[key] = escalaDomElegiveis(myAnalistas, dia).map(a=>a.id); escalaDomRenderLists(myAnalistas, dia); };
+  // "Selecionar todos" continua excluindo quem já está no outro dia — um
+  // clique só não deveria dobrar a jornada de um monte de gente de uma vez
+  // sem pedir nada; quem quiser isso escolhe pessoa por pessoa (confirma
+  // uma a uma, ver escalaDomRenderLists).
+  document.getElementById('btnEscalaDomModalTodos').onclick = ()=>{
+    const outro = new Set(uiState[outroKey]);
+    uiState[key] = escalaDomElegiveis(myAnalistas).filter(a=>!outro.has(a.id)).map(a=>a.id);
+    escalaDomRenderLists(myAnalistas, dia);
+  };
   document.getElementById('btnEscalaDomModalLimpar').onclick = ()=>{ uiState[key] = []; escalaDomRenderLists(myAnalistas, dia); };
   document.getElementById('btnFecharEscalaDomModal').onclick = ()=>{ closeModal(); renderMain(); };
 }
