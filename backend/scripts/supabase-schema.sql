@@ -24,11 +24,13 @@ create table users (
   coordenador_id  uuid references users(id) on delete set null,
   jornada         jsonb,
   nav_config      jsonb,
-  -- Só usado quando role='supervisor': analista da própria equipe liberado
-  -- pra ver a "Programação Analista" (só leitura, ver render-supervisor.js
-  -- supProgramacao) enquanto o supervisor estiver de folga. Nulo = ninguém
-  -- delegado. Ver users.controller.js updateUser.
-  delegado_programacao_id uuid references users(id) on delete set null
+  -- Só usado quando role='supervisor': até 5 analistas da própria equipe
+  -- liberados pra ver a "Programação Analista" (só leitura, ver
+  -- render-supervisor.js supProgramacao) enquanto o supervisor estiver de
+  -- folga. Array vazio = ninguém delegado. Sem FK (uuid[] não suporta
+  -- references no Postgres) — a validação de "é da própria equipe" e do
+  -- limite de 5 fica em users.controller.js updateUser.
+  delegados_programacao_ids uuid[] not null default '{}'
 );
 create index idx_users_supervisor on users(supervisor_id);
 create index idx_users_coordenador on users(coordenador_id);

@@ -248,7 +248,7 @@ function meuSupervisorDelegante(){
   const eu = userById(session.userId);
   if(!eu?.supervisorId) return null;
   const sup = userById(eu.supervisorId);
-  return sup?.delegadoProgramacaoId===session.userId ? sup : null;
+  return (sup?.delegadosProgramacaoIds||[]).includes(session.userId) ? sup : null;
 }
 
 // NAV[role] + a aba extra de quem foi delegado — computado toda vez (não
@@ -488,22 +488,22 @@ function renderConfiguracoes(){
 // travados por session.role==='supervisor' nos lugares certos) pra UM
 // analista da própria equipe cobrir enquanto ele estiver de folga. Vira uma
 // aba extra no menu do analista (ver visibleNavItems) só enquanto ativo.
+const MAX_DELEGADOS_PROGRAMACAO = 5;
 function renderDelegacaoProgramacao(me){
   const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
-  const delegadoId = me.delegadoProgramacaoId || '';
-  const delegado = delegadoId ? userById(delegadoId) : null;
+  const delegados = me.delegadosProgramacaoIds || [];
   return `<div class="card" style="max-width:420px;margin-top:16px;">
     <div class="section-title">Delegar Programação (folga)</div>
-    <div class="help-text">Libera a "Programação Analista" (só leitura, sem editar Raio-X de ninguém) pra um analista da equipe acompanhar enquanto você estiver de folga.</div>
-    ${delegado ? `<div class="flash-meta" style="margin:8px 0;">Ativo pra <b>${escapeHtml(delegado.name)}</b> agora.</div>` : ''}
+    <div class="help-text">Libera a "Programação Analista" (só leitura, sem editar Raio-X de ninguém) pra até ${MAX_DELEGADOS_PROGRAMACAO} analistas da equipe acompanharem enquanto você estiver de folga.</div>
     <div class="field">
-      <label>Analista</label>
-      <select id="cfgDelegadoSel" ${delegado?'disabled':''}>
-        <option value="">Selecione...</option>
-        ${myAnalistas.map(a=>`<option value="${a.id}" ${delegadoId===a.id?'selected':''}>${escapeHtml(a.name)}</option>`).join('')}
-      </select>
+      <label>Analistas (<span id="cfgDelegadosCount">${delegados.length}</span>/${MAX_DELEGADOS_PROGRAMACAO})</label>
+      <div id="cfgDelegadosLista" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;">
+        ${myAnalistas.map(a=>`<label style="display:flex;align-items:center;gap:6px;font-weight:400;">
+          <input type="checkbox" class="cfg-delegado-chk" value="${a.id}" ${delegados.includes(a.id)?'checked':''}> ${escapeHtml(a.name)}
+        </label>`).join('') || '<div class="empty">Nenhum analista na equipe</div>'}
+      </div>
     </div>
-    <button class="btn ${delegado?'btn-danger':'btn-brand'}" id="cfgToggleDelegacao" data-ativo="${delegado?'1':'0'}">${delegado?'Desativar':'Ativar'}</button>
+    <button class="btn btn-brand" id="cfgSalvarDelegacao" style="margin-top:8px;">Salvar</button>
   </div>`;
 }
 

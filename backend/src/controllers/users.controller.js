@@ -92,10 +92,10 @@ async function updateUser(req, res) {
       // reautenticação recente pra essa chamada chegar aqui. Senha não passa
       // por aqui: troca direto no Auth via SDK client-side (não fica em
       // nenhuma coleção do Firestore).
-      // delegadoProgramacaoId: só supervisor mexe no próprio (liberar a
-      // Programação Analista, só leitura, pra um analista da equipe cobrir
-      // na folga — ver render-supervisor.js supProgramacao).
-      const selfKeys = caller.role === "supervisor" ? ["navConfig", "email", "delegadoProgramacaoId"] : ["navConfig", "email"];
+      // delegadosProgramacaoIds: só supervisor mexe no próprio (liberar a
+      // Programação Analista, só leitura, pra até 5 analistas da equipe
+      // cobrirem na folga — ver render-supervisor.js supProgramacao).
+      const selfKeys = caller.role === "supervisor" ? ["navConfig", "email", "delegadosProgramacaoIds"] : ["navConfig", "email"];
       if (!bodyKeys.every((k) => selfKeys.includes(k))) {
         return res.status(403).json({ error: "forbidden", message: "Você só pode editar sua própria personalização de menu e e-mail." });
       }
@@ -104,15 +104,24 @@ async function updateUser(req, res) {
     }
   }
 
-  if (req.body.delegadoProgramacaoId !== undefined && req.body.delegadoProgramacaoId !== null) {
-    const alvo = await supabaseService.getById(COLLECTION, req.body.delegadoProgramacaoId);
-    if (!alvo || alvo.role !== "analista" || alvo.supervisorId !== caller.id) {
-      return res.status(400).json({ error: "bad_request", message: "Só é possível delegar a Programação pra um analista da própria equipe." });
+  if (req.body.delegadosProgramacaoIds !== undefined) {
+    const ids = req.body.delegadosProgramacaoIds;
+    if (!Array.isArray(ids) || ids.length > 5 || new Set(ids).size !== ids.length) {
+      return res.status(400).json({ error: "bad_request", message: "delegadosProgramacaoIds deve ser uma lista de até 5 ids, sem repetição." });
+    }
+    if (ids.length > 0) {
+      // existing.id (o supervisor dono do campo), não caller.id — quem está
+      // editando pode ser um admin agindo em nome de outro supervisor.
+      const alvos = await Promise.all(ids.map((id) => supabaseService.getById(COLLECTION, id)));
+      const todosValidos = alvos.every((a) => a && a.role === "analista" && a.supervisorId === existing.id);
+      if (!todosValidos) {
+        return res.status(400).json({ error: "bad_request", message: "Só é possível delegar a Programação pra analistas da própria equipe." });
+      }
     }
   }
 
   const patch = {};
-  for (const key of ["name", "email", "active", "supervisorId", "coordenadorId", "jornada", "navConfig", "delegadoProgramacaoId"]) {
+  for (const key of ["name", "email", "active", "supervisorId", "coordenadorId", "jornada", "navConfig", "delegadosProgramacaoIds"]) {
     if (req.body[key] !== undefined) patch[key] = req.body[key];
   }
   if (req.body.email !== undefined) {
