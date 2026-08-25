@@ -45,18 +45,17 @@ function paraHoraMinuto(valor) {
 // hourSortValue/slotTimestamp no frontend), mas a planilha registra a data
 // literal do relógio: uma operação de madrugada que o Kronos guarda como
 // "21/08" (turno começou dia 21) aparece na planilha como "22/08" (a hora
-// real já é depois da meia-noite). dataCalendarioDoRaioX vai de operacional
-// -> literal (pra indexar o Raio-X do jeito que a planilha vai perguntar);
-// dataOperacionalDoSheet faz o caminho inverso (pra gravar roteirizacao_
-// status, que allto guarda a data operacional, igual ao Raio-X).
-function dataCalendarioDoRaioX(dataOperacional, hora) {
-  const h = parseInt(String(hora).split(":")[0], 10);
-  if (h >= 7) return dataOperacional;
-  const [y, m, d] = dataOperacional.split("-").map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  dt.setUTCDate(dt.getUTCDate() + 1);
-  return dt.toISOString().slice(0, 10);
-}
+// real já é depois da meia-noite). dataOperacionalDoSheet faz esse caminho
+// (literal -> operacional) usando o horário REAL de cada linha da planilha
+// — é o que garante achar o Raio-X certo mesmo quando a execução real
+// escorrega pra antes ou depois da meia-noite em relação ao horário
+// agendado (ver escolherRaioX/candidatosRaioX abaixo: casar direto pela
+// data operacional evita o bug de indexar pelo horário AGENDADO do
+// Raio-X, que é fixo e não reflete a variação real dia a dia — via
+// Hub_SP_Araraquara em produção, agendado 01:00 mas a execução real de um
+// dia caiu antes da virada e a de outro depois, e indexar pelo agendado
+// jogava as duas linhas da planilha pro MESMO Raio-X, deixando o outro
+// Raio-X inalcançável pra sempre).
 function dataOperacionalDoSheet(dataCalendario, hora) {
   const h = parseInt(String(hora).split(":")[0], 10);
   if (h >= 7) return dataCalendario;
@@ -167,11 +166,13 @@ async function importarPlanilha(req, res) {
     supabaseService.listWhere("roteirizacaoStatus", [["data", ">=", dataDiasAtras(10)]]),
   ]);
 
-  // Índice do Raio-X por data (a que aparece na planilha, não a
-  // operacional — ver dataCalendarioDoRaioX) + operação.
+  // Índice do Raio-X por data OPERACIONAL (a mesma que raio_x.data já
+  // guarda) + operação — casa direto, sem converter pra data literal (ver
+  // comentário de dataOperacionalDoSheet acima sobre por que essa era a
+  // fonte do bug).
   const raioXPorDataOperacao = new Map();
   for (const r of todosRaioX) {
-    const chave = `${dataCalendarioDoRaioX(r.data, r.hora)}|${r.operacao}`;
+    const chave = `${r.data}|${r.operacao}`;
     if (!raioXPorDataOperacao.has(chave)) raioXPorDataOperacao.set(chave, []);
     raioXPorDataOperacao.get(chave).push(r);
   }
@@ -212,7 +213,11 @@ async function importarPlanilha(req, res) {
       continue;
     }
 
-    const candidatosRaioX = raioXPorDataOperacao.get(`${dataISO}|${operacao}`) || [];
+    // Data operacional calculada a partir do horário REAL da linha (não do
+    // horário agendado do Raio-X) — ver comentário de dataOperacionalDoSheet
+    // no topo do arquivo.
+    const dataOperacional = dataOperacionalDoSheet(dataISO, inicioTxt);
+    const candidatosRaioX = raioXPorDataOperacao.get(`${dataOperacional}|${operacao}`) || [];
     const escolhido = candidatosRaioX.length ? escolherRaioX(candidatosRaioX, ciclo, inicioTxt) : null;
 
     if (escolhido) {
@@ -234,12 +239,11 @@ async function importarPlanilha(req, res) {
     const analistaId = idPorEmail.get(email);
     if (!analistaId) {
       semAnalistaIdentificado++;
-      if (candidatosRaioX.length > 1) ambiguos.push({ data: dataISO, operacao, ciclo, qtd: candidatosRaioX.length });
-      else naoEncontrados.push({ data: dataISO, operacao, ciclo });
+      if (candidatosRaioX.length > 1) ambiguos.push({ data: dataOperacional, operacao, ciclo, qtd: candidatosRaioX.length });
+      else naoEncontrados.push({ data: dataOperacional, operacao, ciclo });
       continue;
     }
 
-    const dataOperacional = dataOperacionalDoSheet(dataISO, inicioTxt);
     const chave = `${analistaId}|${operacao}|${dataOperacional}`;
     paraStatus.push({
       chave,
