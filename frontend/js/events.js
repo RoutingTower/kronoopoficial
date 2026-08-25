@@ -24,29 +24,28 @@ function bindMultiselect(main, toggleId, todosId, chkClass, filtro, key, openKey
   });
 }
 
-// Escala de Fim de Semana (ver supGerarEscalaDomingo/escalaDomAnalistaPicker
-// em render-supervisor.js): a grade de chips fica dentro de uma caixa
-// (modal) em vez de aberta direto no card — escolher 10-14 pessoas ocupava
-// espaço demais na tela principal. Cada toggle re-renderiza só o CONTEÚDO
-// do modal (openModal de novo, sem fechar) pra refletir o chip marcado/
+// Escala de Domingo (ver supGerarEscalaDomingo/escalaDomAnalistaPicker em
+// render-supervisor.js): a grade de chips fica dentro de uma caixa (modal)
+// em vez de aberta direto no card — escolher 10-14 pessoas ocupava espaço
+// demais na tela principal. Cada toggle re-renderiza só o CONTEÚDO do
+// modal (openModal de novo, sem fechar) pra refletir o chip marcado/
 // desmarcado e o contador, sem mexer no resto da tela.
 // Duas caixas (Disponíveis / Escalados, ver .escaladom-dual no CSS) — clicar
 // no nome move de um lado pro outro. Só a busca + clique num nome
 // re-renderizam as DUAS LISTAS (escalaDomRenderLists), nunca o modal
 // inteiro — re-montar tudo a cada tecla digitada perderia o foco/cursor do
 // campo de busca.
-// Mesmo modal serve os dois dias (dia = 'sab'|'dom'): analista inativo
-// nunca aparece. Trabalhar os dois dias do fim de semana é raro (a regra
-// normal é folga cruzada: quem trabalha sábado folga domingo), mas dá pra
-// forçar — quem já está escalado no OUTRO dia continua na lista, só marcado
-// com um aviso, e escolher confirma antes de aceitar (ver onclick abaixo).
+// Mesmo modal serve os dois grupos (dia = 'A'|'B'): analista inativo nunca
+// aparece. Diferente do antigo par sábado/domingo, aqui um analista PODE
+// estar nos dois grupos de propósito (cobre todo domingo marcado, sem
+// folga cruzada forçada) — não precisa de aviso nem confirmação.
 function escalaDomElegiveis(myAnalistas){
   return myAnalistas.filter(a=>a.active);
 }
 function escalaDomModalBody(dia){
-  const titulo = dia==='sab' ? 'Quem trabalha no sábado' : 'Quem trabalha no domingo';
+  const titulo = dia==='A' ? 'Grupo A' : 'Grupo B';
   return `<h3>${titulo}</h3>
-    <div class="help-text" style="margin-top:-4px;margin-bottom:10px;">Só analistas ativos aparecem aqui. A regra normal é folga cruzada (quem trabalha sábado folga domingo) — quem já foi escalado pro outro dia aparece marcado; escolher mesmo assim pede confirmação, porque a pessoa passa a trabalhar os dois dias do fim de semana.</div>
+    <div class="help-text" style="margin-top:-4px;margin-bottom:10px;">Só analistas ativos aparecem aqui. Um analista pode estar nos dois grupos (cobre todo domingo marcado, não só metade).</div>
     <div class="field" style="margin-bottom:10px;"><input type="text" id="escalaDomBusca" placeholder="Buscar por nome..."></div>
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
       <button type="button" class="btn" id="btnEscalaDomModalTodos" style="padding:4px 10px;font-size:11.5px;">Selecionar todos</button>
@@ -68,53 +67,33 @@ function escalaDomModalBody(dia){
     </div>`;
 }
 function escalaDomRenderLists(myAnalistas, dia){
-  const key = dia==='sab' ? 'escalaDomSelecionadosSab' : 'escalaDomSelecionadosDom';
-  const outroKey = dia==='sab' ? 'escalaDomSelecionadosDom' : 'escalaDomSelecionadosSab';
-  const outroDiaLabel = dia==='sab' ? 'domingo' : 'sábado';
-  const outro = new Set(uiState[outroKey]);
+  const key = dia==='A' ? 'escalaDomGrupoA' : 'escalaDomGrupoB';
   const elegiveis = escalaDomElegiveis(myAnalistas);
   const elegiveisIds = new Set(elegiveis.map(a=>a.id));
-  // Só tira quem deixou de ser elegível de verdade (desativado nesse meio
-  // tempo) — estar no outro dia não desqualifica mais ninguém daqui.
   uiState[key] = uiState[key].filter(id=>elegiveisIds.has(id));
   const sel = uiState[key];
   const busca = normalizarNome(document.getElementById('escalaDomBusca')?.value || '');
   const bate = a => !busca || normalizarNome(a.name).includes(busca);
   const disponiveis = elegiveis.filter(a=>!sel.includes(a.id) && bate(a));
   const escalados = elegiveis.filter(a=>sel.includes(a.id) && bate(a));
-  document.getElementById('escalaDomListaDisponiveis').innerHTML = disponiveis.map(a=>`<button type="button" class="escaladom-item" data-id="${a.id}">${escapeHtml(a.name)}${outro.has(a.id) ? ` <span style="color:var(--alert);font-weight:600;">· já no ${outroDiaLabel}</span>` : ''}</button>`).join('')
+  document.getElementById('escalaDomListaDisponiveis').innerHTML = disponiveis.map(a=>`<button type="button" class="escaladom-item" data-id="${a.id}">${escapeHtml(a.name)}</button>`).join('')
     || '<div class="help-text" style="padding:8px;">Ninguém encontrado</div>';
   document.getElementById('escalaDomListaEscalados').innerHTML = escalados.map(a=>`<button type="button" class="escaladom-item checked" data-id="${a.id}">${escapeHtml(a.name)}</button>`).join('')
     || '<div class="help-text" style="padding:8px;">Ninguém ainda</div>';
   document.getElementById('escalaDomContador').textContent = `${sel.length} selecionado${sel.length===1?'':'s'}`;
   document.querySelectorAll('#escalaDomListaDisponiveis .escaladom-item').forEach(btn=>{
-    btn.onclick = ()=>{
-      const id = btn.dataset.id;
-      if(sel.includes(id)) return;
-      if(outro.has(id)){
-        const nome = elegiveis.find(a=>a.id===id)?.name || 'Essa pessoa';
-        if(!confirm(`${nome} já está escalado(a) pro ${outroDiaLabel}. Colocar também neste dia? Vai trabalhar os dois dias do fim de semana.`)) return;
-      }
-      sel.push(id);
-      escalaDomRenderLists(myAnalistas, dia);
-    };
+    btn.onclick = ()=>{ if(!sel.includes(btn.dataset.id)) sel.push(btn.dataset.id); escalaDomRenderLists(myAnalistas, dia); };
   });
   document.querySelectorAll('#escalaDomListaEscalados .escaladom-item').forEach(btn=>{
     btn.onclick = ()=>{ uiState[key] = sel.filter(id=>id!==btn.dataset.id); escalaDomRenderLists(myAnalistas, dia); };
   });
 }
 function wireEscalaDomModal(myAnalistas, dia){
-  const key = dia==='sab' ? 'escalaDomSelecionadosSab' : 'escalaDomSelecionadosDom';
-  const outroKey = dia==='sab' ? 'escalaDomSelecionadosDom' : 'escalaDomSelecionadosSab';
+  const key = dia==='A' ? 'escalaDomGrupoA' : 'escalaDomGrupoB';
   escalaDomRenderLists(myAnalistas, dia);
   document.getElementById('escalaDomBusca').addEventListener('input', ()=> escalaDomRenderLists(myAnalistas, dia));
-  // "Selecionar todos" continua excluindo quem já está no outro dia — um
-  // clique só não deveria dobrar a jornada de um monte de gente de uma vez
-  // sem pedir nada; quem quiser isso escolhe pessoa por pessoa (confirma
-  // uma a uma, ver escalaDomRenderLists).
   document.getElementById('btnEscalaDomModalTodos').onclick = ()=>{
-    const outro = new Set(uiState[outroKey]);
-    uiState[key] = escalaDomElegiveis(myAnalistas).filter(a=>!outro.has(a.id)).map(a=>a.id);
+    uiState[key] = escalaDomElegiveis(myAnalistas).map(a=>a.id);
     escalaDomRenderLists(myAnalistas, dia);
   };
   document.getElementById('btnEscalaDomModalLimpar').onclick = ()=>{ uiState[key] = []; escalaDomRenderLists(myAnalistas, dia); };
@@ -931,35 +910,50 @@ function bindMainEvents(){
     });
   });
 
-  const escalaDomSabadoInput = document.getElementById('escalaDomSabadoInput');
-  if(escalaDomSabadoInput) escalaDomSabadoInput.addEventListener('change', ()=>{
-    uiState.escalaDomSabado = sabadoDoFimDeSemana(escalaDomSabadoInput.value);
-    uiState.escalaDomResultadoSab = null;
-    uiState.escalaDomResultadoDom = null;
+  const escalaDomMesInput = document.getElementById('escalaDomMesInput');
+  if(escalaDomMesInput) escalaDomMesInput.addEventListener('change', ()=>{
+    uiState.escalaDomMes = escalaDomMesInput.value;
+    // A seleção de domingos era do mês anterior — deixa em branco pra
+    // render recalcular os primeiros do mês novo (ver supGerarEscalaDomingo),
+    // em vez de arrastar datas que nem existem nele.
+    uiState.escalaDomDomingosSel = [];
+    uiState.escalaDomResultados = {};
     renderMain();
   });
 
-  // Trocar sábado↔domingo direto poupa reconstruir as duas listas do zero
-  // quando o supervisor alterna o fim de semana (a mesma galera costuma só
-  // trocar de dia). Zera os resultados já gerados, senão eles continuariam
-  // apontando pra quem estava escalado ANTES da troca.
+  main.querySelectorAll('.escaladom-domingo-chk').forEach(chk=>{
+    chk.addEventListener('change', ()=>{
+      const marcados = Array.from(main.querySelectorAll('.escaladom-domingo-chk:checked')).map(c=>c.value);
+      if(marcados.length>MAX_DOMINGOS_ESCALA){
+        chk.checked = false;
+        alert(`Máximo de ${MAX_DOMINGOS_ESCALA} domingos.`);
+        return;
+      }
+      uiState.escalaDomDomingosSel = marcados;
+      uiState.escalaDomResultados = {};
+      const countEl = document.getElementById('escalaDomDomingosCount');
+      if(countEl) countEl.textContent = marcados.length;
+    });
+  });
+
+  // Trocar Grupo A↔B direto poupa reconstruir as duas listas do zero —
+  // troca quem cobre o 1º/3º domingo com quem cobre o 2º/4º. Zera os
+  // resultados já gerados, senão eles continuariam apontando pro grupo de
+  // ANTES da troca.
   const btnInverterEscalaDom = document.getElementById('btnInverterEscalaDom');
   if(btnInverterEscalaDom) btnInverterEscalaDom.addEventListener('click', ()=>{
-    [uiState.escalaDomSelecionadosSab, uiState.escalaDomSelecionadosDom] = [uiState.escalaDomSelecionadosDom, uiState.escalaDomSelecionadosSab];
-    uiState.escalaDomResultadoSab = null;
-    uiState.escalaDomResultadoDom = null;
+    [uiState.escalaDomGrupoA, uiState.escalaDomGrupoB] = [uiState.escalaDomGrupoB, uiState.escalaDomGrupoA];
+    uiState.escalaDomResultados = {};
     renderMain();
   });
 
   const btnGerarEscalaDom = document.getElementById('btnGerarEscalaDom');
   if(btnGerarEscalaDom) btnGerarEscalaDom.addEventListener('click', ()=>{
-    const selSab = uiState.escalaDomSelecionadosSab;
-    const selDom = uiState.escalaDomSelecionadosDom;
-    if(selSab.length===0 && selDom.length===0){ alert('Selecione ao menos um analista escalado pra trabalhar no sábado ou no domingo.'); return; }
+    const domingos = uiState.escalaDomDomingosSel;
+    if(domingos.length===0){ alert('Marque ao menos um domingo do mês.'); return; }
+    if(uiState.escalaDomGrupoA.length===0 && uiState.escalaDomGrupoB.length===0){ alert('Selecione ao menos um analista no Grupo A ou no Grupo B.'); return; }
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
     const idsEquipe = myAnalistas.map(a=>a.id);
-    const sabado = uiState.escalaDomSabado;
-    const domingo = addDaysISO(sabado, 1);
     function gerarLinhas(escaladoIds, dataStr){
       const { escalados, naoCobertos } = gerarEscalaFDS(escaladoIds, dataStr, idsEquipe);
       return [
@@ -967,37 +961,44 @@ function bindMainEvents(){
         ...naoCobertos.map(h=>({...h, escaladoId:''})),
       ].sort((a,b)=>a.startMs-b.startMs);
     }
-    uiState.escalaDomResultadoSab = selSab.length ? { data: sabado, escalados: selSab, linhas: gerarLinhas(selSab, sabado) } : null;
-    uiState.escalaDomResultadoDom = selDom.length ? { data: domingo, escalados: selDom, linhas: gerarLinhas(selDom, domingo) } : null;
+    // Revezamento A-B-A-B na ordem cronológica dos domingos marcados —
+    // domingo sem gente no grupo da vez fica sem proposta (nada pra
+    // ajustar/confirmar nele).
+    const resultados = {};
+    domingos.forEach((data, idx)=>{
+      const grupo = idx%2===0 ? 'A' : 'B';
+      const sel = grupo==='A' ? uiState.escalaDomGrupoA : uiState.escalaDomGrupoB;
+      if(sel.length===0) return;
+      resultados[data] = { data, grupo, escalados: sel, linhas: gerarLinhas(sel, data) };
+    });
+    uiState.escalaDomResultados = resultados;
     renderMain();
   });
   main.querySelectorAll('[data-escaladom-idx]').forEach(sel=>{
     sel.addEventListener('change', ()=>{
-      const dia = sel.dataset.escaladomDia;
+      const data = sel.dataset.escaladomDia; // data ISO do domingo
       const idx = parseInt(sel.dataset.escaladomIdx,10);
-      const key = dia==='sab' ? 'escalaDomResultadoSab' : 'escalaDomResultadoDom';
-      uiState[key].linhas[idx].escaladoId = sel.value;
+      uiState.escalaDomResultados[data].linhas[idx].escaladoId = sel.value;
       renderMain();
     });
   });
   main.querySelectorAll('[data-confirmar-escaladom]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
-      const dia = btn.dataset.confirmarEscaladom;
-      const key = dia==='sab' ? 'escalaDomResultadoSab' : 'escalaDomResultadoDom';
-      const res = uiState[key];
+      const data = btn.dataset.confirmarEscaladom; // data ISO do domingo
+      const res = uiState.escalaDomResultados[data];
       const cobertas = res.linhas.filter(l=>l.escaladoId);
       let ok=0, fail=0;
-      openProgressModal(`Lançando escala de ${dia==='sab'?'sábado':'domingo'}...`);
+      openProgressModal(`Lançando escala do domingo ${formatarDataCurta(data)}...`);
       for(const [idx, l] of cobertas.entries()){
         const entrada = {operacao:l.operacao, ciclo:l.ciclo, horaInicio:l.horaInicio, horaFim:l.horaFim,
           suplente:userById(l.escaladoId)?.name||'', dataCobertura:res.data,
           analistaOriginalId: l.analistaId || l.escaladoId, tipo:'folga'};
         try{ DB.suplencias.push(await apiCreateSuplencia(entrada)); ok++; }
-        catch(e){ console.error('KronoOP: falha ao lançar cobertura da escala de fim de semana.', e); fail++; }
+        catch(e){ console.error('KronoOP: falha ao lançar cobertura da escala de domingo.', e); fail++; }
         updateProgressModal(idx+1, cobertas.length);
       }
       closeModal();
-      uiState[key] = null;
+      delete uiState.escalaDomResultados[data];
       renderMain();
       alert(`${ok} cobertura(s) lançada(s) com sucesso.${fail?` ${fail} falharam.`:''}`);
     });

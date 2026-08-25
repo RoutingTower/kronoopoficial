@@ -84,11 +84,15 @@ let uiState = {
   // resultado (proposta editável) de cada dia depois de clicar em "Gerar
   // escala". Um dia sem ninguém selecionado fica com resultado null (não
   // gera proposta pra ele).
-  escalaDomSabado: null,
-  escalaDomSelecionadosSab: [],
-  escalaDomSelecionadosDom: [],
-  escalaDomResultadoSab: null,
-  escalaDomResultadoDom: null,
+  // Gerar Escala de Domingo (ver supGerarEscalaDomingo, render-supervisor.js):
+  // até 4 domingos de um mês, revezando dois grupos fixos (A no 1º/3º
+  // domingo marcado, B no 2º/4º) — um analista pode estar nos dois grupos
+  // de propósito (cobre toda vez, sem folga cruzada entre eles).
+  escalaDomMes: null,
+  escalaDomDomingosSel: [],
+  escalaDomGrupoA: [],
+  escalaDomGrupoB: [],
+  escalaDomResultados: {}, // data (ISO) -> {data, grupo, escalados, linhas}
   // Gerar Escala do Mês (ver gerarEscalaMensal em utils.js): mês-alvo
   // ("YYYY-MM", padrão o próximo) + o resultado (proposta editável) depois
   // de clicar em "Gerar escala" — null até o primeiro clique.

@@ -239,24 +239,18 @@ function isDomingo(dateStr){
   return WEEKDAYS[new Date(dateStr+'T00:00:00').getDay()]==='dom';
 }
 
-// Sábado da MESMA folga (fim de semana) que a data cair: domingo pertence
-// ao sábado do dia anterior, qualquer outro dia da semana pertence ao
-// sábado seguinte. Usado pra normalizar o que o supervisor digitar no
-// campo de data do Gerar Escala de Fim de Semana — sábado e domingo agora
-// são tratados como um par só (domingo = sábado+1), nunca dias soltos.
-function sabadoDoFimDeSemana(dateStr){
-  const dow = new Date(dateStr+'T00:00:00').getDay(); // 0=domingo ... 6=sábado
-  if(dow===6) return dateStr;
-  if(dow===0) return addDaysISO(dateStr, -1);
-  return addDaysISO(dateStr, 6-dow);
-}
-
-// Próximo sábado a partir de hoje (ou de uma data) — hoje mesmo se hoje já
-// for sábado. Valor padrão do Gerar Escala de Fim de Semana.
-function proximoSabadoISO(fromDateStr){
-  let d = fromDateStr || todayISO();
-  while(WEEKDAYS[new Date(d+'T00:00:00').getDay()]!=='sab') d = addDaysISO(d, 1);
-  return d;
+// Todos os domingos de um mês "YYYY-MM", em ISO — usado pelo Gerar Escala
+// de Domingo (render-supervisor.js) pra listar as opções de até 4 domingos
+// pra marcar.
+function domingosDoMes(mesStr){
+  const [y, m] = mesStr.split('-').map(Number);
+  const ultimo = new Date(y, m, 0).getDate();
+  const out = [];
+  for(let dia=1; dia<=ultimo; dia++){
+    const d = new Date(y, m-1, dia);
+    if(d.getDay()===0) out.push(dateToISO(d));
+  }
+  return out;
 }
 
 // Formulários (Convocações): status calculado, nunca guardado — mesma

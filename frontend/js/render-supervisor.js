@@ -377,21 +377,21 @@ function supSuplencias(myAnalistas){
 }
 
 
-// Todo fim de semana, os hubs 7x7 continuam precisando de titular mesmo
-// com o time inteiro de folga — hoje isso é escolhido e distribuído
-// manualmente. Regra nova: quem trabalha no sábado folga no domingo e
-// vice-versa, então sábado e domingo viram um par só (domingo = sábado+1)
-// com DUAS equipes disjuntas, uma pra cada dia. O sistema propõe a escala
-// inteira de cada dia (gerarEscalaFDS, ver utils.js): até 6 operações por
-// pessoa, sem estourar 8h de turno, priorizando a carteira própria de cada
-// um. As duas propostas ficam lado a lado (grid-2) — dá pra comparar e
-// ajustar (dropdown por linha) os dois dias antes de confirmar, cada um
-// com seu próprio botão de confirmação.
+// Todo domingo, os hubs 7x7 continuam precisando de titular mesmo com o
+// time inteiro de folga — hoje isso é escolhido e distribuído manualmente.
+// Regra: dois grupos fixos (A e B) revezando os domingos marcados no mês —
+// A cobre o 1º e o 3º domingo marcado, B cobre o 2º e o 4º (⇄ Inverter
+// troca os dois de posição). Um analista pode estar nos dois grupos de
+// propósito (cobre todo domingo marcado, sem folga cruzada forçada entre
+// eles — diferente do antigo par sábado/domingo). O sistema propõe a
+// escala inteira de cada domingo (gerarEscalaFDS, ver utils.js): até 6
+// operações por pessoa, sem estourar 8h de turno, priorizando a carteira
+// própria de cada um. As propostas (até 4) ficam lado a lado (grid-2) —
+// dá pra ajustar (dropdown por linha) cada uma antes de confirmar, cada
+// domingo com seu próprio botão de confirmação.
 // A grade de chips (escaladom-grid) é grande demais pra ficar sempre
-// aberta dentro do card — aqui só um botão-resumo por dia, que abre a
-// seleção numa caixa (modal, ver wireEscalaDomModal em events.js). O
-// modal de um dia esconde quem já foi escalado no outro — ninguém pode
-// estar nos dois ao mesmo tempo.
+// aberta dentro do card — aqui só um botão-resumo por grupo, que abre a
+// seleção numa caixa (modal, ver wireEscalaDomModal em events.js).
 function escalaDomAnalistaPicker(dia, label, sel){
   return `<div class="field" style="margin-bottom:0;">
     <label>${label}</label>
@@ -462,29 +462,44 @@ function escalaDomPropostaHtml(dia, label, dataStr, res, myAnalistas){
   </div>`;
 }
 
+const MAX_DOMINGOS_ESCALA = 4;
 function supGerarEscalaDomingo(myAnalistas){
-  if(!uiState.escalaDomSabado) uiState.escalaDomSabado = proximoSabadoISO();
-  const sabado = uiState.escalaDomSabado;
-  const domingo = addDaysISO(sabado, 1);
+  if(!uiState.escalaDomMes) uiState.escalaDomMes = todayISO().slice(0,7);
+  const mes = uiState.escalaDomMes;
+  const domingosDisponiveis = domingosDoMes(mes);
+  // Se o mês mudou e a seleção antiga não pertence mais a ele, cai pros
+  // primeiros 4 domingos do mês novo — sem isso ficaria vazio sozinho.
+  if(uiState.escalaDomDomingosSel.length===0 || uiState.escalaDomDomingosSel.some(d=>!domingosDisponiveis.includes(d))){
+    uiState.escalaDomDomingosSel = domingosDisponiveis.slice(0, MAX_DOMINGOS_ESCALA);
+  }
+  const domingosSel = uiState.escalaDomDomingosSel;
 
-  const cardSab = escalaDomPropostaHtml('sab', 'Sábado', sabado, uiState.escalaDomResultadoSab, myAnalistas);
-  const cardDom = escalaDomPropostaHtml('dom', 'Domingo', domingo, uiState.escalaDomResultadoDom, myAnalistas);
-  const resultsHtml = (cardSab || cardDom)
-    ? `<div class="grid-2" style="align-items:start;margin-bottom:22px;">${cardSab || '<div></div>'}${cardDom || '<div></div>'}</div>`
-    : '';
+  const cards = domingosSel.map((data, idx)=>{
+    const grupo = idx%2===0 ? 'A' : 'B';
+    const res = uiState.escalaDomResultados[data];
+    return escalaDomPropostaHtml(data, `Domingo ${formatarDataCurta(data)} — Grupo ${grupo}`, data, res, myAnalistas);
+  }).filter(Boolean);
+  const resultsHtml = cards.length ? `<div class="grid-2" style="align-items:start;margin-bottom:22px;">${cards.join('')}</div>` : '';
 
   return `
-  <div class="section-title">Gerar Escala de Fim de Semana</div>
-  <div class="help-text">Quem trabalha no sábado folga no domingo, e quem trabalha no domingo folga no sábado — selecione cada equipe separadamente (dá pra colocar a mesma pessoa nas duas, mas confirma antes, já que ela passa a trabalhar o fim de semana inteiro). O sistema monta a escala do dia inteiro pra cada um: até 6 operações por pessoa, priorizando a carteira própria (🏠), equilibrando o total entre todos e variando o estado (UF) dos hubs extras, sem passar de 8h de turno.</div>
+  <div class="section-title">Gerar Escala de Domingo</div>
+  <div class="help-text">Marque até ${MAX_DOMINGOS_ESCALA} domingos do mês e dois grupos de analistas — o Grupo A cobre o 1º e o 3º domingo marcado, o Grupo B cobre o 2º e o 4º (⇄ Inverter troca os dois). Um analista pode estar nos dois grupos (cobre todo domingo marcado). O sistema monta a escala do dia inteiro pra cada um: até 6 operações por pessoa, priorizando a carteira própria (🏠), equilibrando o total entre todos e variando o estado (UF) dos hubs extras, sem passar de 8h de turno.</div>
   <div class="card" style="margin-bottom:22px;">
-    <div class="field" style="max-width:220px;"><label>Sábado</label><input type="date" id="escalaDomSabadoInput" value="${sabado}"></div>
-    <div class="help-text" style="margin-top:-8px;margin-bottom:14px;">Domingo: ${domingo} (dia seguinte, automático)</div>
+    <div class="field" style="max-width:220px;"><label>Mês</label><input type="month" id="escalaDomMesInput" value="${mes}"></div>
+    <div class="field">
+      <label>Domingos do mês (<span id="escalaDomDomingosCount">${domingosSel.length}</span>/${MAX_DOMINGOS_ESCALA})</label>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;">
+        ${domingosDisponiveis.map(d=>`<label style="display:flex;align-items:center;gap:6px;font-weight:400;">
+          <input type="checkbox" class="escaladom-domingo-chk" value="${d}" ${domingosSel.includes(d)?'checked':''}> ${formatarDataCurta(d)}
+        </label>`).join('')}
+      </div>
+    </div>
     <div class="grid-2">
-      ${escalaDomAnalistaPicker('sab', 'Quem trabalha no sábado', uiState.escalaDomSelecionadosSab)}
-      ${escalaDomAnalistaPicker('dom', 'Quem trabalha no domingo', uiState.escalaDomSelecionadosDom)}
+      ${escalaDomAnalistaPicker('A', 'Grupo A (1º / 3º domingo marcado)', uiState.escalaDomGrupoA)}
+      ${escalaDomAnalistaPicker('B', 'Grupo B (2º / 4º domingo marcado)', uiState.escalaDomGrupoB)}
     </div>
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
-      <button class="btn" id="btnInverterEscalaDom" title="Troca quem está no sábado com quem está no domingo">⇄ Inverter sábado / domingo</button>
+      <button class="btn" id="btnInverterEscalaDom" title="Troca o Grupo A pelo Grupo B">⇄ Inverter Grupo A / B</button>
       <button class="btn btn-brand" id="btnGerarEscalaDom">Gerar escala</button>
     </div>
   </div>
