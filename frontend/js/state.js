@@ -113,8 +113,26 @@ const WEEKDAY_LABELS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
 
 // Todo endpoint /api/* exige um Supabase ID token (ver backend/src/middleware/auth.js).
+//
+// _tokenInFlight faz chamadas concorrentes reaproveitarem a MESMA busca de
+// token em vez de cada uma pedir a sua (mesmo padrão de _loadDBInFlight,
+// acima) — loadDB() sozinho dispara 17 chamadas em paralelo, e cada uma
+// batia em getIdToken() por conta própria. Se o access_token estivesse
+// vencido bem nessa hora, as 17 podiam tentar renovar a sessão ao mesmo
+// tempo — o Supabase invalida o refresh_token depois do primeiro uso, então
+// só a primeira tentativa vingava e as outras 16 liam a sessão como
+// expirada de verdade, mesmo ela tendo acabado de ser renovada por uma
+// irmã sua. Como todas as 17 chamam authHeaders() de forma síncrona (antes
+// de qualquer uma ceder o controle num await), a segunda em diante já
+// encontra _tokenInFlight preenchido e espera a mesma promise em vez de
+// disparar a sua.
+let _tokenInFlight = null;
+let _refreshSessionInFlight = null; // usado pelo retry de 401 em apiRequest, mais abaixo
 async function authHeaders(){
-  const token = await KronoAuth.getIdToken();
+  if(!_tokenInFlight){
+    _tokenInFlight = KronoAuth.getIdToken().finally(()=>{ _tokenInFlight = null; });
+  }
+  const token = await _tokenInFlight;
   return token ? { 'Authorization': `Bearer ${token}` } : {};
 }
 
@@ -191,9 +209,14 @@ async function apiRequest(method, path, body, _attempt, _refreshed){
   // 401 pode ser só o access_token vencido numa aba aberta há muito tempo
   // (ex.: virada da madrugada) — tenta renovar a sessão UMA vez e refaz a
   // chamada antes de desistir, pra não perder o que a pessoa preencheu num
-  // modal (ex.: Raio-X) por causa de um token vencido evitável.
+  // modal (ex.: Raio-X) por causa de um token vencido evitável. Mesmo
+  // reaproveitamento de promise em voo do authHeaders() acima: um burst de
+  // chamadas (ex.: loadDB) pode voltar 401 quase junto, e cada uma tentando
+  // renovar por conta própria esbarra no refresh_token de uso único do
+  // Supabase (só a primeira vinga).
   if(res.status === 401 && !_refreshed){
-    const renovou = await KronoAuth.refreshSession();
+    if(!_refreshSessionInFlight) _refreshSessionInFlight = KronoAuth.refreshSession().finally(()=>{ _refreshSessionInFlight = null; });
+    const renovou = await _refreshSessionInFlight;
     if(renovou) return apiRequest(method, path, body, attempt, true);
   }
   if(!res.ok){
