@@ -152,19 +152,22 @@ KronoAuth.onAuthStateChanged(async (user)=>{
   }
 });
 
-// Atualização automática do DB em memória a cada 2min — sem isso, uma aba
+// Atualização automática do DB em memória a cada 10min — sem isso, uma aba
 // que fica aberta o turno inteiro só vê o que existia no momento do login
 // (loadDB só roda ali, ver onAuthStateChanged acima), ficando cega a
 // mudanças feitas por outra pessoa. Mesmo efeito do botão "Atualizar dados
-// agora" (Configurações), só que sozinho. Intervalo curto de propósito: a
-// planilha de roteirização importa em ciclo rápido (ver
-// planilhaImport.controller.js), e o cronômetro/horário real de uma
-// operação em andamento só aparece pra quem está de olho na tela depois
-// que o DB local for atualizado. Silenciosa em caso de falha — só loga e
-// tenta de novo no próximo ciclo, sem interromper quem tiver usando a
-// tela. Com modal aberto (alguém preenchendo Raio-X, compondo um
-// comunicado etc.), só atualiza os dados em memória e pula o renderMain —
-// um redesenho da tela nessa hora perderia o que a pessoa tava digitando.
+// agora" (Configurações), só que sozinho. Já foi 2min (acompanhar o ritmo
+// da importação da planilha de perto), mas loadDB busca as 17 coleções
+// inteiras a cada ciclo — com o fix do limite de 1000 linhas do Supabase
+// (listAll agora pagina a tabela toda, não só os primeiros 1000), rodar
+// isso 5x mais vezes por hora multiplicou o egress do projeto o bastante
+// pra estourar a cota do plano gratuito. Voltou pra 10min por isso — quem
+// quiser dado mais recente tem o botão "Atualizar dados agora"
+// (Configurações). Silenciosa em caso de falha — só loga e tenta de novo
+// no próximo ciclo, sem interromper quem tiver usando a tela. Com modal
+// aberto (alguém preenchendo Raio-X, compondo um comunicado etc.), só
+// atualiza os dados em memória e pula o renderMain — um redesenho da tela
+// nessa hora perderia o que a pessoa tava digitando.
 setInterval(async ()=>{
   if(!session) return;
   try{
@@ -174,7 +177,7 @@ setInterval(async ()=>{
   }catch(e){
     console.error('KronoOP: falha na atualização automática periódica.', e);
   }
-}, 2*60*1000);
+}, 10*60*1000);
 
 // Cronômetro ao vivo do card de operação (Tempo de Execução, ver
 // render-analista.js) — só atualiza o texto do timer a cada segundo, sem
