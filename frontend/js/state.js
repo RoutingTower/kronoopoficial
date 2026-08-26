@@ -57,7 +57,7 @@ let uiState = {
   // Resultado SPR (supResultadoSPR/coordResultadoSPR) — analistas:[] usado
   // pelo supervisor, supervisores:[] pelo coordenador (mesmo padrão de
   // metricasFiltro acima).
-  sprFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), operacao: 'all', semana: '', analistas: [], supervisores: [], sprMin: '', sprMax: '' },
+  sprFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), operacao: 'all', regional: 'all', semana: '', analistas: [], supervisores: [], sprMin: '', sprMax: '' },
   sprAnalistaDropdownOpen: false,
   sprSupervisorDropdownOpen: false,
   // 'painel' = dashboard de sempre (KPIs/gráficos/tabelas agregadas);

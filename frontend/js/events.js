@@ -1496,6 +1496,7 @@ function bindMainEvents(){
       <div class="field"><label>Operação</label><input id="fSprOp" list="sprOpList" placeholder="ex: LM Hub_SP_Atibaia_Ponte_Alta"></div>
       <div class="field"><label>Ciclo</label><input id="fSprCiclo" list="sprCicloList" placeholder="ex: T3"></div>
       <div class="field"><label>SPR</label><input id="fSprValor" type="number" placeholder="ex: 92"></div>
+      <div class="field"><label>Regional (opcional)</label><input id="fSprRegional" list="regionalList" placeholder="ex: Sudeste"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
         <button class="btn" data-modal-cancel>Cancelar</button>
         <button class="btn btn-brand" id="confirmNovoSpr">Salvar</button>
@@ -1506,8 +1507,9 @@ function bindMainEvents(){
       const operacao = document.getElementById('fSprOp').value.trim();
       const ciclo = document.getElementById('fSprCiclo').value.trim();
       const spr = document.getElementById('fSprValor').value;
+      const regional = document.getElementById('fSprRegional').value.trim() || null;
       if(!operacao || !ciclo || spr===''){ alert('Preencha operação, ciclo e SPR.'); return; }
-      const entrada = {supervisorId:session.userId, operacao, ciclo, spr: Number(spr)};
+      const entrada = {supervisorId:session.userId, operacao, ciclo, spr: Number(spr), regional};
       try{
         const novo = await apiCreateSpr(entrada);
         DB.sprs.push(novo);
@@ -1524,6 +1526,7 @@ function bindMainEvents(){
         <div class="field"><label>Operação</label><input id="fEditSprOp" list="sprOpList" value="${escapeHtml(s.operacao)}"></div>
         <div class="field"><label>Ciclo</label><input id="fEditSprCiclo" list="sprCicloList" value="${escapeHtml(s.ciclo)}"></div>
         <div class="field"><label>SPR</label><input id="fEditSprValor" type="number" value="${s.spr}"></div>
+        <div class="field"><label>Regional (opcional)</label><input id="fEditSprRegional" list="regionalList" value="${escapeHtml(s.regional||'')}"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
           <button class="btn" data-modal-cancel>Cancelar</button>
           <button class="btn btn-brand" id="confirmEditarSpr">Salvar</button>
@@ -1534,8 +1537,9 @@ function bindMainEvents(){
         const operacao = document.getElementById('fEditSprOp').value.trim();
         const ciclo = document.getElementById('fEditSprCiclo').value.trim();
         const spr = document.getElementById('fEditSprValor').value;
+        const regional = document.getElementById('fEditSprRegional').value.trim() || null;
         if(!operacao || !ciclo || spr===''){ alert('Preencha operação, ciclo e SPR.'); return; }
-        const patch = {operacao, ciclo, spr: Number(spr)};
+        const patch = {operacao, ciclo, spr: Number(spr), regional};
         try{
           const atualizado = await apiUpdateSpr(s.id, patch);
           DB.sprs = DB.sprs.map(x=>x.id===s.id ? atualizado : x);
@@ -1556,12 +1560,12 @@ function bindMainEvents(){
 
   const btnExportarSpr = document.getElementById('btnExportarSpr');
   if(btnExportarSpr) btnExportarSpr.addEventListener('click', ()=>{
-    const linhas = sprCadastroExportRows.map(s=>[s.operacao, s.ciclo, s.spr]);
-    exportarRelatorioExcel(`spr_atual_${todayISO()}.xlsx`, ['operacao','ciclo','spr'], linhas);
+    const linhas = sprCadastroExportRows.map(s=>[s.operacao, s.ciclo, s.spr, s.regional||'']);
+    exportarRelatorioExcel(`spr_atual_${todayISO()}.xlsx`, ['operacao','ciclo','spr','regional'], linhas);
   });
   const btnBaixarModeloSpr = document.getElementById('btnBaixarModeloSpr');
   if(btnBaixarModeloSpr) btnBaixarModeloSpr.addEventListener('click', ()=>{
-    downloadXLSX('modelo_spr.xlsx', ['operacao','ciclo','spr'], ['LM Hub_SP_Atibaia_Ponte_Alta','T3','92']);
+    downloadXLSX('modelo_spr.xlsx', ['operacao','ciclo','spr','regional'], ['LM Hub_SP_Atibaia_Ponte_Alta','T3','92','Sudeste']);
   });
   const fileImportSpr = document.getElementById('fileImportSpr');
   if(fileImportSpr) fileImportSpr.addEventListener('change', async ()=>{
@@ -1574,16 +1578,19 @@ function bindMainEvents(){
     for(const [idx, r] of rows.entries()){
       const operacao = (r.operacao||'').trim();
       const ciclo = (r.ciclo||'').trim();
+      const regional = (r.regional||'').trim() || null;
       if(!operacao || !ciclo || r.spr===''||r.spr===undefined){ fail++; updateProgressModal(idx+1, rows.length); continue; }
-      // Reimportar a mesma planilha (SPR atualizado) atualiza a entrada já
-      // existente pra essa Operação+Ciclo, em vez de duplicar linha.
+      // Reimportar a mesma planilha (SPR/Regional atualizados) atualiza a
+      // entrada já existente pra essa Operação+Ciclo, em vez de duplicar
+      // linha — mesmo se a coluna "regional" vier vazia nessa linha, o
+      // valor manda (null apaga o que já tinha, não ignora silenciosamente).
       const existente = DB.sprs.find(s=>s.supervisorId===session.userId && s.operacao===operacao && s.ciclo===ciclo);
       try{
         if(existente){
-          const atualizado = await apiUpdateSpr(existente.id, {spr: Number(r.spr)});
+          const atualizado = await apiUpdateSpr(existente.id, {spr: Number(r.spr), regional});
           DB.sprs = DB.sprs.map(x=>x.id===existente.id ? atualizado : x);
         } else {
-          const novo = await apiCreateSpr({supervisorId:session.userId, operacao, ciclo, spr: Number(r.spr)});
+          const novo = await apiCreateSpr({supervisorId:session.userId, operacao, ciclo, spr: Number(r.spr), regional});
           DB.sprs.push(novo);
         }
         ok++;

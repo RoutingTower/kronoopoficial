@@ -254,9 +254,12 @@ function supBaseMestra(myAnalistas){
     </label>
   </div>
   <div class="card">
-  <table><thead><tr><th>Operação</th><th>Ciclo</th><th>SPR</th><th>Horário</th><th>Dias</th><th>Titular</th><th>Vigência</th><th></th></tr></thead><tbody>
-  ${rows.map(b=>`<tr><td>${b.operacao}</td><td>${b.ciclo}</td><td class="mono">${getSPR(session.userId, b.operacao, b.ciclo) ?? '—'}</td><td class="mono">${b.horaInicio}–${b.horaFim}</td><td class="jornada-tag">${diasBaseMestraLabel(b)}</td><td>${b.titular}</td><td class="mono" style="color:var(--text-muted);">${b.dataInicio} → ${b.dataFim}</td>
-  <td style="text-align:right;white-space:nowrap;"><button class="btn" data-editar-mestra="${b.id}">Editar</button> <button class="btn btn-danger" data-excluir-mestra="${b.id}">Excluir</button></td></tr>`).join('') || `<tr><td colspan="8" class="empty">Nenhuma operação fixa${temFiltro?' pra esse filtro':' cadastrada'}</td></tr>`}
+  <table><thead><tr><th>Operação</th><th>Ciclo</th><th>SPR</th><th>Regional</th><th>Horário</th><th>Dias</th><th>Titular</th><th>Vigência</th><th></th></tr></thead><tbody>
+  ${rows.map(b=>{
+    const regional = regionalDaOperacao(session.userId, b.operacao, b.ciclo);
+    return `<tr><td>${b.operacao}</td><td>${b.ciclo}</td><td class="mono">${getSPR(session.userId, b.operacao, b.ciclo) ?? '—'}</td><td>${regional ? escapeHtml(regional) : '<span style="color:var(--text-faint);">—</span>'}</td><td class="mono">${b.horaInicio}–${b.horaFim}</td><td class="jornada-tag">${diasBaseMestraLabel(b)}</td><td>${b.titular}</td><td class="mono" style="color:var(--text-muted);">${b.dataInicio} → ${b.dataFim}</td>
+  <td style="text-align:right;white-space:nowrap;"><button class="btn" data-editar-mestra="${b.id}">Editar</button> <button class="btn btn-danger" data-excluir-mestra="${b.id}">Excluir</button></td></tr>`;
+  }).join('') || `<tr><td colspan="9" class="empty">Nenhuma operação fixa${temFiltro?' pra esse filtro':' cadastrada'}</td></tr>`}
   </tbody></table></div>`;
 }
 
@@ -277,23 +280,24 @@ function supSPR(){
   const opsConhecidas = [...new Set([...DB.baseMestra, ...DB.suplencias].map(b=>b.operacao))].sort();
   const ciclosConhecidos = [...new Set([...DB.baseMestra, ...DB.suplencias].map(b=>b.ciclo).filter(Boolean))].sort();
   return `
-  <div class="help-text">Cadastre o SPR de cada Operação/Ciclo aqui — ele aparece automaticamente em Operações Fixas, Cobertura e na Programação do analista, sempre que a operação e o ciclo baterem. O SPR usado em cada finalização já fica congelado no Raio-X dela (spr_meta), então atualizar aqui não apaga o histórico do que já foi lançado.</div>
+  <div class="help-text">Cadastre o SPR (e a Regional, opcional) de cada Operação/Ciclo aqui — o SPR aparece automaticamente em Operações Fixas, Cobertura e na Programação do analista, sempre que a operação e o ciclo baterem. A Regional só é usada pra filtrar o Resultado SPR, não aparece pro analista. O SPR usado em cada finalização já fica congelado no Raio-X dela (spr_meta), então atualizar aqui não apaga o histórico do que já foi lançado.</div>
   <datalist id="sprOpList">${opsConhecidas.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>
   <datalist id="sprCicloList">${ciclosConhecidos.map(c=>`<option value="${escapeHtml(c)}">`).join('')}</datalist>
+  <datalist id="regionalList">${regionaisConhecidas().map(r=>`<option value="${escapeHtml(r)}">`).join('')}</datalist>
   <div class="csv-row">
-    <span class="csv-label">Carga em massa de SPR (Excel)</span>
+    <span class="csv-label">Carga em massa de SPR e Regional (Excel)</span>
     <button class="btn" id="btnExportarSpr">⬇ Exportar atuais</button>
     <button class="btn" id="btnBaixarModeloSpr">⭳ Baixar modelo Excel</button>
     <label class="btn" style="margin:0;">⭱ Importar Excel<input type="file" accept=".xlsx,.xls" id="fileImportSpr" style="display:none;"></label>
   </div>
-  <div class="help-text" style="margin-top:-10px;">Reimportar operação+ciclo que já existe atualiza o valor (não duplica) — pra trocar o SPR do mês inteiro, exporte os atuais, mude a coluna "spr" e importe de volta.</div>
+  <div class="help-text" style="margin-top:-10px;">Reimportar operação+ciclo que já existe atualiza o valor (não duplica) — pra trocar o SPR ou a Regional em massa, exporte os atuais, mude a coluna e importe de volta.</div>
   <div class="action-row-end" style="margin-bottom:14px;">
     <button class="btn btn-brand" id="btnNovoSpr">+ Nova entrada SPR</button>
   </div>
   <div class="card">
-  <table><thead><tr><th>Operação</th><th>Ciclo</th><th>SPR</th><th></th></tr></thead><tbody>
-  ${rows.map(s=>`<tr><td>${escapeHtml(s.operacao)}</td><td>${escapeHtml(s.ciclo)}</td><td class="mono">${escapeHtml(String(s.spr))}</td>
-  <td style="text-align:right;white-space:nowrap;"><button class="btn" data-editar-spr="${s.id}">Editar</button> <button class="btn btn-danger" data-excluir-spr="${s.id}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="4" class="empty">Nenhum SPR cadastrado</td></tr>'}
+  <table><thead><tr><th>Operação</th><th>Ciclo</th><th>SPR</th><th>Regional</th><th></th></tr></thead><tbody>
+  ${rows.map(s=>`<tr><td>${escapeHtml(s.operacao)}</td><td>${escapeHtml(s.ciclo)}</td><td class="mono">${escapeHtml(String(s.spr))}</td><td>${s.regional ? escapeHtml(s.regional) : '<span style="color:var(--text-faint);">—</span>'}</td>
+  <td style="text-align:right;white-space:nowrap;"><button class="btn" data-editar-spr="${s.id}">Editar</button> <button class="btn btn-danger" data-excluir-spr="${s.id}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="5" class="empty">Nenhum SPR cadastrado</td></tr>'}
   </tbody></table></div>`;
 }
 
@@ -1136,8 +1140,20 @@ function sprResultadoBody(selecionados, picker){
   const ids = new Set(selecionados.map(a=>a.id));
   const noPeriodo = r => (r.data||'')>=inicio && (r.data||'')<=fim && ids.has(r.analistaId);
 
-  const doPeriodoAmplo = DB.raioX.filter(noPeriodo).filter(r=> flt.operacao==='all' || r.operacao===flt.operacao);
+  // Regional não vive no Raio-X (é do cadastro de SPR — sprs.regional, ver
+  // regionalDaOperacao em utils.js) — resolve pelo supervisor do ANALISTA
+  // de cada linha, não por session.userId: em coordResultadoSPR os
+  // selecionados podem ser de supervisores diferentes, cada um com seu
+  // próprio cadastro de SPR/Regional pra mesma operação.
+  const regionalDoRaioX = r => {
+    const supId = userById(r.analistaId)?.supervisorId;
+    return supId ? regionalDaOperacao(supId, r.operacao, r.ciclo) : '';
+  };
+  const doPeriodoAmplo = DB.raioX.filter(noPeriodo)
+    .filter(r=> flt.operacao==='all' || r.operacao===flt.operacao)
+    .filter(r=> flt.regional==='all' || regionalDoRaioX(r)===flt.regional);
   const operacoesDisponiveis = [...new Set(DB.raioX.filter(noPeriodo).map(r=>r.operacao))].sort();
+  const regionaisDisponiveis = [...new Set(DB.raioX.filter(noPeriodo).map(regionalDoRaioX).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
 
   const semanasDisponiveis = [...new Set(doPeriodoAmplo.map(r=>weekStartISO(r.data)))].sort();
 
@@ -1212,7 +1228,7 @@ function sprResultadoBody(selecionados, picker){
   const diasNoPeriodo = Math.round((new Date(efetivoFim+'T00:00:00') - new Date(efetivoInicio+'T00:00:00'))/86400000) + 1;
   const inicioAnterior = addDaysISO(efetivoInicio, -diasNoPeriodo);
   const fimAnterior = addDaysISO(efetivoInicio, -1);
-  const comMetaAnterior = DB.raioX.filter(r=> (r.data||'')>=inicioAnterior && (r.data||'')<=fimAnterior && ids.has(r.analistaId) && (flt.operacao==='all' || r.operacao===flt.operacao) && r.sprMeta!=null);
+  const comMetaAnterior = DB.raioX.filter(r=> (r.data||'')>=inicioAnterior && (r.data||'')<=fimAnterior && ids.has(r.analistaId) && (flt.operacao==='all' || r.operacao===flt.operacao) && (flt.regional==='all' || regionalDoRaioX(r)===flt.regional) && r.sprMeta!=null);
   const roteirizadoMedioAnterior = comMetaAnterior.length ? comMetaAnterior.reduce((s,r)=>s+r.sprRoteirizado,0)/comMetaAnterior.length : null;
   const tendenciaPct = roteirizadoMedioAnterior ? ((roteirizadoMedioGeral-roteirizadoMedioAnterior)/roteirizadoMedioAnterior)*100 : null;
 
@@ -1292,6 +1308,10 @@ function sprResultadoBody(selecionados, picker){
     <datalist id="sprOperacaoList">
       ${operacoesDisponiveis.map(op=>`<option value="${escapeHtml(op)}">`).join('')}
     </datalist>
+    <select data-sprfiltro="regional">
+      <option value="all">Regional: todas</option>
+      ${regionaisDisponiveis.map(r=>`<option value="${escapeHtml(r)}" ${flt.regional===r?'selected':''}>${escapeHtml(r)}</option>`).join('')}
+    </select>
     <select data-sprfiltro="semana">
       <option value="">Semana: todas (${formatarDataCurta(inicio)} a ${formatarDataCurta(fim)})</option>
       ${semanasDisponiveis.map(ws=>`<option value="${ws}" ${flt.semana===ws?'selected':''}>Semana ${formatarDataCurta(ws)}–${formatarDataCurta(addDaysISO(ws,6))}</option>`).join('')}

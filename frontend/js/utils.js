@@ -624,6 +624,28 @@ function ufDaOperacao(operacao){
   return m ? m[1].toUpperCase() : '';
 }
 
+// Regional: agrupamento maior que UF, cadastrado junto do SPR (sprs.regional
+// — não vem do nome do hub como a UF, e não é um campo à parte na Base
+// Mestra: SPR já é 1 linha por operação+ciclo, sem duplicar por vigência/
+// titular, e já tem carga em massa por Excel). Usado só pra filtrar
+// Resultado SPR (sprResultadoBody, render-supervisor.js) e pra mostrar
+// (só leitura) na tabela de Operações Fixas; não aparece no card da
+// Programação do analista. Mesmo espírito de getSPR (utils.js): escopado
+// por supervisor, porque operação+ciclo só é único DENTRO da carteira de
+// um supervisor, não globalmente.
+function regionalDaOperacao(supervisorId, operacao, ciclo){
+  const rec = DB.sprs.find(s=>s.supervisorId===supervisorId && s.operacao===operacao && s.ciclo===ciclo && s.regional);
+  return rec ? rec.regional : '';
+}
+
+// Regionais já cadastradas em algum SPR — sugestão pro datalist do modal de
+// Nova entrada/Editar (events.js), pra evitar variação de digitação
+// ("Sudeste" vs "sudeste ") que faria o filtro de Resultado SPR não juntar
+// tudo direito.
+function regionaisConhecidas(){
+  return [...new Set(DB.sprs.map(s=>s.regional).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+}
+
 // Hubs (Base Mestra) que rodam numa data, com o horário já convertido pra
 // timestamp real (cruza meia-noite corretamente pra turnos de madrugada,
 // ver slotTimestamp) — usado pelo Gerar Escala de Fim de Semana abaixo.

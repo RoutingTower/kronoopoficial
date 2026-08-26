@@ -251,7 +251,15 @@ create table sprs (
   supervisor_id  uuid not null references users(id),
   operacao       text not null,
   ciclo          text not null,
-  spr            numeric not null
+  spr            numeric not null,
+  -- Agrupamento maior que UF (ex.: "Sudeste", "Nordeste") — não vem do nome
+  -- do hub como a UF (ver ufDaOperacao no frontend). Vive aqui (não em
+  -- base_mestra) de propósito: o cadastro de SPR já é 1 linha por
+  -- operação+ciclo (sem duplicar por vigência/titular como base_mestra
+  -- teria) e já tem carga em massa por Excel — reaproveita os dois pra
+  -- Regional. Só usado pra filtrar Resultado SPR (ver regionalDaOperacao,
+  -- frontend/js/utils.js); não aparece no card da Programação do analista.
+  regional       text
 );
 create index idx_sprs_supervisor on sprs(supervisor_id);
 

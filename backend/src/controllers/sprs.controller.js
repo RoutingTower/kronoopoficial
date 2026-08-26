@@ -13,7 +13,7 @@ async function listSprs(req, res) {
 // Supervisor só cadastra SPR em nome de si mesmo — espelha
 // frontend/js/events.js, "SPR" → "Nova entrada SPR".
 async function createSpr(req, res) {
-  const { supervisorId, operacao, ciclo, spr } = req.body;
+  const { supervisorId, operacao, ciclo, spr, regional } = req.body;
   if (!supervisorId || !operacao || !ciclo || spr === undefined || spr === null || spr === "") {
     return res.status(400).json({
       error: "bad_request",
@@ -24,7 +24,7 @@ async function createSpr(req, res) {
   if (!caller || (!caller.isAdmin && (caller.role !== "supervisor" || supervisorId !== caller.id))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode cadastrar SPR em seu próprio nome." });
   }
-  const entry = await supabaseService.create(COLLECTION, { supervisorId, operacao, ciclo, spr });
+  const entry = await supabaseService.create(COLLECTION, { supervisorId, operacao, ciclo, spr, regional: regional || null });
   res.status(201).json(entry);
 }
 
@@ -43,6 +43,7 @@ async function updateSpr(req, res) {
   for (const key of ["operacao", "ciclo", "spr"]) {
     if (req.body[key] !== undefined) patch[key] = req.body[key];
   }
+  if (req.body.regional !== undefined) patch.regional = req.body.regional || null;
   const updated = await supabaseService.update(COLLECTION, req.params.id, patch);
   res.json(updated);
 }
