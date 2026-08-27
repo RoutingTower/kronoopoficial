@@ -2129,7 +2129,33 @@ function formularioResultsHtml(f, respostas){
           <div class="capbar-track"><div class="capbar-fill ${cheio?'full':''}" style="width:${pct}%;"></div></div>
         </td><td class="names-inline">${quem.map(escapeHtml).join(', ')||'—'}</td></tr>`;
     }).join('');
-    return `<div style="overflow-x:auto;"><table class="resp-table"><thead><tr><th>Dia</th><th>Vagas</th><th>Quem escolheu</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+
+    // Confirmação de cobertura (por analista, não por dia) — marcar avisa o
+    // analista que o suplente já foi organizado e a folga já reflete na
+    // agenda dele (ver confirmarCobertura, backend). Só entra quem de fato
+    // escolheu algum dia (resposta vazia não precisa de cobertura nenhuma).
+    const comEscolha = respostas.filter(r=>(r.payload.datas||[]).length>0)
+      .sort((a,b)=>(userById(a.analistaId)?.name||'').localeCompare(userById(b.analistaId)?.name||'','pt-BR'));
+    const linhasPorAnalista = comEscolha.map(r=>{
+      const nome = userById(r.analistaId)?.name || '—';
+      const diasTxt = [...(r.payload.datas||[])].sort().map(d=>`${d.slice(8,10)}/${d.slice(5,7)}`).join(', ');
+      const confirmado = !!r.confirmadoPeloSupervisor;
+      return `<tr>
+        <td>${escapeHtml(nome)}</td>
+        <td class="mono">${diasTxt}</td>
+        <td><label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:${confirmado?'600':'400'};color:${confirmado?'var(--done)':'var(--text-muted)'};">
+          <input type="checkbox" class="form-folga-confirmar-chk" data-id="${r.id}" ${confirmado?'checked':''}>
+          ${confirmado?'✓ Suplente organizado':'Ainda não organizado'}
+        </label></td>
+      </tr>`;
+    }).join('');
+
+    return `<div style="overflow-x:auto;"><table class="resp-table"><thead><tr><th>Dia</th><th>Vagas</th><th>Quem escolheu</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="section-title" style="margin-top:18px;">Confirmação de cobertura</div>
+      <div class="help-text" style="margin-top:-8px;">Marque quando já tiver organizado o suplente pros dias escolhidos — o analista recebe um aviso de que a folga já está na agenda dele.</div>
+      <div style="overflow-x:auto;"><table class="resp-table"><thead><tr><th>Analista</th><th>Dia(s) escolhido(s)</th><th>Cobertura</th></tr></thead><tbody>
+        ${linhasPorAnalista || '<tr><td colspan="3" class="empty">Ninguém escolheu dia ainda</td></tr>'}
+      </tbody></table></div>`;
   }
 
   if(f.tipo==='reconhecimento_mensal'){

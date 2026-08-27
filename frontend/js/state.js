@@ -279,6 +279,7 @@ const apiDeleteFormulario = (id) => apiRequest('DELETE', `/formularios/${id}`);
 const apiEnviarResposta = (formularioId, payload) => apiRequest('POST', '/formulario-respostas', { formularioId, payload });
 const apiAprovarFerias = (respostaId) => apiRequest('POST', `/formulario-respostas/${respostaId}/aprovar`, {});
 const apiRecusarFerias = (respostaId, motivo) => apiRequest('POST', `/formulario-respostas/${respostaId}/recusar`, { motivo });
+const apiConfirmarCoberturaResposta = (respostaId, confirmado) => apiRequest('PATCH', `/formulario-respostas/${respostaId}/confirmar-cobertura`, { confirmado });
 
 // reunioes
 const apiCreateReuniao = (data) => apiRequest('POST', '/reunioes', data);

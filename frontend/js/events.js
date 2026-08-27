@@ -1139,6 +1139,25 @@ function bindMainEvents(){
       catch(e){ alert('Não foi possível recusar: '+e.message); }
     });
   });
+  // Confirmação de cobertura (Escolha de folga) — marcar avisa o analista
+  // que o suplente já foi organizado; desmarcar (corrigir engano) não
+  // avisa de novo.
+  main.querySelectorAll('.form-folga-confirmar-chk').forEach(chk=>{
+    chk.addEventListener('change', async ()=>{
+      const id = chk.dataset.id;
+      const confirmado = chk.checked;
+      chk.disabled = true;
+      try{
+        const atualizado = await apiConfirmarCoberturaResposta(id, confirmado);
+        DB.formularioRespostas = DB.formularioRespostas.map(r=>r.id===id ? atualizado : r);
+        renderMain();
+      }catch(e){
+        alert('Não foi possível salvar: '+e.message);
+        chk.checked = !confirmado;
+        chk.disabled = false;
+      }
+    });
+  });
 
   // Formulários — analista: domingo_voluntariado/folga_escolha respondem no
   // clique do chip; reconhecimento_mensal/ferias_solicitacao juntam campos

@@ -333,7 +333,13 @@ create table formulario_respostas (
   status          text not null default 'enviado' check (status in ('enviado','pendente','aprovado','recusado')),
   motivo_recusa   text not null default '',
   criado_em       bigint not null,
-  atualizado_em   bigint not null
+  atualizado_em   bigint not null,
+  -- Só usado em folga_escolha: supervisor marca quando já organizou o
+  -- suplente pros dias que o analista escolheu — dispara notificação
+  -- avisando que a folga já está na agenda dele (ver confirmarCobertura,
+  -- formularioRespostas.controller.js).
+  confirmado_pelo_supervisor boolean not null default false,
+  confirmado_em   bigint
 );
 create unique index idx_formresp_unico on formulario_respostas(formulario_id, analista_id);
 create index idx_formresp_formulario on formulario_respostas(formulario_id);

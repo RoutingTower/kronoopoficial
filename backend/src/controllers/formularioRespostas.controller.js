@@ -239,4 +239,38 @@ async function decidirFerias(req, res, aprovado) {
 const aprovarFerias = (req, res) => decidirFerias(req, res, true);
 const recusarFerias = (req, res) => decidirFerias(req, res, false);
 
-module.exports = { listRespostas, enviarResposta, aprovarFerias, recusarFerias };
+function formatarDataBR(iso) {
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+}
+
+// Supervisor marca que já organizou o suplente pros dias que o analista
+// escolheu em "Escolha de folga" — só existe pra esse tipo (é o único cujo
+// analista fica esperando uma ação manual do supervisor depois de
+// responder; os outros tipos ou não geram trabalho de agenda, ou já
+// notificam sozinhos, como aprovar/recusar férias acima). Notifica só
+// quando MARCA (confirmado:true) — desmarcar (corrigir engano) não avisa
+// de novo o analista.
+async function confirmarCobertura(req, res) {
+  const resposta = await supabaseService.getById(COLLECTION, req.params.id);
+  if (!resposta) return res.status(404).json({ error: "not_found" });
+  const formulario = await supabaseService.getById("formularios", resposta.formularioId);
+  if (!formulario || formulario.tipo !== "folga_escolha") {
+    return res.status(400).json({ error: "bad_request", message: "Essa confirmação só existe pra respostas de Escolha de folga." });
+  }
+  const caller = await getCaller(req);
+  if (!caller || (!caller.isAdmin && (caller.role !== "supervisor" || formulario.supervisorId !== caller.id))) {
+    return res.status(403).json({ error: "forbidden", message: "Só o supervisor dono do formulário (ou admin) pode confirmar cobertura." });
+  }
+  const confirmado = req.body.confirmado !== false;
+  const atualizado = await supabaseService.update(COLLECTION, req.params.id, {
+    confirmadoPeloSupervisor: confirmado,
+    confirmadoEm: confirmado ? Date.now() : null,
+  });
+  if (confirmado) {
+    const dias = (resposta.payload?.datas || []).map(formatarDataBR).join(", ") || "escolhido(s)";
+    await notificar(resposta.analistaId, "agenda", `Sua folga de ${dias} já está refletindo na sua agenda.`);
+  }
+  res.json(atualizado);
+}
+
+module.exports = { listRespostas, enviarResposta, aprovarFerias, recusarFerias, confirmarCobertura };
