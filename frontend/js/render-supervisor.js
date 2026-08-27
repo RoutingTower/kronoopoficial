@@ -2171,12 +2171,14 @@ function formularioResultsHtml(f, respostas){
               <div style="font-weight:600;font-size:13px;margin-bottom:6px;">${escapeHtml(nome)}</div>
               ${itens.map(it=>{
                 const bm = DB.baseMestra.find(b=>b.id===it.bmId);
-                return `<div class="candidate-row">
+                return `<div class="candidate-row" style="flex-wrap:wrap;">
                   <span class="op-tag"><span class="mono" style="color:var(--text-muted);font-weight:400;">${it.data.slice(8,10)}/${it.data.slice(5,7)}</span> ${escapeHtml(bm.operacao)} <span class="mono" style="color:var(--text-muted);font-weight:400;">${bm.horaInicio}–${bm.horaFim}</span></span>
                   <select data-alocarauto-idx="${it.idx}">
-                    ${it.candidatos.length===0 ? '<option value="">Nenhum suplente disponível</option>' :
+                    ${it.semSugestaoAutomatica ? `<option value="">— Sem sugestão automática, escolha manualmente —</option>
+                      ${it.candidatos.map(c=>`<option value="${c.id}" ${it.chosenId===c.id?'selected':''}>${escapeHtml(c.name)}${c.status?` — ${escapeHtml(c.status)}`:''}</option>`).join('')}` :
                       it.candidatos.map(c=>`<option value="${c.id}" ${it.chosenId===c.id?'selected':''}>${escapeHtml(c.name)} — ${c.opsHoje} op(s) hoje, ${c.coberturasNoMes} cobertura(s)/mês</option>`).join('')}
                   </select>
+                  ${it.semSugestaoAutomatica ? `<span style="width:100%;font-size:11.5px;color:var(--alert);">⚠ Ninguém elegível automaticamente nesse horário — a lista mostra a equipe toda, com o que cada um já tem no dia.</span>` : ''}
                 </div>`;
               }).join('')}
             </div>`;

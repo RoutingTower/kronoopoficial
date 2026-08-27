@@ -1184,6 +1184,26 @@ function bindMainEvents(){
         });
       });
 
+      // Descreve o que a pessoa já tem naquele dia (própria operação,
+      // cobertura que já está fazendo, ou escolha desta mesma prévia) — só
+      // usado no ajuste manual, pra o supervisor ver de cara que ela não
+      // está livre antes de escalar por cima mesmo assim.
+      function statusNaData(analistaId, dataStr, tentativasAtual){
+        if((folgantesNaData[dataStr]||new Set()).has(analistaId)) return 'de folga nesse dia';
+        const proprias = DB.baseMestra.filter(b=>b.analistaId===analistaId && bmRodaNoDia(b, dataStr))
+          .filter(b=>!DB.ausencias.some(x=>x.baseMestraId===b.id && x.data===dataStr))
+          .map(b=>`${b.operacao} ${b.horaInicio}-${b.horaFim}`);
+        const coberturas = DB.ausencias.filter(x=>x.suplenteId===analistaId && x.data===dataStr)
+          .map(x=>DB.baseMestra.find(b=>b.id===x.baseMestraId)).filter(Boolean)
+          .map(b=>`cobrindo ${b.operacao} ${b.horaInicio}-${b.horaFim}`);
+        const tentativasHoje = tentativasAtual.filter(t=>t.suplenteId===analistaId && t.data===dataStr)
+          .map(t=>`cobrindo (nesta prévia) ${t.horaInicio}-${t.horaFim}`);
+        const todas = [...proprias, ...coberturas, ...tentativasHoje];
+        if(todas.length===0) return '';
+        if(todas.length===1) return `já escalado: ${todas[0]}`;
+        return `já escalado em ${todas.length} operações (${todas[0]}, ...)`;
+      }
+
       const tentativas = [];
       const items = [];
       pendentes.forEach(resp=>{
@@ -1192,12 +1212,23 @@ function bindMainEvents(){
             .filter(b=>!DB.ausencias.some(x=>x.baseMestraId===b.id && x.data===data))
             .forEach(bm=>{
               const s1 = hourSortValue(bm.horaInicio), e1 = hourSortValue(bm.horaFim);
-              const candidatos = candidatosParaSlot(myAnalistas, resp.analistaId, bm, data)
+              let candidatos = candidatosParaSlot(myAnalistas, resp.analistaId, bm, data)
                 .filter(c=> !(folgantesNaData[data]||new Set()).has(c.id))
                 .filter(c=> !tentativas.some(t=> t.suplenteId===c.id && t.data===data && rangesOverlap(s1,e1, hourSortValue(t.horaInicio), hourSortValue(t.horaFim))));
-              const chosenId = candidatos[0]?.id || '';
+              // Sem ninguém elegível automaticamente (jornada, conflito, vigência
+              // ou folga no mesmo dia derrubaram todo mundo) — em vez de travar
+              // sem opção nenhuma, oferece a equipe inteira pro supervisor
+              // decidir manualmente, já que ele pode saber de uma exceção que o
+              // algoritmo não enxerga. Sem sugestão pré-marcada nesse caso.
+              const semSugestaoAutomatica = candidatos.length===0;
+              if(semSugestaoAutomatica){
+                candidatos = myAnalistas.filter(a=>a.id!==resp.analistaId)
+                  .map(a=>({id:a.id, name:a.name, status: statusNaData(a.id, data, tentativas)}))
+                  .sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+              }
+              const chosenId = semSugestaoAutomatica ? '' : (candidatos[0]?.id || '');
               if(chosenId) tentativas.push({ suplenteId: chosenId, data, horaInicio: bm.horaInicio, horaFim: bm.horaFim });
-              items.push({ respostaId: resp.id, analistaId: resp.analistaId, data, bmId: bm.id, candidatos, chosenId });
+              items.push({ respostaId: resp.id, analistaId: resp.analistaId, data, bmId: bm.id, candidatos, chosenId, semSugestaoAutomatica });
             });
         });
       });
