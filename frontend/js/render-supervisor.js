@@ -2206,6 +2206,10 @@ function formularioResultsHtml(f, respostas){
               }).join('')}
             </div>`;
           }).join('')}
+        <div id="alocarAutoProgress" style="display:none;margin-top:10px;">
+          <div class="capbar-track"><div class="capbar-fill" id="alocarAutoProgressFill" style="width:0%;"></div></div>
+          <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;" id="alocarAutoProgressLabel"></div>
+        </div>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">
           <button class="btn" id="btnCancelarAlocacaoAuto">Cancelar</button>
           ${aa.items.length>0 ? `<button class="btn btn-brand" id="btnConfirmarAlocacaoAuto">Confirmar e organizar todos</button>` : ''}

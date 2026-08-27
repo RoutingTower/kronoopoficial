@@ -1250,9 +1250,28 @@ function bindMainEvents(){
   const btnConfirmarAlocacaoAuto = document.getElementById('btnConfirmarAlocacaoAuto');
   if(btnConfirmarAlocacaoAuto) btnConfirmarAlocacaoAuto.addEventListener('click', async ()=>{
     const st = uiState.alocarAuto;
+    const acionaveis = st.items.filter(it=>it.chosenId);
+    const respostaIds = [...new Set(st.items.map(it=>it.respostaId))];
+    const total = acionaveis.length + respostaIds.length;
+    let feitos = 0;
+    const progressWrap = document.getElementById('alocarAutoProgress');
+    const progressFill = document.getElementById('alocarAutoProgressFill');
+    const progressLabel = document.getElementById('alocarAutoProgressLabel');
+    const avancarProgresso = ()=>{
+      feitos++;
+      if(progressFill) progressFill.style.width = `${Math.round(feitos/Math.max(1,total)*100)}%`;
+      if(progressLabel) progressLabel.textContent = `${feitos}/${total}`;
+    };
+    if(progressWrap) progressWrap.style.display = '';
+    if(progressLabel) progressLabel.textContent = `0/${total}`;
+    // Loop sequencial em vez de Promise.all — dá pra ir atualizando a barra
+    // item a item, e evita disparar N requisições simultâneas pro backend.
+    btnConfirmarAlocacaoAuto.disabled = true;
+    const btnCancelarAlocacaoAutoAtivo = document.getElementById('btnCancelarAlocacaoAuto');
+    if(btnCancelarAlocacaoAutoAtivo) btnCancelarAlocacaoAutoAtivo.disabled = true;
+
     let count=0, fail=0;
-    for(const it of st.items){
-      if(!it.chosenId) continue;
+    for(const it of acionaveis){
       const bm = DB.baseMestra.find(b=>b.id===it.bmId);
       const entrada = {analistaId:it.analistaId, baseMestraId:bm.id, operacao:bm.operacao, ciclo:bm.ciclo,
         horaInicio:bm.horaInicio, horaFim:bm.horaFim, data:it.data, tipo:'folga', suplenteId:it.chosenId};
@@ -1261,13 +1280,14 @@ function bindMainEvents(){
         DB.ausencias.push(novo);
         count++;
       }catch(e){ console.error('KronoOP: falha ao cobrir operação.', e); fail++; }
+      avancarProgresso();
     }
-    const respostaIds = [...new Set(st.items.map(it=>it.respostaId))];
     for(const respostaId of respostaIds){
       try{
         const atualizado = await apiConfirmarCoberturaResposta(respostaId, true);
         DB.formularioRespostas = DB.formularioRespostas.map(r=>r.id===respostaId ? atualizado : r);
       }catch(e){ console.error('KronoOP: falha ao confirmar cobertura.', e); }
+      avancarProgresso();
     }
     uiState.alocarAuto = null;
     renderMain();
