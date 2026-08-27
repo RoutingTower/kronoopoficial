@@ -4,6 +4,8 @@ const { notificar } = require("../services/notificar");
 const { statusFormulario } = require("./formularios.controller");
 
 const COLLECTION = "formularioRespostas";
+// Espelha MAX_DIAS_FOLGA_ESCOLHA em frontend/js/utils.js.
+const MAX_DIAS_FOLGA_ESCOLHA = 3;
 const WEEKDAYS = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
 function weekdayOf(dateStr) {
   return WEEKDAYS[new Date(dateStr + "T00:00:00Z").getUTCDay()];
@@ -57,9 +59,16 @@ function validarPayload(f, payload) {
     return null;
   }
   if (f.tipo === "folga_escolha") {
-    if (!payload.data || typeof payload.data !== "string") return "Escolha uma data.";
-    if ((f.periodoInicio && payload.data < f.periodoInicio) || (f.periodoFim && payload.data > f.periodoFim)) {
-      return "Data fora do período do formulário.";
+    // Domingo tem fluxo próprio (domingo_voluntariado/Controle de
+    // Domingos) — nunca é uma escolha válida aqui, mesma regra do frontend
+    // (ver diasFolgaEscolha, utils.js).
+    if (!Array.isArray(payload.datas) || payload.datas.length === 0) return "Escolha pelo menos um dia.";
+    if (payload.datas.length > MAX_DIAS_FOLGA_ESCOLHA) return `Escolha no máximo ${MAX_DIAS_FOLGA_ESCOLHA} dias.`;
+    for (const d of payload.datas) {
+      if (typeof d !== "string" || (f.periodoInicio && d < f.periodoInicio) || (f.periodoFim && d > f.periodoFim)) {
+        return "Data fora do período do formulário.";
+      }
+      if (weekdayOf(d) === "dom") return "Domingo não pode ser escolhido nesse formulário.";
     }
     return null;
   }
@@ -109,9 +118,13 @@ async function enviarResposta(req, res) {
 
   if (formulario.tipo === "folga_escolha") {
     const outras = await supabaseService.listWhere(COLLECTION, [["formularioId", "==", formularioId]]);
-    const ocupadas = outras.filter((r) => r.analistaId !== caller.id && r.payload?.data === payload.data).length;
-    if (ocupadas >= (formulario.limitePorDia || 1)) {
-      return res.status(409).json({ error: "conflict", message: "Esse dia já atingiu o limite de folgas — escolha outro." });
+    const limite = formulario.limitePorDia || 1;
+    const diasLotados = payload.datas.filter((d) => {
+      const ocupadas = outras.filter((r) => r.analistaId !== caller.id && (r.payload?.datas || []).includes(d)).length;
+      return ocupadas >= limite;
+    });
+    if (diasLotados.length > 0) {
+      return res.status(409).json({ error: "conflict", message: `Esse(s) dia(s) já atingiram o limite de folgas — escolha outro: ${diasLotados.join(", ")}` });
     }
   }
 

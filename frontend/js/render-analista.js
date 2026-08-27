@@ -687,16 +687,19 @@ function analistaFormularioCardHtml(f){
   }
 
   if(f.tipo==='folga_escolha'){
-    const dias = daysInRange(f.periodoInicio, f.periodoFim);
+    const dias = diasFolgaEscolha(f.periodoInicio, f.periodoFim);
     const todasRespostas = DB.formularioRespostas.filter(r=>r.formularioId===f.id);
-    const minhaData = minha?.payload?.data;
+    const minhasDatas = minha?.payload?.datas || [];
+    const atingiuLimite = minhasDatas.length >= MAX_DIAS_FOLGA_ESCOLHA;
     return `<div class="card">${cabecalho}
+      <div class="help-text" style="margin-top:-4px;margin-bottom:8px;">Escolha até ${MAX_DIAS_FOLGA_ESCOLHA} dias — ${minhasDatas.length}/${MAX_DIAS_FOLGA_ESCOLHA} selecionado(s).</div>
       <div class="formulario-chip-grid">
         ${dias.map(d=>{
-          const quem = todasRespostas.filter(r=>r.payload.data===d);
-          const marcado = minhaData===d;
+          const quem = todasRespostas.filter(r=>(r.payload.datas||[]).includes(d));
+          const marcado = minhasDatas.includes(d);
           const cheio = quem.length >= f.limitePorDia && !marcado;
-          return `<label class="formulario-chip ${marcado?'checked':''} ${cheio?'disabled':''}" ${cheio?'':`data-formfolga-fid="${f.id}" data-formfolga-dia="${d}"`}>
+          const bloqueado = cheio || (atingiuLimite && !marcado);
+          return `<label class="formulario-chip ${marcado?'checked':''} ${bloqueado?'disabled':''}" ${bloqueado?'':`data-formfolga-fid="${f.id}" data-formfolga-dia="${d}"`}>
             ${fmtDataCurta(d)} <span class="sub">${cheio?'lotado':`${quem.length}/${f.limitePorDia} vaga(s)`}</span>
           </label>`;
         }).join('')}

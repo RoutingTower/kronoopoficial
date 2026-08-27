@@ -2062,7 +2062,7 @@ function formularioFormHtml(editing){
 
 function formularioAjudaTexto(tipo){
   if(tipo==='domingo_voluntariado') return 'O analista vê e marca cada domingo dentro do período de referência em que topa trabalhar.';
-  if(tipo==='folga_escolha') return 'O analista escolhe 1 dia dentro do período — dias que baterem o limite ficam bloqueados pra novas escolhas.';
+  if(tipo==='folga_escolha') return `O analista escolhe até ${MAX_DIAS_FOLGA_ESCOLHA} dias dentro do período (domingo não entra — tem fluxo próprio) — dias que baterem o limite ficam bloqueados pra novas escolhas.`;
   if(tipo==='reconhecimento_mensal') return 'O analista indica um colega de equipe como destaque do mês, com um motivo.';
   return 'O analista pede um período de férias (início e fim) — fica pendente até você aprovar ou recusar.';
 }
@@ -2119,9 +2119,9 @@ function formularioResultsHtml(f, respostas){
   }
 
   if(f.tipo==='folga_escolha'){
-    const dias = daysInRange(f.periodoInicio, f.periodoFim);
+    const dias = diasFolgaEscolha(f.periodoInicio, f.periodoFim);
     const rows = dias.map(d=>{
-      const quem = respostas.filter(r=>r.payload.data===d).map(r=>userById(r.analistaId)?.name||'—');
+      const quem = respostas.filter(r=>(r.payload.datas||[]).includes(d)).map(r=>userById(r.analistaId)?.name||'—');
       const pct = Math.min(100, Math.round(quem.length / f.limitePorDia * 100));
       const cheio = quem.length >= f.limitePorDia;
       return `<tr><td>${d}</td><td style="min-width:140px;">

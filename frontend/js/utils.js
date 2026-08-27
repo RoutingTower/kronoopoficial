@@ -289,6 +289,17 @@ function daysInRange(inicio, fim){
   return out;
 }
 
+// Formulário "Escolha de folga" (folga_escolha): domingo já tem seu próprio
+// fluxo (domingo_voluntariado/Controle de Domingos), então nunca aparece
+// aqui como opção — ver uso de diasFolgaEscolha em render-analista.js/
+// render-supervisor.js. Limite de dias escolhidos por analista (não é o
+// mesmo que limitePorDia, que é o de VAGAS em cada dia) espelha o backend
+// (formularioRespostas.controller.js).
+const MAX_DIAS_FOLGA_ESCOLHA = 3;
+function diasFolgaEscolha(inicio, fim){
+  return daysInRange(inicio, fim).filter(d=>!isDomingo(d));
+}
+
 function minhaRespostaFormulario(formularioId, analistaId){
   return DB.formularioRespostas.find(r=>r.formularioId===formularioId && r.analistaId===analistaId);
 }

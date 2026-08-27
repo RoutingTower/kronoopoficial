@@ -1158,7 +1158,15 @@ function bindMainEvents(){
   main.querySelectorAll('[data-formfolga-fid]').forEach(el=>{
     el.addEventListener('click', async ()=>{
       const fid = el.dataset.formfolgaFid, dia = el.dataset.formfolgaDia;
-      try{ substituirMinhaResposta(await apiEnviarResposta(fid, {data: dia})); renderMain(); }
+      const atuais = minhaRespostaFormulario(fid, session.userId)?.payload?.datas || [];
+      let novas;
+      if(atuais.includes(dia)){
+        novas = atuais.filter(d=>d!==dia);
+      } else {
+        if(atuais.length>=MAX_DIAS_FOLGA_ESCOLHA){ alert(`Você já escolheu o máximo de ${MAX_DIAS_FOLGA_ESCOLHA} dias — desmarque um antes de escolher outro.`); return; }
+        novas = [...atuais, dia];
+      }
+      try{ substituirMinhaResposta(await apiEnviarResposta(fid, {datas: novas})); renderMain(); }
       catch(e){ alert('Não foi possível salvar: '+e.message); }
     });
   });
