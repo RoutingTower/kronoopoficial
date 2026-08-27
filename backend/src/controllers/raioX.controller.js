@@ -125,25 +125,25 @@ async function createRaioX(req, res) {
 }
 
 // Correção de preenchimento incorreto ou roteirização cancelada depois do
-// fato — diferente de createRaioX (auto-declarado pelo próprio analista no
-// momento em que fecha a operação), esse update é uma correção feita pelo
-// supervisor da equipe (ou admin), não pelo analista. Não mexe em
-// duracaoSegundos/duracaoOrigem (Tempo de Execução) de propósito — quem
-// corrige isso é a planilha de roteirização importada (planilhaImport.
-// controller.js), não a edição manual do Raio-X.
-async function assertSupervisorDaEquipe(req, existing) {
-  const [caller, supervisorId] = await Promise.all([getCaller(req), supervisorIdDoAnalista(existing.analistaId)]);
+// fato — tanto o supervisor da equipe (ou admin) quanto o PRÓPRIO analista
+// dono do Raio-X podem editar (ex.: digitou o SPR no campo de Órfãos por
+// engano). Não mexe em duracaoSegundos/duracaoOrigem (Tempo de Execução)
+// de propósito — quem corrige isso é a planilha de roteirização importada
+// (planilhaImport.controller.js), não a edição manual do Raio-X.
+async function assertPodeEditarRaioX(req, existing) {
+  const caller = await getCaller(req);
   if (!caller) return null;
-  const pode = caller.isAdmin || (caller.role === "supervisor" && supervisorId === caller.id);
-  return pode ? caller : null;
+  if (caller.isAdmin || caller.id === existing.analistaId) return caller;
+  const supervisorId = await supervisorIdDoAnalista(existing.analistaId);
+  return caller.role === "supervisor" && supervisorId === caller.id ? caller : null;
 }
 
 async function updateRaioX(req, res) {
   const existing = await supabaseService.getById(COLLECTION, req.params.id);
   if (!existing) return res.status(404).json({ error: "not_found" });
-  const caller = await assertSupervisorDaEquipe(req, existing);
+  const caller = await assertPodeEditarRaioX(req, existing);
   if (!caller) {
-    return res.status(403).json({ error: "forbidden", message: "Só o supervisor da equipe (ou admin) pode editar uma finalização." });
+    return res.status(403).json({ error: "forbidden", message: "Só o próprio analista ou o supervisor da equipe (ou admin) pode editar uma finalização." });
   }
 
   const { estrelas, observacao, sprRoteirizado, sprMeta, semRoteirizacao, orfaos } = req.body;
@@ -202,8 +202,7 @@ async function updateRaioX(req, res) {
 async function deleteRaioX(req, res) {
   const existing = await supabaseService.getById(COLLECTION, req.params.id);
   if (!existing) return res.status(404).json({ error: "not_found" });
-  const souDono = existing.analistaId === req.user.uid;
-  if (!souDono && !(await assertSupervisorDaEquipe(req, existing))) {
+  if (!(await assertPodeEditarRaioX(req, existing))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode excluir finalizações em seu próprio nome ou da sua equipe (supervisor)." });
   }
   await supabaseService.remove(COLLECTION, req.params.id);

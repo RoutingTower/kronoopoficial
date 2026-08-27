@@ -15,17 +15,19 @@ function renderExecucaoActions(it, dateStr, analistaId, sprMeta, souEu){
     const duracaoHtml = raiox.duracaoSegundos!=null
       ? ` · ${icon('timer',11)} ${horarioReal}${formatarDuracao(raiox.duracaoSegundos)}${raiox.duracaoSegundos>SLA_TEMPO_EXECUCAO_SEGUNDOS ? ' <span style="color:var(--alert);font-weight:600;">acima do SLA</span>' : ''}`
       : '';
-    // Editar/Excluir só pro supervisor olhando a operação de alguém da
-    // equipe (souEu=false) — preenchimento incorreto ou roteirização
-    // cancelada depois do fato (ver raioX.controller.js, updateRaioX).
-    const acoesSupervisor = !souEu ? `<div class="flash-actions" style="margin-top:6px;">
+    // Editar: o próprio analista (preenchimento incorreto — ex.: SPR e
+    // Órfãos trocados de campo) ou o supervisor da equipe podem corrigir
+    // (ver raioX.controller.js, updateRaioX/assertPodeEditarRaioX). Excluir
+    // continua só pro supervisor por aqui — mais destrutivo, sem pedido pra
+    // liberar pro próprio analista.
+    const acoesRaioX = `<div class="flash-actions" style="margin-top:6px;">
         <button class="btn" data-editar-raiox="${raiox.id}">${icon('pencil',12)} Editar</button>
-        <button class="btn btn-danger" data-excluir-raiox="${raiox.id}">${icon('trash-2',12)} Excluir</button>
-      </div>` : '';
+        ${!souEu ? `<button class="btn btn-danger" data-excluir-raiox="${raiox.id}">${icon('trash-2',12)} Excluir</button>` : ''}
+      </div>`;
     // Órfãos é independente de semRoteirizacao (pode ter órfão registrado
     // mesmo sem roteirização) — nulo é "não informado", não mostra nada.
     const orfaosHtml = raiox.orfaos!=null ? ` · Órfãos ${raiox.orfaos}` : '';
-    return `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}${raiox.semRoteirizacao ? ' · Sem roteirização' : raiox.sprRoteirizado!=null ? ` · SPR lançado ${escapeHtml(String(raiox.sprRoteirizado))}` : ''}${orfaosHtml}${duracaoHtml}</div>${acoesSupervisor}`;
+    return `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}${raiox.semRoteirizacao ? ' · Sem roteirização' : raiox.sprRoteirizado!=null ? ` · SPR lançado ${escapeHtml(String(raiox.sprRoteirizado))}` : ''}${orfaosHtml}${duracaoHtml}</div>${acoesRaioX}`;
   }
   if(!souEu) return ''; // sem raio-x ainda: enviar só faz sentido pra quem executa
   // Ainda sem Raio-X — a planilha de roteirização pode já ter registrado o
