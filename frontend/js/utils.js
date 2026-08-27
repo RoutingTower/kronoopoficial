@@ -297,8 +297,21 @@ function daysInRange(inicio, fim){
 // aquele domingo se TODAS as operações dele estiverem cobertas por
 // terceiros e ele não estiver de plantão — qualquer coisa fora isso conta
 // como trabalhado.
+//
+// EXCEÇÃO: domingo sem nenhum slot (getDaySlots vazio) não conta como
+// trabalhado — isFolgaDSR sozinho trataria isso como "trabalhando" (não
+// tem folga própria pra bater), mas na real é um buraco de vigência (a
+// Base Mestra do analista não cobre essa data — visto em produção: Base
+// Mestra republicada mês a mês, algumas pessoas ficam com a vigência
+// antiga terminando ou a nova começando bem no meio do período do
+// formulário), não um domingo de verdade trabalhado. Sem essa checagem,
+// gente com buraco na escala ganhava direito a folga por um domingo que
+// nem existiu pra ela.
 function domingosTrabalhados(analistaId, inicio, fim){
-  return sundaysInRange(inicio, fim).filter(d=>!isFolgaDSR(analistaId, d));
+  return sundaysInRange(inicio, fim).filter(d=>{
+    if(getDaySlots(analistaId, d).length===0) return false;
+    return !isFolgaDSR(analistaId, d);
+  });
 }
 
 // Formulário "Escolha de folga" (folga_escolha): domingo já tem seu próprio
