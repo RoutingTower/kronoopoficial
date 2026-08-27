@@ -2147,15 +2147,43 @@ function formularioResultsHtml(f, respostas){
           <input type="checkbox" class="form-folga-confirmar-chk" data-id="${r.id}" ${confirmado?'checked':''}>
           ${confirmado?'✓ Suplente organizado':'Ainda não organizado'}
         </label></td>
+        <td>${!confirmado ? `<button class="btn btn-sm" data-alocar-auto-resposta="${r.id}">🤖 Alocar automaticamente</button>` : ''}</td>
       </tr>`;
     }).join('');
 
+    // Prévia de alocação automática (data-alocar-auto-resposta em events.js)
+    // — gerada por resposta, com um select por operação/dia pro supervisor
+    // ajustar antes de confirmar. Fica dentro do próprio formulário (não na
+    // aba Cobertura) pra manter o fluxo "escolheu → aloca → confirma" num
+    // lugar só; ao confirmar, marca confirmadoPeloSupervisor automaticamente.
+    const aa = uiState.alocarAuto;
+    const previewAuto = (aa && respostas.some(r=>r.id===aa.respostaId)) ? `
+      <div class="card" style="margin-top:14px;border-color:var(--brand);">
+        <div class="section-title">Prévia de alocação — ${escapeHtml(userById(aa.analistaId)?.name||'')}</div>
+        ${aa.items.length===0 ? '<div class="empty">Nenhuma operação encontrada pra cobrir nos dias escolhidos (ou já estão todas cobertas).</div>' :
+        aa.items.map((it,idx)=>{
+          const bm = DB.baseMestra.find(b=>b.id===it.bmId);
+          return `<div class="candidate-row">
+            <span class="op-tag"><span class="mono" style="color:var(--text-muted);font-weight:400;">${it.data.slice(8,10)}/${it.data.slice(5,7)}</span> ${escapeHtml(bm.operacao)} <span class="mono" style="color:var(--text-muted);font-weight:400;">${bm.horaInicio}–${bm.horaFim}</span></span>
+            <select data-alocarauto-idx="${idx}">
+              ${it.candidatos.length===0 ? '<option value="">Nenhum suplente disponível</option>' :
+                it.candidatos.map(c=>`<option value="${c.id}" ${it.chosenId===c.id?'selected':''}>${escapeHtml(c.name)} — ${c.opsHoje} op(s) hoje, ${c.coberturasNoMes} cobertura(s)/mês</option>`).join('')}
+            </select>
+          </div>`;
+        }).join('')}
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">
+          <button class="btn" id="btnCancelarAlocacaoAuto">Cancelar</button>
+          ${aa.items.length>0 ? `<button class="btn btn-brand" id="btnConfirmarAlocacaoAuto">Confirmar e organizar</button>` : ''}
+        </div>
+      </div>` : '';
+
     return `<div style="overflow-x:auto;"><table class="resp-table"><thead><tr><th>Dia</th><th>Vagas</th><th>Quem escolheu</th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="section-title" style="margin-top:18px;">Confirmação de cobertura</div>
-      <div class="help-text" style="margin-top:-8px;">Marque quando já tiver organizado o suplente pros dias escolhidos — o analista recebe um aviso de que a folga já está na agenda dele.</div>
-      <div style="overflow-x:auto;"><table class="resp-table"><thead><tr><th>Analista</th><th>Dia(s) escolhido(s)</th><th>Cobertura</th></tr></thead><tbody>
-        ${linhasPorAnalista || '<tr><td colspan="3" class="empty">Ninguém escolheu dia ainda</td></tr>'}
-      </tbody></table></div>`;
+      <div class="help-text" style="margin-top:-8px;">Marque quando já tiver organizado o suplente pros dias escolhidos — o analista recebe um aviso de que a folga já está na agenda dele. "Alocar automaticamente" gera uma prévia de suplentes respeitando jornada e conflitos, pra você ajustar antes de confirmar.</div>
+      <div style="overflow-x:auto;"><table class="resp-table"><thead><tr><th>Analista</th><th>Dia(s) escolhido(s)</th><th>Cobertura</th><th></th></tr></thead><tbody>
+        ${linhasPorAnalista || '<tr><td colspan="4" class="empty">Ninguém escolheu dia ainda</td></tr>'}
+      </tbody></table></div>
+      ${previewAuto}`;
   }
 
   if(f.tipo==='reconhecimento_mensal'){

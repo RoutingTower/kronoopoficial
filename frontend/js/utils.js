@@ -641,9 +641,19 @@ function linkify(container){
 function candidatosParaSlot(myAnalistas, titularId, bm, dataStr){
   const s1 = hourSortValue(bm.horaInicio), e1 = hourSortValue(bm.horaFim);
   const mesRef = dataStr.slice(0,7);
+  function janelaSlot(horaInicio, horaFim){
+    const s = hourSortValue(horaInicio);
+    let e = hourSortValue(horaFim);
+    if(e<=s) e += 24;
+    return [s,e];
+  }
   const candidatos = myAnalistas.filter(a=>a.id!==titularId).map(a=>{
     const estaDeFolga = DB.ausencias.some(x=>x.analistaId===a.id && x.data===dataStr);
     if(estaDeFolga) return null;
+    if(a.jornada && a.jornada.horaInicio && a.jornada.horaFim){
+      const [js,je] = janelaSlot(a.jornada.horaInicio, a.jornada.horaFim);
+      if(s1<js || e1>je) return null;
+    }
     const opsProprias = DB.baseMestra.filter(b=>b.analistaId===a.id && bmRodaNoDia(b, dataStr))
       .filter(b=>!DB.ausencias.some(x=>x.baseMestraId===b.id && x.data===dataStr));
     const conflitaComProprias = opsProprias.some(b=> rangesOverlap(s1,e1, hourSortValue(b.horaInicio), hourSortValue(b.horaFim)));

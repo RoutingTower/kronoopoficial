@@ -1159,6 +1159,66 @@ function bindMainEvents(){
     });
   });
 
+  // Alocação automática de suplentes a partir da Escolha de folga — pega
+  // o(s) dia(s) escolhido(s) pelo analista na resposta, gera uma prévia
+  // com o melhor candidato por operação (candidatosParaSlot já respeita
+  // jornada, conflito e prioriza quem tem menos ops/coberturas), e deixa o
+  // supervisor ajustar manualmente antes de confirmar — nunca envia direto.
+  main.querySelectorAll('[data-alocar-auto-resposta]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const respostaId = btn.dataset.alocarAutoResposta;
+      const resp = DB.formularioRespostas.find(r=>r.id===respostaId);
+      if(!resp) return;
+      const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
+      const datas = [...(resp.payload.datas||[])].sort();
+      const items = [];
+      datas.forEach(data=>{
+        DB.baseMestra.filter(b=>b.analistaId===resp.analistaId && bmRodaNoDia(b, data))
+          .filter(b=>!DB.ausencias.some(x=>x.baseMestraId===b.id && x.data===data))
+          .forEach(bm=>{
+            const candidatos = candidatosParaSlot(myAnalistas, resp.analistaId, bm, data);
+            items.push({ data, bmId: bm.id, candidatos, chosenId: candidatos[0]?.id || '' });
+          });
+      });
+      uiState.alocarAuto = { respostaId, analistaId: resp.analistaId, items };
+      renderMain();
+    });
+  });
+  main.querySelectorAll('[data-alocarauto-idx]').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      const idx = parseInt(sel.dataset.alocarautoIdx,10);
+      uiState.alocarAuto.items[idx].chosenId = sel.value;
+    });
+  });
+  const btnCancelarAlocacaoAuto = document.getElementById('btnCancelarAlocacaoAuto');
+  if(btnCancelarAlocacaoAuto) btnCancelarAlocacaoAuto.addEventListener('click', ()=>{
+    uiState.alocarAuto = null;
+    renderMain();
+  });
+  const btnConfirmarAlocacaoAuto = document.getElementById('btnConfirmarAlocacaoAuto');
+  if(btnConfirmarAlocacaoAuto) btnConfirmarAlocacaoAuto.addEventListener('click', async ()=>{
+    const st = uiState.alocarAuto;
+    let count=0, fail=0;
+    for(const it of st.items){
+      if(!it.chosenId) continue;
+      const bm = DB.baseMestra.find(b=>b.id===it.bmId);
+      const entrada = {analistaId:st.analistaId, baseMestraId:bm.id, operacao:bm.operacao, ciclo:bm.ciclo,
+        horaInicio:bm.horaInicio, horaFim:bm.horaFim, data:it.data, tipo:'folga', suplenteId:it.chosenId};
+      try{
+        const novo = await apiCreateAusencia(entrada);
+        DB.ausencias.push(novo);
+        count++;
+      }catch(e){ console.error('KronoOP: falha ao cobrir operação.', e); fail++; }
+    }
+    try{
+      const atualizado = await apiConfirmarCoberturaResposta(st.respostaId, true);
+      DB.formularioRespostas = DB.formularioRespostas.map(r=>r.id===st.respostaId ? atualizado : r);
+    }catch(e){ console.error('KronoOP: falha ao confirmar cobertura.', e); }
+    uiState.alocarAuto = null;
+    renderMain();
+    alert(`${count} operação(ões) coberta(s) com sucesso.${fail?` ${fail} falharam.`:''}`);
+  });
+
   // Formulários — analista: domingo_voluntariado/folga_escolha respondem no
   // clique do chip; reconhecimento_mensal/ferias_solicitacao juntam campos
   // antes de enviar.
