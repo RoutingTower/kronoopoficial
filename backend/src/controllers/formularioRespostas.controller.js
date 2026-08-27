@@ -62,7 +62,10 @@ function validarPayload(f, payload) {
     // Domingo tem fluxo próprio (domingo_voluntariado/Controle de
     // Domingos) — nunca é uma escolha válida aqui, mesma regra do frontend
     // (ver diasFolgaEscolha, utils.js).
-    if (!Array.isArray(payload.datas) || payload.datas.length === 0) return "Escolha pelo menos um dia.";
+    // Lista vazia é um estado válido (desmarcar o último dia escolhido —
+    // ver toggle em events.js — deixa a pessoa sem nenhum dia marcado, não
+    // trava a ação).
+    if (!Array.isArray(payload.datas)) return "datas deve ser uma lista.";
     if (payload.datas.length > MAX_DIAS_FOLGA_ESCOLHA) return `Escolha no máximo ${MAX_DIAS_FOLGA_ESCOLHA} dias.`;
     for (const d of payload.datas) {
       if (typeof d !== "string" || (f.periodoInicio && d < f.periodoInicio) || (f.periodoFim && d > f.periodoFim)) {
