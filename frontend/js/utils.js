@@ -115,6 +115,18 @@ function bmRodaNoDia(bm, dateStr){
   return bm.dias.includes(weekday);
 }
 
+// Vigência ativa na data, ignorando o filtro de dias da semana — diferente
+// de bmRodaNoDia (que também checa `dias`), aqui a pergunta é só "esse
+// analista tem ALGUMA operação com vigência cobrindo essa data" (carteira
+// não vazia naquele período), não "ele trabalha nesse dia específico da
+// semana". Um analista sem vigência ativa nenhuma numa data (base mestra
+// rotativa deixou um buraco — ex.: vigência foi até 30/09 enquanto o resto
+// da equipe segue) está de fato fora da escala ali (férias/desligamento em
+// andamento), não "livre pra ajudar" — ver candidatosParaSlot.
+function temVigenciaNaData(analistaId, dataStr){
+  return DB.baseMestra.some(b=>b.analistaId===analistaId && dataStr>=b.dataInicio && dataStr<=b.dataFim);
+}
+
 
 const RAIOX_MIN_OBS_LEN = 150;
 
@@ -650,6 +662,7 @@ function candidatosParaSlot(myAnalistas, titularId, bm, dataStr){
   const candidatos = myAnalistas.filter(a=>a.id!==titularId).map(a=>{
     const estaDeFolga = DB.ausencias.some(x=>x.analistaId===a.id && x.data===dataStr);
     if(estaDeFolga) return null;
+    if(!temVigenciaNaData(a.id, dataStr)) return null;
     if(a.jornada && a.jornada.horaInicio && a.jornada.horaFim){
       const [js,je] = janelaSlot(a.jornada.horaInicio, a.jornada.horaFim);
       if(s1<js || e1>je) return null;
