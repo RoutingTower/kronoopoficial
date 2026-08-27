@@ -2119,6 +2119,29 @@ function formularioResultsHtml(f, respostas){
   }
 
   if(f.tipo==='folga_escolha'){
+    // Quem ainda não respondeu ou respondeu com menos dias do que tem
+    // direito (limite = domingosTrabalhados no período, igual ao que o
+    // próprio analista vê no formulário — ver render-analista.js). Quem
+    // não tem direito a folga nenhuma (limite 0) nunca aparece aqui, já
+    // que não há o que ele precisaria escolher.
+    const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===f.supervisorId);
+    const pendentesSolicitacao = myAnalistas.map(a=>{
+      const limite = domingosTrabalhados(a.id, f.periodoInicio, f.periodoFim).length;
+      if(limite===0) return null;
+      const resp = respostas.find(r=>r.analistaId===a.id);
+      const escolhidos = resp ? (resp.payload.datas||[]).length : 0;
+      if(escolhidos>=limite) return null;
+      return { name: a.name, escolhidos, limite };
+    }).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+
+    const blocoPendentes = `
+      <div class="section-title">Solicitação de folga pendente</div>
+      <div class="help-text" style="margin-top:-8px;">Analistas com direito a folga no período que ainda não escolheram todos os dias disponíveis.</div>
+      ${pendentesSolicitacao.length===0 ? '<div class="empty" style="margin-bottom:18px;">Todo mundo com direito a folga já escolheu.</div>' : `
+      <div style="overflow-x:auto;margin-bottom:18px;"><table class="resp-table"><thead><tr><th>Analista</th><th>Escolhidos</th></tr></thead><tbody>
+        ${pendentesSolicitacao.map(p=>`<tr><td>${escapeHtml(p.name)}</td><td><span style="color:var(--alert);font-weight:600;">${p.escolhidos}/${p.limite}</span>${p.escolhidos===0?' · não respondeu':''}</td></tr>`).join('')}
+      </tbody></table></div>`}`;
+
     const dias = diasFolgaEscolha(f.periodoInicio, f.periodoFim);
     const rows = dias.map(d=>{
       const quem = respostas.filter(r=>(r.payload.datas||[]).includes(d)).map(r=>userById(r.analistaId)?.name||'—');
@@ -2189,7 +2212,8 @@ function formularioResultsHtml(f, respostas){
         </div>
       </div>` : '';
 
-    return `<div style="overflow-x:auto;"><table class="resp-table"><thead><tr><th>Dia</th><th>Vagas</th><th>Quem escolheu</th></tr></thead><tbody>${rows}</tbody></table></div>
+    return `${blocoPendentes}
+      <div style="overflow-x:auto;"><table class="resp-table"><thead><tr><th>Dia</th><th>Vagas</th><th>Quem escolheu</th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="section-title" style="margin-top:18px;">Confirmação de cobertura
         ${pendentes.length>0 ? `<span class="spacer" style="flex:1;"></span><button class="btn btn-sm" data-alocar-auto-todos="${f.id}">🤖 Alocar automaticamente (${pendentes.length} pendente${pendentes.length>1?'s':''})</button>` : ''}
       </div>
