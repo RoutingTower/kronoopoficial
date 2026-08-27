@@ -1159,28 +1159,49 @@ function bindMainEvents(){
     });
   });
 
-  // Alocação automática de suplentes a partir da Escolha de folga — pega
-  // o(s) dia(s) escolhido(s) pelo analista na resposta, gera uma prévia
-  // com o melhor candidato por operação (candidatosParaSlot já respeita
-  // jornada, conflito e prioriza quem tem menos ops/coberturas), e deixa o
-  // supervisor ajustar manualmente antes de confirmar — nunca envia direto.
-  main.querySelectorAll('[data-alocar-auto-resposta]').forEach(btn=>{
+  // Alocação automática de suplentes a partir da Escolha de folga — processa
+  // TODAS as respostas pendentes do formulário de uma vez (não uma resposta
+  // isolada): candidatosParaSlot já respeita jornada/conflito/prioridade,
+  // mas ele só enxerga quem já tem ausência CRIADA como "de folga" — outro
+  // analista que também escolheu o mesmo dia nesta mesma leva ainda não tem
+  // ausência nenhuma, então precisamos excluir manualmente quem está nesse
+  // caso (folgantesNaData) e também reservar cada escolha tentativa
+  // (tentativas) pra não sugerir a mesma pessoa duas vezes em horários que
+  // batem no mesmo dia. Só cria de verdade e confirma no clique de
+  // "Confirmar e organizar todos" — isso aqui só monta a prévia.
+  main.querySelectorAll('[data-alocar-auto-todos]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      const respostaId = btn.dataset.alocarAutoResposta;
-      const resp = DB.formularioRespostas.find(r=>r.id===respostaId);
-      if(!resp) return;
+      const formularioId = btn.dataset.alocarAutoTodos;
+      const respostas = DB.formularioRespostas.filter(r=>r.formularioId===formularioId);
+      const pendentes = respostas.filter(r=>(r.payload.datas||[]).length>0 && !r.confirmadoPeloSupervisor)
+        .sort((a,b)=>(userById(a.analistaId)?.name||'').localeCompare(userById(b.analistaId)?.name||'','pt-BR'));
       const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
-      const datas = [...(resp.payload.datas||[])].sort();
-      const items = [];
-      datas.forEach(data=>{
-        DB.baseMestra.filter(b=>b.analistaId===resp.analistaId && bmRodaNoDia(b, data))
-          .filter(b=>!DB.ausencias.some(x=>x.baseMestraId===b.id && x.data===data))
-          .forEach(bm=>{
-            const candidatos = candidatosParaSlot(myAnalistas, resp.analistaId, bm, data);
-            items.push({ data, bmId: bm.id, candidatos, chosenId: candidatos[0]?.id || '' });
-          });
+
+      const folgantesNaData = {};
+      respostas.forEach(r=>{
+        (r.payload.datas||[]).forEach(data=>{
+          (folgantesNaData[data] = folgantesNaData[data] || new Set()).add(r.analistaId);
+        });
       });
-      uiState.alocarAuto = { respostaId, analistaId: resp.analistaId, items };
+
+      const tentativas = [];
+      const items = [];
+      pendentes.forEach(resp=>{
+        [...(resp.payload.datas||[])].sort().forEach(data=>{
+          DB.baseMestra.filter(b=>b.analistaId===resp.analistaId && bmRodaNoDia(b, data))
+            .filter(b=>!DB.ausencias.some(x=>x.baseMestraId===b.id && x.data===data))
+            .forEach(bm=>{
+              const s1 = hourSortValue(bm.horaInicio), e1 = hourSortValue(bm.horaFim);
+              const candidatos = candidatosParaSlot(myAnalistas, resp.analistaId, bm, data)
+                .filter(c=> !(folgantesNaData[data]||new Set()).has(c.id))
+                .filter(c=> !tentativas.some(t=> t.suplenteId===c.id && t.data===data && rangesOverlap(s1,e1, hourSortValue(t.horaInicio), hourSortValue(t.horaFim))));
+              const chosenId = candidatos[0]?.id || '';
+              if(chosenId) tentativas.push({ suplenteId: chosenId, data, horaInicio: bm.horaInicio, horaFim: bm.horaFim });
+              items.push({ respostaId: resp.id, analistaId: resp.analistaId, data, bmId: bm.id, candidatos, chosenId });
+            });
+        });
+      });
+      uiState.alocarAuto = { formularioId, items };
       renderMain();
     });
   });
@@ -1202,7 +1223,7 @@ function bindMainEvents(){
     for(const it of st.items){
       if(!it.chosenId) continue;
       const bm = DB.baseMestra.find(b=>b.id===it.bmId);
-      const entrada = {analistaId:st.analistaId, baseMestraId:bm.id, operacao:bm.operacao, ciclo:bm.ciclo,
+      const entrada = {analistaId:it.analistaId, baseMestraId:bm.id, operacao:bm.operacao, ciclo:bm.ciclo,
         horaInicio:bm.horaInicio, horaFim:bm.horaFim, data:it.data, tipo:'folga', suplenteId:it.chosenId};
       try{
         const novo = await apiCreateAusencia(entrada);
@@ -1210,10 +1231,13 @@ function bindMainEvents(){
         count++;
       }catch(e){ console.error('KronoOP: falha ao cobrir operação.', e); fail++; }
     }
-    try{
-      const atualizado = await apiConfirmarCoberturaResposta(st.respostaId, true);
-      DB.formularioRespostas = DB.formularioRespostas.map(r=>r.id===st.respostaId ? atualizado : r);
-    }catch(e){ console.error('KronoOP: falha ao confirmar cobertura.', e); }
+    const respostaIds = [...new Set(st.items.map(it=>it.respostaId))];
+    for(const respostaId of respostaIds){
+      try{
+        const atualizado = await apiConfirmarCoberturaResposta(respostaId, true);
+        DB.formularioRespostas = DB.formularioRespostas.map(r=>r.id===respostaId ? atualizado : r);
+      }catch(e){ console.error('KronoOP: falha ao confirmar cobertura.', e); }
+    }
     uiState.alocarAuto = null;
     renderMain();
     alert(`${count} operação(ões) coberta(s) com sucesso.${fail?` ${fail} falharam.`:''}`);
