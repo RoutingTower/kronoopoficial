@@ -300,6 +300,25 @@ function diasFolgaEscolha(inicio, fim){
   return daysInRange(inicio, fim).filter(d=>!isDomingo(d));
 }
 
+// Grade em blocos de semana (calendário de verdade, Dom–Sáb) pro card do
+// analista — domingo ENTRA na grade aqui (diferente de diasFolgaEscolha
+// acima), só pra alinhar as colunas direito; a célula fica travada (não é
+// uma escolha válida, mesma regra de sempre). null = fora do período, só
+// preenche o começo/fim da primeira/última semana. Tamanho sempre múltiplo
+// de 7.
+function gradeSemanalFolgaEscolha(inicio, fim){
+  const ini = new Date(inicio+'T00:00:00');
+  const fimD = new Date(fim+'T00:00:00');
+  const inicioSemana = new Date(ini); inicioSemana.setDate(inicioSemana.getDate()-ini.getDay());
+  const fimSemana = new Date(fimD); fimSemana.setDate(fimSemana.getDate()+(6-fimD.getDay()));
+  const celulas = [];
+  for(let d=new Date(inicioSemana); d<=fimSemana; d.setDate(d.getDate()+1)){
+    const iso = dateToISO(d);
+    celulas.push(iso>=inicio && iso<=fim ? iso : null);
+  }
+  return celulas;
+}
+
 function minhaRespostaFormulario(formularioId, analistaId){
   return DB.formularioRespostas.find(r=>r.formularioId===formularioId && r.analistaId===analistaId);
 }

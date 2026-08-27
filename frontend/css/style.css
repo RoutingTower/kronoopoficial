@@ -594,6 +594,29 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .formulario-chip .sub{font-size:10.5px;color:var(--text-faint);font-weight:400;}
 .formulario-chip.checked .sub{color:var(--brand);opacity:.8;}
 
+/* Grade em blocos de semana do formulário "Escolha de folga" (ver
+   gradeSemanalFolgaEscolha, utils.js) — calendário de verdade (7 colunas
+   Dom–Sáb, uma linha por semana) em vez de uma lista corrida de chips.
+   Domingo entra na grade só pra alinhar as colunas (célula travada, não é
+   uma escolha válida — tem escala própria). */
+.folga-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:2px;overflow-x:auto;}
+.folga-cal-head{text-align:center;font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.05em;padding-bottom:3px;}
+.folga-cal-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:9px;padding:9px 4px;min-height:54px;}
+.folga-cal-cell.vazia{visibility:hidden;}
+.folga-cal-cell.domingo{background:var(--bg-2);opacity:0.4;}
+.folga-cal-cell.selecionavel{background:var(--panel-2);border:1px solid var(--border);cursor:pointer;user-select:none;transition:all .12s;}
+.folga-cal-cell.selecionavel:hover{border-color:var(--text-muted);}
+.folga-cal-cell.selecionavel.checked{background:rgba(238,77,45,.12);border-color:var(--brand);}
+.folga-cal-cell.selecionavel.disabled{opacity:.35;cursor:not-allowed;}
+.folga-cal-dia{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;color:var(--text);}
+.folga-cal-cell.domingo .folga-cal-dia{color:var(--text-faint);font-weight:600;}
+.folga-cal-cell.checked .folga-cal-dia{color:var(--brand);}
+.folga-cal-vagas{font-size:9px;color:var(--text-faint);}
+.folga-cal-cell.checked .folga-cal-vagas{color:var(--brand);opacity:.85;}
+@media (max-width:700px){
+  .folga-cal-grid{grid-template-columns:repeat(7,minmax(58px,1fr));}
+}
+
 /* Card com destaque de cor (ex.: seção "Em Folga" em Métricas). */
 .highlight-card{border-radius:var(--radius);padding:16px 18px;margin-bottom:20px;background:rgba(184,134,11,0.07);border:1px solid rgba(184,134,11,0.3);}
 .highlight-card .section-title{color:var(--folga);margin-bottom:8px;}

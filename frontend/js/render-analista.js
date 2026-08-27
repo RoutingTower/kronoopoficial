@@ -687,23 +687,26 @@ function analistaFormularioCardHtml(f){
   }
 
   if(f.tipo==='folga_escolha'){
-    const dias = diasFolgaEscolha(f.periodoInicio, f.periodoFim);
+    const celulas = gradeSemanalFolgaEscolha(f.periodoInicio, f.periodoFim);
     const todasRespostas = DB.formularioRespostas.filter(r=>r.formularioId===f.id);
     const minhasDatas = minha?.payload?.datas || [];
     const atingiuLimite = minhasDatas.length >= MAX_DIAS_FOLGA_ESCOLHA;
+    const cabecalhoDias = WEEKDAY_LABELS.map(w=>`<div class="folga-cal-head">${w}</div>`).join('');
+    const celulasHtml = celulas.map(d=>{
+      if(!d) return `<div class="folga-cal-cell vazia"></div>`;
+      if(isDomingo(d)) return `<div class="folga-cal-cell domingo" title="Domingo tem escala própria (Controle de Domingos) — não entra aqui"><span class="folga-cal-dia">${d.slice(8,10)}</span></div>`;
+      const quem = todasRespostas.filter(r=>(r.payload.datas||[]).includes(d));
+      const marcado = minhasDatas.includes(d);
+      const cheio = quem.length >= f.limitePorDia && !marcado;
+      const bloqueado = cheio || (atingiuLimite && !marcado);
+      return `<label class="folga-cal-cell selecionavel ${marcado?'checked':''} ${bloqueado?'disabled':''}" ${bloqueado?'':`data-formfolga-fid="${f.id}" data-formfolga-dia="${d}"`}>
+        <span class="folga-cal-dia">${d.slice(8,10)}</span>
+        <span class="folga-cal-vagas">${cheio?'lotado':`${quem.length}/${f.limitePorDia}`}</span>
+      </label>`;
+    }).join('');
     return `<div class="card">${cabecalho}
-      <div class="help-text" style="margin-top:-4px;margin-bottom:8px;">Escolha até ${MAX_DIAS_FOLGA_ESCOLHA} dias — ${minhasDatas.length}/${MAX_DIAS_FOLGA_ESCOLHA} selecionado(s).</div>
-      <div class="formulario-chip-grid">
-        ${dias.map(d=>{
-          const quem = todasRespostas.filter(r=>(r.payload.datas||[]).includes(d));
-          const marcado = minhasDatas.includes(d);
-          const cheio = quem.length >= f.limitePorDia && !marcado;
-          const bloqueado = cheio || (atingiuLimite && !marcado);
-          return `<label class="formulario-chip ${marcado?'checked':''} ${bloqueado?'disabled':''}" ${bloqueado?'':`data-formfolga-fid="${f.id}" data-formfolga-dia="${d}"`}>
-            ${fmtDataCurta(d)} <span class="sub">${cheio?'lotado':`${quem.length}/${f.limitePorDia} vaga(s)`}</span>
-          </label>`;
-        }).join('')}
-      </div>
+      <div class="help-text" style="margin-top:-4px;margin-bottom:10px;">Escolha até ${MAX_DIAS_FOLGA_ESCOLHA} dias — <b>${minhasDatas.length}/${MAX_DIAS_FOLGA_ESCOLHA}</b> selecionado(s). Domingo não participa (tem escala própria).</div>
+      <div class="folga-cal-grid">${cabecalhoDias}${celulasHtml}</div>
     </div>`;
   }
 
