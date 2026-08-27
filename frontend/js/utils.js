@@ -289,12 +289,25 @@ function daysInRange(inicio, fim){
   return out;
 }
 
+// Domingos TRABALHADOS (não-folga, ver isFolgaDSR) de um analista dentro
+// de um período — é isso que define quantos dias de folga ele tem direito
+// a escolher no formulário "Escolha de folga" (1 domingo trabalhado = 1
+// dia de folga, proporcional, não mais um número fixo igual pra todo
+// mundo). Mesma regra do Controle de Domingos: só conta como "folgou"
+// aquele domingo se TODAS as operações dele estiverem cobertas por
+// terceiros e ele não estiver de plantão — qualquer coisa fora isso conta
+// como trabalhado.
+function domingosTrabalhados(analistaId, inicio, fim){
+  return sundaysInRange(inicio, fim).filter(d=>!isFolgaDSR(analistaId, d));
+}
+
 // Formulário "Escolha de folga" (folga_escolha): domingo já tem seu próprio
 // fluxo (domingo_voluntariado/Controle de Domingos), então nunca aparece
 // aqui como opção — ver uso de diasFolgaEscolha em render-analista.js/
-// render-supervisor.js. Limite de dias escolhidos por analista (não é o
-// mesmo que limitePorDia, que é o de VAGAS em cada dia) espelha o backend
-// (formularioRespostas.controller.js).
+// render-supervisor.js. MAX_DIAS_FOLGA_ESCOLHA só serve de fallback (ver
+// events.js) pro caso raro do formulário não estar no DB local — o limite
+// de verdade é sempre domingosTrabalhados(...).length, calculado por
+// analista.
 const MAX_DIAS_FOLGA_ESCOLHA = 3;
 function diasFolgaEscolha(inicio, fim){
   return daysInRange(inicio, fim).filter(d=>!isDomingo(d));

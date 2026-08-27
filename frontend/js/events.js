@@ -1158,12 +1158,18 @@ function bindMainEvents(){
   main.querySelectorAll('[data-formfolga-fid]').forEach(el=>{
     el.addEventListener('click', async ()=>{
       const fid = el.dataset.formfolgaFid, dia = el.dataset.formfolgaDia;
+      const f = DB.formularios.find(x=>x.id===fid);
+      // Limite de verdade é proporcional aos domingos trabalhados (ver
+      // domingosTrabalhados, utils.js) — MAX_DIAS_FOLGA_ESCOLHA só entra se
+      // o formulário nem estiver no DB local (não deveria acontecer, o
+      // botão só existe se ele já foi renderizado a partir de um f real).
+      const limite = f ? domingosTrabalhados(session.userId, f.periodoInicio, f.periodoFim).length : MAX_DIAS_FOLGA_ESCOLHA;
       const atuais = minhaRespostaFormulario(fid, session.userId)?.payload?.datas || [];
       let novas;
       if(atuais.includes(dia)){
         novas = atuais.filter(d=>d!==dia);
       } else {
-        if(atuais.length>=MAX_DIAS_FOLGA_ESCOLHA){ alert(`Você já escolheu o máximo de ${MAX_DIAS_FOLGA_ESCOLHA} dias — desmarque um antes de escolher outro.`); return; }
+        if(atuais.length>=limite){ alert(`Você já escolheu o máximo de ${limite} dia(s) de folga a que tem direito nesse período.`); return; }
         novas = [...atuais, dia];
       }
       try{ substituirMinhaResposta(await apiEnviarResposta(fid, {datas: novas})); renderMain(); }

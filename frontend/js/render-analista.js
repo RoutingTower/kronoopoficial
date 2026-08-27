@@ -687,10 +687,17 @@ function analistaFormularioCardHtml(f){
   }
 
   if(f.tipo==='folga_escolha'){
+    const domingosTrab = domingosTrabalhados(session.userId, f.periodoInicio, f.periodoFim);
+    const limiteFolgas = domingosTrab.length;
+    if(limiteFolgas===0){
+      return `<div class="card">${cabecalho}
+        <div class="help-text" style="margin-top:-4px;">Você não está escalado em nenhum domingo desse período — sem direito a dia de folga por aqui.</div>
+      </div>`;
+    }
     const celulas = gradeSemanalFolgaEscolha(f.periodoInicio, f.periodoFim);
     const todasRespostas = DB.formularioRespostas.filter(r=>r.formularioId===f.id);
     const minhasDatas = minha?.payload?.datas || [];
-    const atingiuLimite = minhasDatas.length >= MAX_DIAS_FOLGA_ESCOLHA;
+    const atingiuLimite = minhasDatas.length >= limiteFolgas;
     const cabecalhoDias = WEEKDAY_LABELS.map(w=>`<div class="folga-cal-head">${w}</div>`).join('');
     const celulasHtml = celulas.map(d=>{
       if(!d) return `<div class="folga-cal-cell vazia"></div>`;
@@ -704,8 +711,9 @@ function analistaFormularioCardHtml(f){
         <span class="folga-cal-vagas">${cheio?'lotado':`${quem.length}/${f.limitePorDia}`}</span>
       </label>`;
     }).join('');
+    const domingosTexto = domingosTrab.map(d=>`${d.slice(8,10)}/${d.slice(5,7)}`).join(', ');
     return `<div class="card">${cabecalho}
-      <div class="help-text" style="margin-top:-4px;margin-bottom:10px;">Escolha até ${MAX_DIAS_FOLGA_ESCOLHA} dias — <b>${minhasDatas.length}/${MAX_DIAS_FOLGA_ESCOLHA}</b> selecionado(s). Domingo não participa (tem escala própria).</div>
+      <div class="help-text" style="margin-top:-4px;margin-bottom:10px;">Você está escalado n${domingosTrab.length>1?'os domingos':'o domingo'} <b>${domingosTexto}</b> — tem direito a <b>${limiteFolgas}</b> dia${limiteFolgas>1?'s':''} de folga. <b>${minhasDatas.length}/${limiteFolgas}</b> selecionado(s). Domingo não participa (tem escala própria).</div>
       <div class="folga-cal-grid">${cabecalhoDias}${celulasHtml}</div>
     </div>`;
   }

@@ -4,8 +4,6 @@ const { notificar } = require("../services/notificar");
 const { statusFormulario } = require("./formularios.controller");
 
 const COLLECTION = "formularioRespostas";
-// Espelha MAX_DIAS_FOLGA_ESCOLHA em frontend/js/utils.js.
-const MAX_DIAS_FOLGA_ESCOLHA = 3;
 const WEEKDAYS = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
 function weekdayOf(dateStr) {
   return WEEKDAYS[new Date(dateStr + "T00:00:00Z").getUTCDay()];
@@ -14,6 +12,26 @@ function addDaysISO(dateStr, n) {
   const d = new Date(dateStr + "T00:00:00Z");
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
+}
+
+// O limite de VERDADE de dias de folga (1 por domingo TRABALHADO, ver
+// domingosTrabalhados/isFolgaDSR em frontend/js/utils.js) depende de
+// cobertura de operação + plantão — lógica que hoje só existe no frontend
+// (getDaySlots cruza base_mestra/ausencias/suplencias/plantoes numa forma
+// específica). Replicar isso aqui duplicaria uma regra de negócio inteira
+// em duas linguagens, arriscando os dois lados saírem do sincronismo.
+// Como fallback de segurança (não confia cegamente no que o cliente manda),
+// o backend só garante um teto óbvio: nunca mais dias de folga do que
+// domingos EXISTEM no período, seja lá quantos foram trabalhados — a conta
+// exata de "quantos direito" fica com o frontend.
+function domingosNoPeriodo(inicio, fim) {
+  let count = 0;
+  let d = inicio;
+  while (d <= fim) {
+    if (weekdayOf(d) === "dom") count++;
+    d = addDaysISO(d, 1);
+  }
+  return count;
 }
 
 // Sem formularioId: lista tudo dentro do escopo de quem chama (mesmo
@@ -66,7 +84,8 @@ function validarPayload(f, payload) {
     // ver toggle em events.js — deixa a pessoa sem nenhum dia marcado, não
     // trava a ação).
     if (!Array.isArray(payload.datas)) return "datas deve ser uma lista.";
-    if (payload.datas.length > MAX_DIAS_FOLGA_ESCOLHA) return `Escolha no máximo ${MAX_DIAS_FOLGA_ESCOLHA} dias.`;
+    const tetoMax = domingosNoPeriodo(f.periodoInicio, f.periodoFim);
+    if (payload.datas.length > tetoMax) return `Esse período só tem ${tetoMax} domingo(s) — não dá pra escolher mais dias de folga do que isso.`;
     for (const d of payload.datas) {
       if (typeof d !== "string" || (f.periodoInicio && d < f.periodoInicio) || (f.periodoFim && d > f.periodoFim)) {
         return "Data fora do período do formulário.";
