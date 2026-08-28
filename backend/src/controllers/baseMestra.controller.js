@@ -108,6 +108,19 @@ async function deleteBaseMestra(req, res) {
   if (!(await assertDonoDaEquipe(req, existing))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode gerenciar a base mestra da sua equipe." });
   }
+  // ausencias.base_mestra_id tem FK pra essa tabela (sem cascade) — apagar
+  // a operação sem antes apagar as ausências dela batia em
+  // "violates foreign key constraint ausencias_base_mestra_id_fkey" e
+  // travava a exclusão. Cada ausência aqui é uma folga/cobertura
+  // registrada especificamente pra ESSA operação; sem ela deixando de
+  // existir na carteira, esses registros não têm mais o que representar.
+  const ausenciasLigadas = await supabaseService.listWhere("ausencias", [["baseMestraId", "==", req.params.id]]);
+  for (const aus of ausenciasLigadas) {
+    await supabaseService.remove("ausencias", aus.id);
+    if (aus.suplenteId) {
+      await notificar(aus.suplenteId, "agenda", `A cobertura que você faria em ${existing.operacao} (${existing.horaInicio}–${existing.horaFim}) foi cancelada — a operação saiu da carteira.`);
+    }
+  }
   await supabaseService.remove(COLLECTION, req.params.id);
   await notificar(existing.analistaId, "agenda", `Uma operação foi removida da sua agenda: ${existing.operacao} (${existing.horaInicio}–${existing.horaFim}).`);
   res.status(204).send();
