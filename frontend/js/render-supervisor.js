@@ -573,9 +573,12 @@ function supProgramacao(myAnalistas){
   if(uiState.progView==='diaria'){
     return filtros + renderProgramacaoIntegrada(list, uiState.progDate);
   }
+  // Semanal/Mensal não mostram analista inativo (desligado) — Diária
+  // continua mostrando todo mundo, sem mudança aqui.
+  const listAtiva = list.filter(a=>a.active);
   const renderFor = a => uiState.progView==='semanal' ? renderAnalistaSemanal(a.id, uiState.progDate)
     : renderAnalistaMensal(a.id, uiState.progDate);
-  return filtros + (list.map(a=>`<div style="margin-bottom:22px;"><div class="section-title">${a.name}</div>${renderFor(a)}</div>`).join('')
+  return filtros + (listAtiva.map(a=>`<div style="margin-bottom:22px;"><div class="section-title">${a.name}</div>${renderFor(a)}</div>`).join('')
     || '<div class="empty">Nenhum analista para exibir</div>');
 }
 
