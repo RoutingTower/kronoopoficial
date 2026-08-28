@@ -239,12 +239,40 @@ function renderProgramacaoIntegrada(lista, dateStr){
   // continua mostrando o "folga" normalmente.
   const domingo = isDomingo(dateStr);
 
+  // Arrastar-e-soltar (mover operação entre escalas) é só do supervisor de
+  // verdade — a "Programação Geral" do analista delegado reaproveita essa
+  // mesma função (renderProgramacaoGeralAnalista chama supProgramacao) e
+  // precisa continuar só leitura, sem depender de travar botão por botão.
+  const podeEditar = session.role==='supervisor';
+  const movesTodos = podeEditar ? uiState.progMoves : [];
+  const moves = movesTodos.filter(m=>m.data===dateStr);
+  const movesPorOrigem = {}, movesPorDestino = {};
+  moves.forEach(m=>{
+    (movesPorOrigem[m.origemAnalistaId] = movesPorOrigem[m.origemAnalistaId]||[]).push(m);
+    (movesPorDestino[m.destinoAnalistaId] = movesPorDestino[m.destinoAnalistaId]||[]).push(m);
+  });
+
   const linhas = [];
   const folgaNomes = [];
   lista.forEach(a=>{
     const slotsOriginais = filtrarSlotsAgenda(a.id, dateStr);
     let slots = slotsOriginais;
     if(domingo) slots = slots.filter(s=>categoriaOperacao(s)!=='folga');
+    // Prévia de arrastar-e-soltar: some da linha de quem foi tirado, aparece
+    // (como card "pendente", ainda sem gravar nada) na linha de quem
+    // recebeu — ver "Salvar alterações" em events.js pra quando isso vira
+    // ausência de verdade.
+    const saidas = movesPorOrigem[a.id] || [];
+    if(saidas.length) slots = slots.filter(s=> !saidas.some(m=>m.bmId===s.id && m.categoria===categoriaOperacao(s)));
+    const entradas = movesPorDestino[a.id] || [];
+    if(entradas.length){
+      slots = [...slots, ...entradas.map(m=>({
+        id:m.bmId, operacao:m.operacao, ciclo:m.ciclo, horaInicio:m.horaInicio, horaFim:m.horaFim,
+        isOff:false, isCobertura:true, isSuplente:false,
+        responsavelNome: userById(m.titularId)?.name || '—', responsavelId:m.titularId,
+        _pendente:m,
+      }))];
+    }
     const trabalha = slots.some(s=>categoriaOperacao(s)!=='folga');
     if(!trabalha){
       // Só conta como "de folga" quem tem operação fixa de verdade coberta
@@ -275,7 +303,10 @@ function renderProgramacaoIntegrada(lista, dateStr){
     const [,iconStatus,labelStatus] = statusLabels[status] || [];
     const detalhe = `${it.operacao} — ${it.ciclo} · ${it.horaInicio}–${it.horaFim}${labelStatus ? ` · ${labelStatus}` : ''}` +
       (it.isCobertura ? ` · Cobrindo ${it.responsavelNome}` : it.isOff ? ` · Coberto por ${it.responsavelNome}` : '');
-    const borda = status==='atraso' ? ' flash-card-atraso' : '';
+    // Card pendente ainda não é real (não tem Raio-X nem nunca vai ter,
+    // porque a operação nunca rodou nesse titular) — não faz sentido
+    // acender "Não finalizado" nele antes de salvar.
+    const borda = status==='atraso' && !it._pendente ? ' flash-card-atraso' : '';
 
     // raio_x não grava ciclo (bug de longa data no backend — ver ciclo
     // ausente na tabela, cicloDaOperacaoHistorico em utils.js), então o
@@ -316,7 +347,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
     // atraso) estava passando despercebida no meio das cores de categoria
     // (fixa/cobertura/folga), então além dela o card ganha uma etiqueta que
     // não depende de reparar na cor.
-    const alertaHtml = status==='atraso' ? `<span class="pill pill-atraso prog-alerta">${icon('octagon-alert',10)} Não finalizado</span>` : '';
+    const alertaHtml = status==='atraso' && !it._pendente ? `<span class="pill pill-atraso prog-alerta">${icon('octagon-alert',10)} Não finalizado</span>` : '';
 
     // SPR e Órfãos vêm do próprio Raio-X (preenchido pelo analista), não da
     // planilha — por isso aparecem mesmo quando ainda não há duracaoSegundos
@@ -338,12 +369,34 @@ function renderProgramacaoIntegrada(lista, dateStr){
       ? `\n\n${'★'.repeat(Math.max(0,Math.min(5,rx.estrelas||0)))}${rx.semRoteirizacao ? ' · Sem roteirização' : rx.sprRoteirizado!=null ? ` · SPR ${rx.sprRoteirizado}` : ''}${rx.orfaos!=null ? ` · Órfãos ${rx.orfaos}` : ''}\n${obsTexto}`
       : '';
 
-    return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${dim?' prog-dim':''}" title="${escapeHtml(detalhe+resumoRaiox)}">
+    // Arrastar-e-soltar: só "fixa" (operação própria) e "cobertura" fazem
+    // sentido mover — "folga" é o card do dia em que o titular NÃO está
+    // trabalhando (outra pessoa já cobre), não tem o que arrastar dali. O
+    // card pendente (it._pendente) carrega a categoria ORIGINAL da
+    // operação (antes do drag) — é ela que decide, no salvar, se cria uma
+    // ausência nova ou só reatribui uma existente (ver btnSalvarProgMoves,
+    // events.js), mesmo que visualmente ele já apareça como "cobertura" na
+    // linha de quem recebeu.
+    const catOriginal = it._pendente ? it._pendente.categoria : categoriaOperacao(it);
+    // Cobertura avulsa (Suplências ad-hoc, sem base_mestra por trás — ver
+    // coberturaAdhoc em getDaySlots) usa outra tabela (suplencias) e não dá
+    // pra mover por aqui (o id do card nem é um baseMestraId nesse caso);
+    // só entra quem tem tipo 'folga'/'ferias' de verdade (ausência real).
+    const ehAdhoc = catOriginal==='cobertura' && !it._pendente && it.tipo==='cobertura';
+    const arrastavel = podeEditar && !ehAdhoc && (catOriginal==='fixa' || catOriginal==='cobertura');
+    const titularIdDrag = it._pendente ? it._pendente.titularId : (catOriginal==='fixa' ? analistaId : it.responsavelId);
+    const dragAttrs = arrastavel ? ` draggable="true" data-drag-categoria="${catOriginal}" data-drag-bmid="${it.id}" data-drag-titularid="${titularIdDrag}" data-drag-origemid="${analistaId}" data-drag-operacao="${escapeHtml(it.operacao)}" data-drag-ciclo="${escapeHtml(it.ciclo)}" data-drag-horainicio="${it.horaInicio}" data-drag-horafim="${it.horaFim}" data-drag-data="${dateStr}"` : '';
+    const pendenteHtml = it._pendente ? `
+      <span class="prog-pendente-badge" title="${it._pendente.conflito ? escapeHtml(it._pendente.conflito) : 'Pendente — ainda não salvo'}">${it._pendente.conflito ? icon('triangle-alert',10) : icon('move',10)} Pendente</span>
+      <button class="prog-pendente-remover" data-remove-move="${it._pendente.id}" title="Desfazer esse movimento">${icon('x',11)}</button>` : '';
+
+    return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${dim?' prog-dim':''}${arrastavel?' prog-arrastavel':''}${it._pendente?' prog-card-pendente':''}" title="${escapeHtml(detalhe+resumoRaiox)}"${dragAttrs}>
       <span class="flash-sigla">${iconStatus?icon(iconStatus,11)+' ':''}${escapeHtml(it.operacao)}</span>
       <span class="prog-ciclo">${escapeHtml(it.ciclo)}</span>
       ${horarioLabel ? `<span class="prog-horario mono">${horarioLabel}</span>` : ''}
       ${tempoLabel ? `<span class="prog-horario mono"${tempoCor?` style="color:${tempoCor};"`:''}>${tempoLabel}</span>` : ''}
       ${sprOrfaosLabel ? `<span class="prog-horario mono">${sprOrfaosLabel}</span>` : ''}
+      ${pendenteHtml}
       ${timerHtml}
       ${alertaHtml}
     </div>`;
@@ -365,19 +418,33 @@ function renderProgramacaoIntegrada(lista, dateStr){
   const timelineHtml = `<div class="prog-timeline-wrap" style="grid-column:1/-1;">${turnoAtivo ? `<div class="prog-timeline-track"><div class="prog-timeline-fill" style="width:${fracAgora*100}%;"></div><div class="prog-timeline-now" style="left:${fracAgora*100}%;" title="Agora"></div></div>` : ''}</div>`;
   const guideHtml = turnoAtivo ? `<div class="prog-now-guide" style="left:calc(184px + (100% - 184px) * ${fracAgora});"></div>` : '';
 
+  // A linha inteira (rótulo + todas as células) é a zona de soltar — a
+  // operação não muda de horário ao mover, só de dono, então não faz
+  // sentido restringir o drop a uma célula/hora específica.
+  const dropAttrs = a => podeEditar ? ` data-drop-analista="${a.id}"` : '';
   const rowsHtml = linhas.map(({analista,slots})=>{
     const qtd = slots.length;
-    const label = `<div class="prog-row-label"><div class="nm">${escapeHtml(analista.name)}</div><div class="prog-row-count">${qtd} operaç${qtd===1?'ão':'ões'}</div></div>`;
+    const label = `<div class="prog-row-label"${dropAttrs(analista)}><div class="nm">${escapeHtml(analista.name)}</div><div class="prog-row-count">${qtd} operaç${qtd===1?'ão':'ões'}</div></div>`;
     const cellsHtml = HOURS.map(hour=>{
       const items = slots.filter(s=>s.horaInicio===hour);
       const conteudo = items.map(it=>cardHtml(it, hour, analista.id)).join('');
-      return `<div class="prog-cell${hour===horaAtual?' prog-cell-agora':''}">${conteudo}</div>`;
+      return `<div class="prog-cell${hour===horaAtual?' prog-cell-agora':''}"${dropAttrs(analista)}>${conteudo}</div>`;
     }).join('');
     return label + cellsHtml;
   }).join('');
 
+  // Barra de ações pendentes: some das outras datas do lote pra caber o
+  // contador certo (movesTodos, não só o "moves" filtrado por esse dia) —
+  // dá pra ir arrastando em vários dias antes de salvar tudo de uma vez.
+  const barraMovesHtml = podeEditar && movesTodos.length>0 ? `
+    <div class="prog-moves-bar">
+      <span>${icon('move',14)} <b>${movesTodos.length}</b> alteraç${movesTodos.length>1?'ões':'ão'} pendente${movesTodos.length>1?'s':''}${movesTodos.some(m=>m.conflito) ? ` · ${movesTodos.filter(m=>m.conflito).length} com aviso` : ''}</span>
+      <button class="btn" id="btnDescartarProgMoves">Descartar</button>
+      <button class="btn btn-brand" id="btnSalvarProgMoves">Salvar alterações</button>
+    </div>` : '';
+
   if(linhas.length===0){
-    return `<div class="empty">Nenhum analista com operação neste dia</div>`;
+    return `${barraMovesHtml}<div class="empty">Nenhum analista com operação neste dia</div>`;
   }
 
   const legendHtml = `<div class="status-legend">
@@ -393,7 +460,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
     </span>` : ''}
   </div>`;
 
-  return `${legendHtml}<div class="prog-card-outer">
+  return `${barraMovesHtml}${legendHtml}<div class="prog-card-outer">
     <div class="prog-grid">
       ${headHtml}
       ${timelineHtml}

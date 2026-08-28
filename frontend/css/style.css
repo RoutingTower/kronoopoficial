@@ -487,6 +487,22 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .prog-cell .flash-card.prog-dim{opacity:0.22;}
 .prog-cell .flash-card.prog-dim:hover{opacity:0.5;}
 
+/* Arrastar-e-soltar na Programação Analista (supervisor, Diária) — mover
+   operação de um analista pra outro (ver renderProgramacaoIntegrada e os
+   handlers de drag/drop em events.js). */
+.prog-arrastavel{cursor:grab;}
+.prog-arrastavel:active{cursor:grabbing;}
+.prog-arrastando{opacity:0.35;}
+.prog-row-label[data-drop-analista],.prog-cell[data-drop-analista]{transition:background-color .12s ease,outline-color .12s ease;}
+.prog-drop-alvo{background:color-mix(in srgb, var(--brand) 10%, transparent)!important;outline:1.5px dashed var(--brand);outline-offset:-1.5px;}
+.prog-card-pendente{border-style:dashed!important;box-shadow:0 0 0 1px color-mix(in srgb, var(--brand) 35%, transparent);}
+.prog-pendente-badge{display:flex;align-items:center;gap:3px;font-size:9.5px;color:var(--brand);font-weight:600;}
+.prog-pendente-remover{position:absolute;top:3px;right:3px;width:16px;height:16px;padding:0;display:flex;align-items:center;justify-content:center;background:var(--panel);border:1px solid var(--border);border-radius:50%;color:var(--text-muted);cursor:pointer;}
+.prog-pendente-remover:hover{color:var(--alert);border-color:var(--alert);}
+.prog-cell .flash-card.prog-card-pendente{position:relative;}
+.prog-moves-bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--brand);border-radius:11px;padding:10px 14px;margin-bottom:14px;font-size:13px;box-shadow:0 4px 14px rgba(0,0,0,0.12);}
+.prog-moves-bar span{display:flex;align-items:center;gap:6px;flex:1;}
+
 /* Grid de calendário (semanal/mensal da Programação) — substitui o kanban
    de colunas horizontais por um grid de verdade, com o mês inteiro visível
    sem precisar rolar pros lados; cada célula ainda pode rolar na vertical

@@ -267,6 +267,113 @@ function bindMainEvents(){
   });
   const btnLimparStatusFiltro = document.getElementById('btnLimparStatusFiltro');
   if(btnLimparStatusFiltro) btnLimparStatusFiltro.addEventListener('click', ()=>{ uiState.progStatusFiltro = null; renderMain(); });
+
+  // Arrastar-e-soltar na Programação Analista (Diária, supervisor) — move
+  // um card de operação pra linha de outro analista. Nada é gravado no
+  // clique/solte: só empilha em uiState.progMoves (ver renderProgramacaoIntegrada,
+  // que já desenha o resultado como prévia) até o supervisor clicar em
+  // "Salvar alterações". dragPayload guarda os dados do card sendo
+  // arrastado fora do dataTransfer — Firefox/Chrome não deixam ler
+  // dataTransfer.getData() de verdade no dragover, só no drop, e a gente
+  // precisa saber o payload durante o dragover pra nada (só highlight), mas
+  // precisa dele completo e confiável no drop.
+  let dragPayload = null;
+  main.querySelectorAll('[data-drag-categoria]').forEach(card=>{
+    card.addEventListener('dragstart', (e)=>{
+      dragPayload = {
+        categoria: card.dataset.dragCategoria,
+        bmId: card.dataset.dragBmid,
+        titularId: card.dataset.dragTitularid,
+        origemAnalistaId: card.dataset.dragOrigemid,
+        operacao: card.dataset.dragOperacao,
+        ciclo: card.dataset.dragCiclo,
+        horaInicio: card.dataset.dragHorainicio,
+        horaFim: card.dataset.dragHorafim,
+        data: card.dataset.dragData,
+      };
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', dragPayload.bmId);
+      card.classList.add('prog-arrastando');
+    });
+    card.addEventListener('dragend', ()=>{ card.classList.remove('prog-arrastando'); dragPayload = null; });
+  });
+  main.querySelectorAll('[data-drop-analista]').forEach(zona=>{
+    zona.addEventListener('dragover', (e)=>{
+      if(!dragPayload) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+    zona.addEventListener('dragenter', (e)=>{
+      if(!dragPayload) return;
+      e.preventDefault();
+      main.querySelectorAll(`[data-drop-analista="${zona.dataset.dropAnalista}"]`).forEach(el=>el.classList.add('prog-drop-alvo'));
+    });
+    zona.addEventListener('dragleave', ()=>{
+      main.querySelectorAll(`[data-drop-analista="${zona.dataset.dropAnalista}"]`).forEach(el=>el.classList.remove('prog-drop-alvo'));
+    });
+    zona.addEventListener('drop', (e)=>{
+      e.preventDefault();
+      main.querySelectorAll('.prog-drop-alvo').forEach(el=>el.classList.remove('prog-drop-alvo'));
+      if(!dragPayload) return;
+      const destinoId = zona.dataset.dropAnalista;
+      if(destinoId===dragPayload.origemAnalistaId){ dragPayload=null; return; }
+      const destino = userById(destinoId);
+      const conflito = conflitoAoMoverPara(destinoId, dragPayload.data, dragPayload.horaInicio, dragPayload.horaFim);
+      // Mesma chave (bmId+categoria+data+origem) sempre reflete o mesmo
+      // card real — se ele já tinha sido arrastado antes (ainda não salvo)
+      // e agora vai pra outro lugar, atualiza em vez de empilhar duplicado.
+      const chave = `${dragPayload.bmId}|${dragPayload.categoria}|${dragPayload.data}|${dragPayload.origemAnalistaId}`;
+      const existente = uiState.progMoves.find(m=>m.id===chave);
+      const move = {
+        id: chave, categoria: dragPayload.categoria, bmId: dragPayload.bmId, titularId: dragPayload.titularId,
+        origemAnalistaId: dragPayload.origemAnalistaId, operacao: dragPayload.operacao, ciclo: dragPayload.ciclo,
+        horaInicio: dragPayload.horaInicio, horaFim: dragPayload.horaFim, data: dragPayload.data,
+        destinoAnalistaId: destinoId, destinoNome: destino?.name || '—', conflito,
+      };
+      if(existente) Object.assign(existente, move);
+      else uiState.progMoves.push(move);
+      dragPayload = null;
+      renderMain();
+    });
+  });
+  main.querySelectorAll('[data-remove-move]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      uiState.progMoves = uiState.progMoves.filter(m=>m.id!==btn.dataset.removeMove);
+      renderMain();
+    });
+  });
+  const btnDescartarProgMoves = document.getElementById('btnDescartarProgMoves');
+  if(btnDescartarProgMoves) btnDescartarProgMoves.addEventListener('click', ()=>{
+    if(uiState.progMoves.length>0 && !confirm('Descartar todas as alterações pendentes de posição?')) return;
+    uiState.progMoves = [];
+    renderMain();
+  });
+  const btnSalvarProgMoves = document.getElementById('btnSalvarProgMoves');
+  if(btnSalvarProgMoves) btnSalvarProgMoves.addEventListener('click', async ()=>{
+    const moves = uiState.progMoves;
+    const avisoConflito = moves.some(m=>m.conflito) ? `\n\nAtenção: ${moves.filter(m=>m.conflito).length} dessas alterações têm um aviso de conflito (jornada, folga ou horário batendo) — a movimentação acontece mesmo assim.` : '';
+    if(!confirm(`Aplicar ${moves.length} alteração(ões) na escala?${avisoConflito}`)) return;
+    btnSalvarProgMoves.disabled = true;
+    let ok=0, fail=0;
+    for(const m of moves){
+      try{
+        if(m.categoria==='fixa'){
+          const nova = await apiCreateAusencia({analistaId:m.titularId, baseMestraId:m.bmId, operacao:m.operacao, ciclo:m.ciclo,
+            horaInicio:m.horaInicio, horaFim:m.horaFim, data:m.data, tipo:'folga', suplenteId:m.destinoAnalistaId, suplenteNome:m.destinoNome});
+          DB.ausencias.push(nova);
+        } else {
+          const existente = DB.ausencias.find(a=>a.baseMestraId===m.bmId && a.data===m.data && a.analistaId===m.titularId);
+          if(!existente) throw new Error('cobertura original não encontrada (pode já ter sido alterada por outra pessoa)');
+          const atualizada = await apiUpdateAusencia(existente.id, {suplenteId:m.destinoAnalistaId, suplenteNome:m.destinoNome});
+          DB.ausencias = DB.ausencias.map(a=>a.id===existente.id ? atualizada : a);
+        }
+        ok++;
+      }catch(e){ console.error('KronoOP: falha ao mover operação.', m, e); fail++; }
+    }
+    uiState.progMoves = [];
+    renderMain();
+    alert(`${ok} alteração(ões) aplicada(s) com sucesso.${fail?` ${fail} falharam.`:''}`);
+  });
   main.querySelectorAll('.toggle-group[data-scope="reunioes"] [data-view]').forEach(el=>{
     el.addEventListener('click', ()=>{ uiState.reunioesView = el.dataset.view; renderMain(); });
   });

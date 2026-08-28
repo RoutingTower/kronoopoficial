@@ -681,6 +681,32 @@ function candidatosParaSlot(myAnalistas, titularId, bm, dataStr){
   return candidatos;
 }
 
+// Mesmas checagens de candidatosParaSlot, mas pra UM analista específico e
+// devolvendo o motivo (string) em vez de filtrar uma lista — usado no
+// arrastar-e-soltar da Programação Analista (supervisor) pra avisar de um
+// conflito real sem impedir o drop (a decisão final é do supervisor, ele
+// pode saber de uma exceção que o sistema não enxerga).
+function conflitoAoMoverPara(analistaId, dataStr, horaInicio, horaFim){
+  const s1 = hourSortValue(horaInicio), e1 = hourSortValue(horaFim);
+  if(DB.ausencias.some(x=>x.analistaId===analistaId && x.data===dataStr)) return 'está de folga nesse dia';
+  if(!temVigenciaNaData(analistaId, dataStr)) return 'sem vigência ativa nessa data';
+  const a = userById(analistaId);
+  if(a?.jornada?.horaInicio && a?.jornada?.horaFim){
+    const js = hourSortValue(a.jornada.horaInicio);
+    let je = hourSortValue(a.jornada.horaFim);
+    if(je<=js) je += 24;
+    if(s1<js || e1>je) return 'fora da jornada cadastrada';
+  }
+  const conflitaProprias = DB.baseMestra.filter(b=>b.analistaId===analistaId && bmRodaNoDia(b, dataStr))
+    .filter(b=>!DB.ausencias.some(x=>x.baseMestraId===b.id && x.data===dataStr))
+    .some(b=>rangesOverlap(s1,e1, hourSortValue(b.horaInicio), hourSortValue(b.horaFim)));
+  if(conflitaProprias) return 'conflita com operação própria nesse horário';
+  const conflitaCobertura = DB.ausencias.filter(x=>x.suplenteId===analistaId && x.data===dataStr)
+    .some(x=>rangesOverlap(s1,e1, hourSortValue(x.horaInicio), hourSortValue(x.horaFim)));
+  if(conflitaCobertura) return 'já cobre outra operação nesse horário';
+  return null;
+}
+
 
 // UF embutida no nome do hub — sempre "LM Hub_UF_Cidade..." (92/92 hubs
 // reais seguem esse padrão). Usado só pra diversificar a escala de fim de
