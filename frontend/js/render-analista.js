@@ -696,15 +696,25 @@ function analistaFormularioCardHtml(f){
         <div class="help-text" style="margin-top:-4px;">Você não está escalado em nenhum domingo desse período — sem direito a dia de folga por aqui.</div>
       </div>`;
     }
+    // Seleção fica só local (uiState.folgaEscolhaDraft) até o analista
+    // apertar "Enviar" — os cliques na grade só marcam/desmarcam o dia,
+    // sem chamar a API a cada um. undefined = ainda não mexeu nesta
+    // sessão, cai no que já está salvo; array (mesmo vazio) = rascunho.
+    const salvas = minha?.payload?.datas || [];
+    const draft = uiState.folgaEscolhaDraft[f.id];
+    const minhasDatas = draft !== undefined ? draft : salvas;
+    const alterado = draft !== undefined && JSON.stringify([...draft].sort())!==JSON.stringify([...salvas].sort());
     const celulas = gradeSemanalFolgaEscolha(f.periodoInicio, f.periodoFim);
     const todasRespostas = DB.formularioRespostas.filter(r=>r.formularioId===f.id);
-    const minhasDatas = minha?.payload?.datas || [];
     const atingiuLimite = minhasDatas.length >= limiteFolgas;
     const cabecalhoDias = WEEKDAY_LABELS.map(w=>`<div class="folga-cal-head">${w}</div>`).join('');
     const celulasHtml = celulas.map(d=>{
       if(!d) return `<div class="folga-cal-cell vazia"></div>`;
       if(isDomingo(d)) return `<div class="folga-cal-cell domingo" title="Domingo tem escala própria (Controle de Domingos) — não entra aqui"><span class="folga-cal-dia">${d.slice(8,10)}</span></div>`;
-      const quem = todasRespostas.filter(r=>(r.payload.datas||[]).includes(d));
+      // Vaga já ocupada por OUTRA pessoa considera só o que está salvo de
+      // verdade (todasRespostas) — o rascunho de ninguém mais existe fora
+      // da tela de quem está editando.
+      const quem = todasRespostas.filter(r=>r.analistaId!==session.userId && (r.payload.datas||[]).includes(d));
       const marcado = minhasDatas.includes(d);
       const cheio = quem.length >= f.limitePorDia && !marcado;
       const bloqueado = cheio || (atingiuLimite && !marcado);
@@ -717,6 +727,10 @@ function analistaFormularioCardHtml(f){
     return `<div class="card">${cabecalho}
       <div class="help-text" style="margin-top:-4px;margin-bottom:10px;">Você está escalado n${domingosTrab.length>1?'os domingos':'o domingo'} <b>${domingosTexto}</b> — tem direito a <b>${limiteFolgas}</b> dia${limiteFolgas>1?'s':''} de folga. <b>${minhasDatas.length}/${limiteFolgas}</b> selecionado(s). Domingo não participa (tem escala própria).</div>
       <div class="folga-cal-grid">${cabecalhoDias}${celulasHtml}</div>
+      <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:12px;">
+        ${alterado?'<span style="font-size:12px;color:var(--alert);">Seleção alterada — clique em Enviar pra confirmar.</span>':''}
+        <button class="btn btn-brand btn-sm" data-formfolga-enviar="${f.id}" ${draft===undefined?'disabled':''}>${minha?'Atualizar seleção':'Enviar'}</button>
+      </div>
     </div>`;
   }
 

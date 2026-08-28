@@ -1309,16 +1309,17 @@ function bindMainEvents(){
       catch(e){ alert('Não foi possível salvar: '+e.message); }
     });
   });
+  // Clique na grade só mexe no rascunho local (uiState.folgaEscolhaDraft) —
+  // nada vai pro servidor até o analista clicar em "Enviar". Isso evita uma
+  // chamada de API por toque e deixa ele revisar a seleção inteira antes de
+  // confirmar (ver botão data-formfolga-enviar logo abaixo).
   main.querySelectorAll('[data-formfolga-fid]').forEach(el=>{
-    el.addEventListener('click', async ()=>{
+    el.addEventListener('click', ()=>{
       const fid = el.dataset.formfolgaFid, dia = el.dataset.formfolgaDia;
       const f = DB.formularios.find(x=>x.id===fid);
-      // Limite de verdade é proporcional aos domingos trabalhados (ver
-      // domingosTrabalhados, utils.js) — MAX_DIAS_FOLGA_ESCOLHA só entra se
-      // o formulário nem estiver no DB local (não deveria acontecer, o
-      // botão só existe se ele já foi renderizado a partir de um f real).
       const limite = f ? domingosTrabalhados(session.userId, f.periodoInicio, f.periodoFim).length : MAX_DIAS_FOLGA_ESCOLHA;
-      const atuais = minhaRespostaFormulario(fid, session.userId)?.payload?.datas || [];
+      const salvas = minhaRespostaFormulario(fid, session.userId)?.payload?.datas || [];
+      const atuais = uiState.folgaEscolhaDraft[fid] !== undefined ? uiState.folgaEscolhaDraft[fid] : salvas;
       let novas;
       if(atuais.includes(dia)){
         novas = atuais.filter(d=>d!==dia);
@@ -1326,8 +1327,24 @@ function bindMainEvents(){
         if(atuais.length>=limite){ alert(`Você já escolheu o máximo de ${limite} dia(s) de folga a que tem direito nesse período.`); return; }
         novas = [...atuais, dia];
       }
-      try{ substituirMinhaResposta(await apiEnviarResposta(fid, {datas: novas})); renderMain(); }
-      catch(e){ alert('Não foi possível salvar: '+e.message); }
+      uiState.folgaEscolhaDraft[fid] = novas;
+      renderMain();
+    });
+  });
+  main.querySelectorAll('[data-formfolga-enviar]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const fid = btn.dataset.formfolgaEnviar;
+      const draft = uiState.folgaEscolhaDraft[fid];
+      if(draft===undefined) return;
+      btn.disabled = true;
+      try{
+        substituirMinhaResposta(await apiEnviarResposta(fid, {datas: draft}));
+        delete uiState.folgaEscolhaDraft[fid];
+        renderMain();
+      }catch(e){
+        alert('Não foi possível salvar: '+e.message);
+        btn.disabled = false;
+      }
     });
   });
   main.querySelectorAll('[data-formrec-enviar]').forEach(btn=>{

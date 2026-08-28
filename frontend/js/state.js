@@ -76,7 +76,7 @@ let uiState = {
   reunioesDate: hojeAgendaISO(), reunioesView:'mensal',
   domingosMes: todayISO(),
   particularidadesFiltro: { operacao: '', analista: 'all' },
-  sugerir: null, alocarAuto: null, inboxSelected: null,
+  sugerir: null, alocarAuto: null, folgaEscolhaDraft: {}, inboxSelected: null,
   // Gerar Escala de Fim de Semana (ver gerarEscalaFDS em utils.js): sábado
   // âncora (domingo = sábado+1, sempre tratados como par) + quem foi
   // escalado pra trabalhar em CADA dia (listas separadas — quem trabalha
