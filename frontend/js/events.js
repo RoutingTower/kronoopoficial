@@ -277,6 +277,40 @@ function bindMainEvents(){
   // dataTransfer.getData() de verdade no dragover, só no drop, e a gente
   // precisa saber o payload durante o dragover pra nada (só highlight), mas
   // precisa dele completo e confiável no drop.
+  // Badge de carga durante o arrasto: pra cada analista visível na grade
+  // (menos quem está soltando o card), mostra "X op · Y cobertura" naquele
+  // dia/mês — mesmas duas métricas que candidatosParaSlot usa pra priorizar
+  // (utils.js), só que aqui pra TODO mundo visível, não só pra quem passa
+  // nos filtros. Quem tem a menor carga e nenhum conflito ganha destaque
+  // verde. É manipulação direta do DOM (não passa por renderMain) porque
+  // um re-render no meio do gesto de arrastar cancela o drag em alguns
+  // navegadores.
+  function mostrarCargaDurantoDrag(payload){
+    const zonas = [...main.querySelectorAll('[data-drop-analista]')];
+    const ids = [...new Set(zonas.map(z=>z.dataset.dropAnalista))].filter(id=>id!==payload.origemAnalistaId);
+    const mesRef = payload.data.slice(0,7);
+    const infos = ids.map(id=>{
+      const opsHoje = DB.baseMestra.filter(b=>b.analistaId===id && bmRodaNoDia(b, payload.data))
+        .filter(b=>!DB.ausencias.some(x=>x.baseMestraId===b.id && x.data===payload.data)).length;
+      const coberturasNoMes = DB.ausencias.filter(x=>x.suplenteId===id && x.data.slice(0,7)===mesRef).length;
+      const conflito = conflitoAoMoverPara(id, payload.data, payload.horaInicio, payload.horaFim);
+      return { id, opsHoje, coberturasNoMes, conflito };
+    });
+    const melhor = infos.filter(i=>!i.conflito).sort((a,b)=>a.opsHoje-b.opsHoje || a.coberturasNoMes-b.coberturasNoMes)[0];
+    infos.forEach(info=>{
+      const label = main.querySelector(`.prog-row-label[data-drop-analista="${info.id}"]`);
+      if(!label) return;
+      const badge = document.createElement('span');
+      badge.className = 'prog-carga-badge' + (info.conflito ? ' prog-carga-conflito' : (melhor && info.id===melhor.id) ? ' prog-carga-melhor' : '');
+      badge.dataset.cargaBadge = '1';
+      badge.textContent = info.conflito ? `⚠ ${info.conflito}` : `${info.opsHoje} op · ${info.coberturasNoMes} cob/mês`;
+      label.appendChild(badge);
+    });
+  }
+  function limparCargaDrag(){
+    main.querySelectorAll('[data-carga-badge]').forEach(el=>el.remove());
+  }
+
   let dragPayload = null;
   main.querySelectorAll('[data-drag-categoria]').forEach(card=>{
     card.addEventListener('dragstart', (e)=>{
@@ -294,8 +328,9 @@ function bindMainEvents(){
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', dragPayload.bmId);
       card.classList.add('prog-arrastando');
+      mostrarCargaDurantoDrag(dragPayload);
     });
-    card.addEventListener('dragend', ()=>{ card.classList.remove('prog-arrastando'); dragPayload = null; });
+    card.addEventListener('dragend', ()=>{ card.classList.remove('prog-arrastando'); dragPayload = null; limparCargaDrag(); });
   });
   main.querySelectorAll('[data-drop-analista]').forEach(zona=>{
     zona.addEventListener('dragover', (e)=>{
@@ -341,6 +376,11 @@ function bindMainEvents(){
       uiState.progMoves = uiState.progMoves.filter(m=>m.id!==btn.dataset.removeMove);
       renderMain();
     });
+  });
+  const btnToggleProgMoves = document.getElementById('btnToggleProgMoves');
+  if(btnToggleProgMoves) btnToggleProgMoves.addEventListener('click', ()=>{
+    uiState.progMovesExpandido = !uiState.progMovesExpandido;
+    renderMain();
   });
   const btnDescartarProgMoves = document.getElementById('btnDescartarProgMoves');
   if(btnDescartarProgMoves) btnDescartarProgMoves.addEventListener('click', ()=>{

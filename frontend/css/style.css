@@ -500,8 +500,24 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .prog-pendente-remover{position:absolute;top:3px;right:3px;width:16px;height:16px;padding:0;display:flex;align-items:center;justify-content:center;background:var(--panel);border:1px solid var(--border);border-radius:50%;color:var(--text-muted);cursor:pointer;}
 .prog-pendente-remover:hover{color:var(--alert);border-color:var(--alert);}
 .prog-cell .flash-card.prog-card-pendente{position:relative;}
-.prog-moves-bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--brand);border-radius:11px;padding:10px 14px;margin-bottom:14px;font-size:13px;box-shadow:0 4px 14px rgba(0,0,0,0.12);}
+.prog-moves-bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--brand);border-radius:11px 11px 0 0;padding:10px 14px;font-size:13px;box-shadow:0 4px 14px rgba(0,0,0,0.12);}
 .prog-moves-bar span{display:flex;align-items:center;gap:6px;flex:1;}
+.prog-moves-lista{position:sticky;top:47px;z-index:5;background:var(--panel);border:1px solid var(--brand);border-top:1px dashed var(--border);border-radius:0 0 11px 11px;padding:4px 14px 8px;margin-bottom:14px;max-height:220px;overflow-y:auto;box-shadow:0 4px 14px rgba(0,0,0,0.12);}
+.prog-moves-item{display:grid;grid-template-columns:44px 1fr 1fr 18px 22px;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--border);font-size:12.5px;}
+.prog-moves-item:first-child{border-top:none;}
+.prog-moves-item-conflito{color:var(--alert);}
+.prog-moves-op{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.prog-moves-fluxo{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-muted);}
+.prog-moves-aviso{color:var(--alert);display:flex;}
+.prog-moves-remover{width:20px;height:20px;padding:0;display:flex;align-items:center;justify-content:center;background:var(--bg-2);border:1px solid var(--border);border-radius:50%;color:var(--text-muted);cursor:pointer;}
+.prog-moves-remover:hover{color:var(--alert);border-color:var(--alert);}
+
+/* Badge de carga por analista, injetado só durante o arrasto (ver
+   dragstart em events.js) — mostra quem tem menos operação/cobertura no
+   dia/mês, pra ajudar a decidir pra quem mandar sem comparar manualmente. */
+.prog-carga-badge{font-size:9.5px;padding:1px 7px;border-radius:20px;background:var(--bg-2);color:var(--text-muted);border:1px solid var(--border);align-self:flex-start;margin-top:2px;white-space:nowrap;}
+.prog-carga-badge.prog-carga-melhor{background:color-mix(in srgb, var(--done) 20%, transparent);color:var(--done);border-color:var(--done);font-weight:700;}
+.prog-carga-badge.prog-carga-conflito{background:color-mix(in srgb, var(--alert) 16%, transparent);color:var(--alert);border-color:var(--alert);}
 
 /* Grid de calendário (semanal/mensal da Programação) — substitui o kanban
    de colunas horizontais por um grid de verdade, com o mês inteiro visível

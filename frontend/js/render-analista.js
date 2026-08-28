@@ -435,13 +435,28 @@ function renderProgramacaoIntegrada(lista, dateStr){
 
   // Barra de ações pendentes: some das outras datas do lote pra caber o
   // contador certo (movesTodos, não só o "moves" filtrado por esse dia) —
-  // dá pra ir arrastando em vários dias antes de salvar tudo de uma vez.
+  // dá pra ir arrastando em vários dias antes de salvar tudo de uma vez. O
+  // "Ver detalhes" lista TODAS as pendências (de qualquer data), cada uma
+  // com seu próprio X — dá pra revisar e desfazer um item específico de um
+  // dia que nem está na tela agora, sem precisar navegar até lá.
+  const datasEnvolvidas = [...new Set(movesTodos.map(m=>m.data))];
   const barraMovesHtml = podeEditar && movesTodos.length>0 ? `
     <div class="prog-moves-bar">
-      <span>${icon('move',14)} <b>${movesTodos.length}</b> alteraç${movesTodos.length>1?'ões':'ão'} pendente${movesTodos.length>1?'s':''}${movesTodos.some(m=>m.conflito) ? ` · ${movesTodos.filter(m=>m.conflito).length} com aviso` : ''}</span>
+      <span>${icon('move',14)} <b>${movesTodos.length}</b> alteraç${movesTodos.length>1?'ões':'ão'} pendente${movesTodos.length>1?'s':''}${datasEnvolvidas.length>1?` em ${datasEnvolvidas.length} dias`:''}${movesTodos.some(m=>m.conflito) ? ` · ${movesTodos.filter(m=>m.conflito).length} com aviso` : ''}</span>
+      <button class="btn" id="btnToggleProgMoves">${uiState.progMovesExpandido?'Ocultar':'Ver'} detalhes</button>
       <button class="btn" id="btnDescartarProgMoves">Descartar</button>
       <button class="btn btn-brand" id="btnSalvarProgMoves">Salvar alterações</button>
-    </div>` : '';
+    </div>
+    ${uiState.progMovesExpandido ? `<div class="prog-moves-lista">
+      ${movesTodos.slice().sort((a,b)=>a.data.localeCompare(b.data)).map(m=>`
+        <div class="prog-moves-item${m.conflito?' prog-moves-item-conflito':''}">
+          <span class="mono prog-moves-data">${m.data.slice(8,10)}/${m.data.slice(5,7)}</span>
+          <span class="prog-moves-op">${escapeHtml(m.operacao)} <span class="mono" style="color:var(--text-muted);">${m.horaInicio}–${m.horaFim}</span></span>
+          <span class="prog-moves-fluxo">${escapeHtml(userById(m.origemAnalistaId)?.name||'—')} <span style="color:var(--text-muted);">→</span> <b>${escapeHtml(m.destinoNome)}</b></span>
+          ${m.conflito ? `<span class="prog-moves-aviso" title="${escapeHtml(m.conflito)}">${icon('triangle-alert',12)}</span>` : '<span></span>'}
+          <button class="prog-moves-remover" data-remove-move="${m.id}" title="Desfazer esse movimento">${icon('x',12)}</button>
+        </div>`).join('')}
+    </div>` : ''}` : '';
 
   if(linhas.length===0){
     return `${barraMovesHtml}<div class="empty">Nenhum analista com operação neste dia</div>`;
