@@ -446,6 +446,34 @@ function renderProgramacaoIntegrada(lista, dateStr){
     return label + cellsHtml;
   }).join('');
 
+  // Pendência de domingo: um card "fixa" (verde, operação própria sem
+  // suplente) nunca deveria aparecer num domingo — pela regra de DSR, todo
+  // analista deveria estar de folga (coberto) ou cobrindo outra pessoa
+  // nesse dia, nunca trabalhando a própria operação sem ninguém escalado.
+  // Quando aparece, é sinal de buraco real na escala (ex.: reorganização
+  // depois da saída de alguém da equipe) — lista isso no topo com um botão
+  // que abre o mesmo modal "mover" do card (reaproveita o handler
+  // [data-mover-categoria] de events.js, sem JS novo) pra já escalar
+  // alguém ali mesmo.
+  const pendenciasDominicais = domingo ? linhas.flatMap(({analista, slots}) =>
+    slots.filter(s=>categoriaOperacao(s)==='fixa').map(s=>({
+      analistaId: analista.id, analistaNome: analista.name, bmId: s.id,
+      operacao: s.operacao, ciclo: s.ciclo, horaInicio: s.horaInicio, horaFim: s.horaFim,
+    }))
+  ) : [];
+  const pendenciasDomHtml = pendenciasDominicais.length>0 ? `
+    <div class="prog-pendencia-dom">
+      <div class="prog-pendencia-dom-titulo">${icon('triangle-alert',15)} <b>${pendenciasDominicais.length}</b> hub${pendenciasDominicais.length>1?'s':''} sem suplente escalado nesse domingo</div>
+      <div class="prog-pendencia-dom-lista">
+        ${pendenciasDominicais.map(p=>`
+          <div class="prog-pendencia-dom-item">
+            <span class="prog-pendencia-dom-nome">${escapeHtml(p.analistaNome)}</span>
+            <span class="prog-pendencia-dom-op">${escapeHtml(p.operacao)} <span class="mono" style="color:var(--text-muted);">${p.horaInicio}–${p.horaFim}</span></span>
+            ${podeEditar ? `<button class="btn btn-sm" data-mover-categoria="fixa" data-mover-bmid="${p.bmId}" data-mover-titularid="${p.analistaId}" data-mover-origemid="${p.analistaId}" data-mover-operacao="${escapeHtml(p.operacao)}" data-mover-ciclo="${escapeHtml(p.ciclo)}" data-mover-horainicio="${p.horaInicio}" data-mover-horafim="${p.horaFim}" data-mover-data="${dateStr}">Escalar suplente</button>` : ''}
+          </div>`).join('')}
+      </div>
+    </div>` : '';
+
   // Barra de ações pendentes: some das outras datas do lote pra caber o
   // contador certo (movesTodos, não só o "moves" filtrado por esse dia) —
   // dá pra ir arrastando em vários dias antes de salvar tudo de uma vez. O
@@ -472,7 +500,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
     </div>` : ''}` : '';
 
   if(linhas.length===0){
-    return `${barraMovesHtml}<div class="empty">Nenhum analista com operação neste dia</div>`;
+    return `${pendenciasDomHtml}${barraMovesHtml}<div class="empty">Nenhum analista com operação neste dia</div>`;
   }
 
   const legendHtml = `<div class="status-legend">
@@ -488,7 +516,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
     </span>` : ''}
   </div>`;
 
-  return `${barraMovesHtml}${legendHtml}<div class="prog-card-outer">
+  return `${pendenciasDomHtml}${barraMovesHtml}${legendHtml}<div class="prog-card-outer">
     <div class="prog-grid">
       ${headHtml}
       ${timelineHtml}

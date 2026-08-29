@@ -521,6 +521,16 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .prog-moves-remover{width:20px;height:20px;padding:0;display:flex;align-items:center;justify-content:center;background:var(--bg-2);border:1px solid var(--border);border-radius:50%;color:var(--text-muted);cursor:pointer;}
 .prog-moves-remover:hover{color:var(--alert);border-color:var(--alert);}
 
+/* Pendência de domingo — hub "fixa" (verde) sem suplente escalado, o que
+   nunca deveria acontecer num domingo (DSR). Ver renderProgramacaoIntegrada. */
+.prog-pendencia-dom{background:color-mix(in srgb, var(--alert) 8%, var(--panel));border:1px solid var(--alert);border-radius:11px;padding:12px 14px;margin-bottom:14px;}
+.prog-pendencia-dom-titulo{display:flex;align-items:center;gap:7px;color:var(--alert);font-size:13px;font-weight:600;}
+.prog-pendencia-dom-lista{display:flex;flex-direction:column;gap:6px;margin-top:10px;}
+.prog-pendencia-dom-item{display:grid;grid-template-columns:1fr 1fr auto;align-items:center;gap:12px;padding:6px 0;border-top:1px solid var(--border);font-size:12.5px;}
+.prog-pendencia-dom-item:first-child{border-top:none;}
+.prog-pendencia-dom-nome{font-weight:600;}
+.prog-pendencia-dom-op{color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
 /* Badge de carga por analista, injetado só durante o arrasto (ver
    dragstart em events.js) — mostra quem tem menos operação/cobertura no
    dia/mês, pra ajudar a decidir pra quem mandar sem comparar manualmente. */
