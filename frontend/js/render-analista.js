@@ -463,7 +463,10 @@ function renderProgramacaoIntegrada(lista, dateStr){
   ) : [];
   const pendenciasDomHtml = pendenciasDominicais.length>0 ? `
     <div class="prog-pendencia-dom">
-      <div class="prog-pendencia-dom-titulo">${icon('triangle-alert',15)} <b>${pendenciasDominicais.length}</b> hub${pendenciasDominicais.length>1?'s':''} sem suplente escalado nesse domingo</div>
+      <div class="prog-pendencia-dom-titulo">
+        ${icon('triangle-alert',15)} <b>${pendenciasDominicais.length}</b> hub${pendenciasDominicais.length>1?'s':''} sem suplente escalado nesse domingo
+        ${podeEditar ? `<span class="spacer" style="flex:1;"></span><button class="btn btn-sm" id="btnRedistribuirDominical">${icon('shuffle',13)} Redistribuir automaticamente</button>` : ''}
+      </div>
       <div class="prog-pendencia-dom-lista">
         ${pendenciasDominicais.map(p=>`
           <div class="prog-pendencia-dom-item">

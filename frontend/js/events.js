@@ -355,9 +355,50 @@ function bindMainEvents(){
   // como pendência (some/edita normalmente em "Ver detalhes", igual
   // qualquer outra). Só acontece quando acha alguém pra receber a troca —
   // sem candidato, cai no comportamento de antes (só avisa o conflito).
+  // Cadeia de 2 saltos: quando o destino não serve DIRETO pro pendente (nem
+  // dá pra resolver só trocando o compromisso exato que bate no horário —
+  // ex.: o choque dele é de jornada, não de agenda, ou simplesmente não tem
+  // nenhum conflito "exato" mas ele também não é elegível), procura uma
+  // operação fixa (sem suplente ainda) de QUALQUER outro analista do time
+  // que o destino consiga assumir sem problema — e cujo DONO, uma vez
+  // livre dela, consiga cobrir o pendente original no lugar do destino.
+  // Exemplo real: escalar o Natanael pra Caucaia, mas ele não serve pra
+  // Caucaia — porém serve pra Paulista (do Gabriel), e o Gabriel, livre da
+  // Paulista, serve pra Caucaia. Resultado: Natanael pega Paulista, Gabriel
+  // pega Caucaia — o pendente original sai coberto por outra pessoa, não
+  // pelo destino escolhido, mas o destino ainda "entra" na escala.
+  function acharCadeiaDeTroca(payload, destinoId){
+    const destino = userById(destinoId);
+    const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===destino?.supervisorId);
+    const candidatosHubs = [];
+    myAnalistas.forEach(a=>{
+      if(a.id===destinoId || a.id===payload.origemAnalistaId) return;
+      DB.baseMestra.filter(b=>b.analistaId===a.id && bmRodaNoDia(b, payload.data) && b.id!==payload.bmId)
+        .filter(b=>!DB.ausencias.some(x=>x.baseMestraId===b.id && x.data===payload.data))
+        .forEach(bm=>candidatosHubs.push({bm, dono:a}));
+    });
+    for(const {bm, dono} of candidatosHubs){
+      if(conflitoAoMoverPara(destinoId, payload.data, bm.horaInicio, bm.horaFim)) continue;
+      const conflitoDono = conflitoAoMoverPara(dono.id, payload.data, payload.horaInicio, payload.horaFim);
+      if(conflitoDono){
+        // Só serve se o próprio hub que estamos liberando (bm) for o único
+        // motivo do bloqueio dele — senão essa troca não resolve nada.
+        const causa = acharConflitoParaCascata(dono.id, payload.data, payload.horaInicio, payload.horaFim);
+        if(!causa || causa.tipo!=='fixa' || causa.bm.id!==bm.id) continue;
+      }
+      return {
+        cascata: { categoria:'fixa', bmId:bm.id, titularId:dono.id, origemAnalistaId:dono.id,
+          operacao:bm.operacao, ciclo:bm.ciclo, horaInicio:bm.horaInicio, horaFim:bm.horaFim, data:payload.data },
+        novoDestinoPrincipal: dono.id,
+      };
+    }
+    return null;
+  }
+
   function registrarMovimento(payload, destinoId){
     let conflito = conflitoAoMoverPara(destinoId, payload.data, payload.horaInicio, payload.horaFim);
     const cascata = acharConflitoParaCascata(destinoId, payload.data, payload.horaInicio, payload.horaFim);
+    let resolvido = false;
     if(cascata){
       const destino = userById(destinoId);
       const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===destino?.supervisorId);
@@ -379,6 +420,15 @@ function bindMainEvents(){
       if(candidatos.length>0){
         registrarMovimentoSimples(payloadCascata, candidatos[0].id);
         conflito = null; // resolvido em cascata — a principal não bate mais em nada
+        resolvido = true;
+      }
+    }
+    if(!resolvido && conflito){
+      const cadeia = acharCadeiaDeTroca(payload, destinoId);
+      if(cadeia){
+        registrarMovimentoSimples(cadeia.cascata, destinoId);
+        registrarMovimentoSimples(payload, cadeia.novoDestinoPrincipal, null);
+        return;
       }
     }
     registrarMovimentoSimples(payload, destinoId, conflito);
@@ -429,6 +479,43 @@ function bindMainEvents(){
         horaInicio: btn.dataset.moverHorainicio, horaFim: btn.dataset.moverHorafim, data: btn.dataset.moverData,
       });
     });
+  });
+
+  // "Redistribuir automaticamente" na faixa de pendência de domingo —
+  // resolve TODOS os hubs pendentes daquele dia de uma vez, sem precisar
+  // clicar "Escalar suplente" um por um. Reaproveita os mesmos data-mover-*
+  // já presentes em cada item da lista (nenhum dado novo, só lê do DOM) e a
+  // mesma registrarMovimento (com cadeia de troca automática já embutida).
+  // "reservas" evita que o LOTE escale a mesma pessoa duas vezes em
+  // horários que batem — calcularCargaParaMover/conflitoAoMoverPara só
+  // enxergam o banco real e as pendências JÁ salvas, não as que este
+  // mesmo clique está gerando agora.
+  const btnRedistribuirDominical = document.getElementById('btnRedistribuirDominical');
+  if(btnRedistribuirDominical) btnRedistribuirDominical.addEventListener('click', ()=>{
+    const botoes = [...document.querySelectorAll('.prog-pendencia-dom [data-mover-categoria]')];
+    const reservas = [];
+    let resolvidos = 0;
+    botoes.forEach(btn=>{
+      const payload = {
+        categoria: btn.dataset.moverCategoria, bmId: btn.dataset.moverBmid, titularId: btn.dataset.moverTitularid,
+        origemAnalistaId: btn.dataset.moverOrigemid, operacao: btn.dataset.moverOperacao, ciclo: btn.dataset.moverCiclo,
+        horaInicio: btn.dataset.moverHorainicio, horaFim: btn.dataset.moverHorafim, data: btn.dataset.moverData,
+      };
+      const s1 = hourSortValue(payload.horaInicio), e1 = hourSortValue(payload.horaFim);
+      const infos = calcularCargaParaMover(payload).filter(i=>
+        !reservas.some(r=>r.analistaId===i.id && r.data===payload.data && rangesOverlap(s1,e1, hourSortValue(r.horaInicio), hourSortValue(r.horaFim)))
+      );
+      const melhor = infos[0];
+      if(!melhor) return;
+      const antesLen = uiState.progMoves.length;
+      registrarMovimento(payload, melhor.id);
+      uiState.progMoves.slice(antesLen).forEach(m=>{
+        reservas.push({ analistaId:m.destinoAnalistaId, data:m.data, horaInicio:m.horaInicio, horaFim:m.horaFim });
+      });
+      resolvidos++;
+    });
+    renderMain();
+    alert(`${resolvidos} de ${botoes.length} hub(s) pendente(s) tiveram um suplente sugerido. Revise em "Ver detalhes" antes de salvar.`);
   });
 
   let dragPayload = null;
