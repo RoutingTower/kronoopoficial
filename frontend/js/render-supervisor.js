@@ -1893,29 +1893,34 @@ function supOcorrencias(myAnalistas){
     && (!f.operacao || f.operacao==='all' || r.operacao===f.operacao)
   ).sort((a,b)=>b.ts-a.ts);
 
-  const porOperacao = {};
-  rows.forEach(r=>{
-    if(!porOperacao[r.operacao]) porOperacao[r.operacao] = [];
-    porOperacao[r.operacao].push(r.estrelas||0);
-  });
-  let ranking = Object.entries(porOperacao)
-    .map(([op, vals])=>({ op, media: vals.reduce((a,b)=>a+b,0)/vals.length, n: vals.length }))
-    .sort((a,b)=> a.media-b.media);
-
-  // Filtro de "avaliação média" é por operação (não por finalização
-  // individual): só entram no ranking e na lista as operações cuja média
-  // no período está no teto escolhido — pensado pra achar rápido as
-  // operações com pior desempenho.
+  // Filtro de "avaliação média" continua sendo por operação (não por
+  // finalização individual): só entram na lista as operações cuja média no
+  // período está no teto escolhido — pensado pra achar rápido as operações
+  // com pior desempenho. O ranking em si não aparece mais na tela (gráficos
+  // e métricas foram retirados daqui a pedido — o foco da aba passou a ser
+  // ler o texto do Raio-X, não números).
   const avaliacaoMax = f.avaliacaoMax ? parseInt(f.avaliacaoMax,10) : null;
   if(avaliacaoMax){
-    ranking = ranking.filter(r=> r.media<=avaliacaoMax);
-    const opsAbaixo = new Set(ranking.map(r=>r.op));
+    const porOperacao = {};
+    rows.forEach(r=>{ (porOperacao[r.operacao] = porOperacao[r.operacao]||[]).push(r.estrelas||0); });
+    const opsAbaixo = new Set(Object.entries(porOperacao)
+      .filter(([,vals])=> vals.reduce((a,b)=>a+b,0)/vals.length <= avaliacaoMax)
+      .map(([op])=>op));
     rows = rows.filter(r=> opsAbaixo.has(r.operacao));
   }
 
-  const distribuicaoEstrelas = [1,2,3,4,5].map(n=>rows.filter(r=>(r.estrelas||0)===n).length);
-  ocorrenciasChartData = { ranking: ranking.slice(0,10), distribuicaoEstrelas };
   ocorrenciasExportRows = rows;
+
+  // Agrupado por dia (rows já vem ordenado do mais recente pro mais
+  // antigo) — cada grupo vira uma seção com cabeçalho de data, tipo feed
+  // de mensagens, em vez de uma lista corrida onde a data se perde no meio
+  // do texto pequeno.
+  const porDia = [];
+  rows.forEach(r=>{
+    const grupo = porDia[porDia.length-1];
+    if(grupo && grupo.data===r.data) grupo.itens.push(r);
+    else porDia.push({ data:r.data, itens:[r] });
+  });
 
   return `
   <div class="filter-row">
@@ -1942,28 +1947,31 @@ function supOcorrencias(myAnalistas){
     </select>
     <button class="btn" id="btnExportOcorrencias">⬇ Exportar Excel</button>
   </div>
-  <div class="grid-3" style="grid-template-columns:repeat(6,1fr);margin-bottom:16px;">
-    <div class="stat-card"><div class="stat-num">${rows.length}</div><div class="stat-label">Total de Raio-X</div></div>
-    <div class="stat-card"><div class="stat-num" style="color:#D9362E;">${distribuicaoEstrelas[0]}</div><div class="stat-label">1★</div></div>
-    <div class="stat-card"><div class="stat-num" style="color:#EE4D2D;">${distribuicaoEstrelas[1]}</div><div class="stat-label">2★</div></div>
-    <div class="stat-card"><div class="stat-num" style="color:#B8860B;">${distribuicaoEstrelas[2]}</div><div class="stat-label">3★</div></div>
-    <div class="stat-card"><div class="stat-num" style="color:#7FB069;">${distribuicaoEstrelas[3]}</div><div class="stat-label">4★</div></div>
-    <div class="stat-card"><div class="stat-num" style="color:#2FAE60;">${distribuicaoEstrelas[4]}</div><div class="stat-label">5★</div></div>
-  </div>
-  <div class="grid-2" style="margin-bottom:18px;align-items:start;">
-    <div class="chart-card"><div class="section-title">Distribuição de avaliações</div><canvas id="chartEstrelas"></canvas></div>
-    <div class="chart-card"><div class="section-title">Avaliação média por operação</div><canvas id="chartAvaliacaoOperacao"></canvas></div>
-  </div>
-  <div class="card" style="margin-bottom:18px;"><div class="section-title">Avaliação média por operação (Raio-X)</div>
-  <table><thead><tr><th>Operação</th><th>Avaliação média</th><th>Finalizações</th></tr></thead><tbody>
-  ${ranking.map(r=>`<tr><td>${r.op}</td><td>${starDisplay(Math.round(r.media))} <span class="mono" style="color:var(--text-muted);">(${r.media.toFixed(1)})</span></td><td class="mono">${r.n}</td></tr>`).join('') || '<tr><td colspan="3" class="empty">Sem finalizações no período selecionado</td></tr>'}
-  </tbody></table></div>
-  <div class="card">
-  ${rows.map(r=>`<div class="msg-item">
-    <div class="msg-meta">${userById(r.analistaId)?.name} · ${r.operacao} · ${r.data} ${r.hora} · ${timeAgo(r.ts)}</div>
-    <div>${starDisplay(r.estrelas)}</div>
-    <div style="margin-top:4px;">${escapeHtml(r.observacao||'')}</div>
-  </div>`).join('') || '<div class="empty">Nenhuma finalização registrada no período selecionado</div>'}
+  <div class="help-text" style="margin-top:-6px;"><b>${rows.length}</b> finalizaç${rows.length===1?'ão':'ões'} no período.</div>
+  ${porDia.map(grupo=>`
+    <div class="ocorrencia-dia">
+      <div class="ocorrencia-dia-titulo">${tituloDiaLongo(grupo.data)}</div>
+      ${grupo.itens.map(r=>ocorrenciaCardHtml(r)).join('')}
+    </div>`).join('') || '<div class="card"><div class="empty">Nenhuma finalização registrada no período selecionado</div></div>'}`;
+}
+
+// Card de uma finalização de Raio-X — texto da observação em primeiro
+// plano (é o que o supervisor precisa ler de verdade), nota reduzida a um
+// selo pequeno. Nota baixa (1-3★) ganha uma borda colorida pra saltar aos
+// olhos numa rolada rápida pelo dia; 4-5★ fica neutro de propósito (não
+// precisa de destaque quando está tudo bem).
+function ocorrenciaCardHtml(r){
+  const nota = r.estrelas||0;
+  const cor = nota<=2 ? 'var(--alert)' : nota===3 ? 'var(--folga)' : null;
+  return `<div class="ocorrencia-card"${cor?` style="border-left-color:${cor};"`:''}>
+    <div class="ocorrencia-card-topo">
+      <div class="ocorrencia-quem"><b>${escapeHtml(userById(r.analistaId)?.name||'—')}</b> <span class="ocorrencia-op">${escapeHtml(r.operacao)}</span></div>
+      <div class="ocorrencia-info">
+        <span class="ocorrencia-nota"${cor?` style="color:${cor};border-color:${cor};"`:''}>★ ${nota}</span>
+        <span class="ocorrencia-hora mono" title="${timeAgo(r.ts)}">${r.hora}</span>
+      </div>
+    </div>
+    <div class="ocorrencia-texto">${formatarObservacaoLonga(r.observacao)}</div>
   </div>`;
 }
 

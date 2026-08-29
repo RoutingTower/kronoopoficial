@@ -569,6 +569,23 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .flash-actions button{flex:1;font-size:11px;padding:6px 4px;}
 .msg-item{padding:12px 14px;border-radius:9px;background:var(--panel-2);margin-bottom:8px;border:1px solid var(--border);}
 .msg-meta{font-size:11px;color:var(--text-faint);margin-bottom:4px;}
+
+/* Ocorrências (Raio-X) agrupadas por dia — ver supOcorrencias,
+   render-supervisor.js. Foco no texto da observação; a nota vira um selo
+   pequeno, só ganha cor quando é baixa (1-3★) — 4-5★ fica neutro de
+   propósito, não precisa de destaque quando está tudo bem. */
+.ocorrencia-dia{margin-bottom:22px;}
+.ocorrencia-dia-titulo{font-size:14px;font-weight:700;color:var(--text);padding-bottom:8px;margin-bottom:10px;border-bottom:1px solid var(--border);}
+.ocorrencia-card{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--border);border-radius:10px;padding:13px 15px;margin-bottom:10px;}
+.ocorrencia-card-topo{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
+.ocorrencia-quem{font-size:13.5px;}
+.ocorrencia-quem b{color:var(--text);}
+.ocorrencia-op{color:var(--text-muted);font-size:12.5px;}
+.ocorrencia-info{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.ocorrencia-nota{font-size:11px;color:var(--text-faint);border:1px solid var(--border);border-radius:20px;padding:2px 8px;}
+.ocorrencia-hora{font-size:11.5px;color:var(--text-faint);}
+.ocorrencia-texto{font-size:13.5px;line-height:1.65;color:var(--text);max-width:74ch;white-space:pre-wrap;}
+.ocorrencia-texto p:last-child{margin-bottom:0!important;}
 .section-title{font-size:13px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);margin:0 0 12px;}
 .help-text{font-size:12px;color:var(--text-muted);margin-bottom:14px;}
 .csv-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:16px;padding:12px 14px;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;}

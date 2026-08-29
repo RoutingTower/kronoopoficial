@@ -290,6 +290,39 @@ function fmtDataCurta(iso){
   return `${WEEKDAY_ABBR[WEEKDAYS[d.getDay()]]} ${dd}/${mm}`;
 }
 
+// Cabeçalho de dia por extenso pra feeds agrupados por data (ex.:
+// Ocorrências) — "Hoje"/"Ontem" quando cabe, senão "Quinta-feira, 27 de
+// agosto". Deliberadamente mais longo/legível que fmtDataCurta (que é
+// pensado pra caber num chip pequeno, não pra ser o título de uma seção).
+function tituloDiaLongo(iso){
+  if(iso===todayISO()) return 'Hoje';
+  if(iso===addDaysISO(todayISO(),-1)) return 'Ontem';
+  const d = new Date(iso+'T00:00:00');
+  const texto = d.toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'long'});
+  return texto.charAt(0).toUpperCase()+texto.slice(1);
+}
+
+// Observação do Raio-X pronta pra exibir: se o analista já formatou com
+// quebras de linha, respeita exatamente o que ele escreveu (só escapa
+// HTML). Texto corrido sem NENHUMA quebra e comprido demais (parede de
+// texto) ganha parágrafos automáticos a cada ~2 frases, só pra melhorar a
+// leitura — nunca mexe em quem já formatou por conta própria.
+function formatarObservacaoLonga(texto){
+  const t = (texto||'').trim();
+  if(!t) return '<span style="color:var(--text-faint);">Sem observação.</span>';
+  if(t.includes('\n')) return escapeHtml(t).replace(/\n/g,'<br>');
+  if(t.length<=220) return escapeHtml(t);
+  const frases = t.match(/[^.!?]+[.!?]+(\s+|$)/g) || [t];
+  const blocos = [];
+  let atual = '';
+  frases.forEach((frase,i)=>{
+    atual += frase;
+    if((i+1)%2===0 || atual.length>260){ blocos.push(atual.trim()); atual=''; }
+  });
+  if(atual.trim()) blocos.push(atual.trim());
+  return blocos.map(b=>`<p style="margin:0 0 10px;">${escapeHtml(b)}</p>`).join('');
+}
+
 function sundaysInRange(inicio, fim){
   const out=[]; let d=inicio;
   while(d<=fim){ if(isDomingo(d)) out.push(d); d=addDaysISO(d,1); }
