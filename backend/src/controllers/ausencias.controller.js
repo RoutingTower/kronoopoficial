@@ -24,6 +24,17 @@ async function createAusencia(req, res) {
   if (tipo !== "folga" && tipo !== "ferias") {
     return res.status(400).json({ error: "bad_request", message: "tipo deve ser 'folga' ou 'ferias'" });
   }
+  // baseMestraId precisa realmente pertencer ao analistaId informado — sem
+  // essa checagem, uma operação fixa que já trocou de titular (ex.: saída
+  // de alguém da equipe, hub repassado) podia acabar gerando uma ausência
+  // com o titular ANTIGO gravado, enquanto a base mestra já aponta pro
+  // titular novo — dado real encontrado em produção (Caucaia e Natal_03
+  // com titular desatualizado). updateAusencia já validava isso quando o
+  // analistaId mudava; createAusencia nunca tinha essa mesma trava.
+  const bmDaAusencia = await supabaseService.getById("baseMestra", baseMestraId);
+  if (!bmDaAusencia || bmDaAusencia.analistaId !== analistaId) {
+    return res.status(400).json({ error: "bad_request", message: "Essa operação não pertence mais a esse analista na base mestra — confira se ela foi repassada pra outro titular." });
+  }
   const [caller, supervisorId] = await Promise.all([getCaller(req), supervisorIdDoAnalista(analistaId)]);
   if (!caller || (!caller.isAdmin && (caller.role !== "supervisor" || supervisorId !== caller.id))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode gerenciar ausências da sua equipe." });
