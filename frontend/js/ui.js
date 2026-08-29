@@ -232,9 +232,9 @@ async function exitApp(){
 // emoji. Repetido entre papéis diferentes é normal (cada um só vê o
 // próprio menu); dentro do MESMO papel, cada item tem um ícone distinto.
 const NAV = {
-  analista:[ {k:'flashcards', label:'Programação', icon:'calendar'}, {k:'recados', label:'Caixa de Entrada', icon:'inbox'}, {k:'resultadospr', label:'Resultado SPR', icon:'target'}, {k:'tempoexecucao', label:'Tempo de Execução', icon:'hourglass'}, {k:'formularios', label:'Formulários', icon:'clipboard-list'}, {k:'feedback', label:'Feedback', icon:'star'}, {k:'configuracoes', label:'Configurações', icon:'settings'} ],
-  supervisor:[ {k:'cadastros', label:'Cadastros', icon:'users'}, {k:'basemestra', label:'Operações Fixas', icon:'map-pin'}, {k:'spr', label:'SPR', icon:'hash'}, {k:'resultadospr', label:'Resultado SPR', icon:'target'}, {k:'tempoexecucao', label:'Tempo de Execução', icon:'hourglass'}, {k:'suplencias', label:'Cobertura', icon:'repeat'}, {k:'programacao', label:'Programação Analista', icon:'calendar'}, {k:'domingos', label:'Controle de Domingos', icon:'calendar-days'}, {k:'reunioes', label:'Eventos', icon:'handshake'}, {k:'particularidades', label:'Particularidades', icon:'sticky-note'}, {k:'transmissao', label:'Caixa de Envio', icon:'megaphone'}, {k:'ocorrencias', label:'Ocorrências', icon:'flag'}, {k:'feedbacks', label:'Feedbacks', icon:'star'}, {k:'formularios', label:'Formulários', icon:'clipboard-list'}, {k:'configuracoes', label:'Configurações', icon:'settings'} ],
-  coordenador:[ {k:'acessos', label:'Gestão de Acessos', icon:'key'}, {k:'dashboard', label:'Dashboard Global', icon:'globe'}, {k:'comunicados', label:'Comunicados', icon:'megaphone'}, {k:'painel', label:'Painel Hora a Hora', icon:'timer'}, {k:'status', label:'Status Operacional', icon:'wifi'}, {k:'anomalias', label:'Ocorrências', icon:'flag'}, {k:'metricas', label:'Métricas', icon:'bar-chart-3'}, {k:'resultadospr', label:'Resultado SPR', icon:'target'}, {k:'tempoexecucao', label:'Tempo de Execução', icon:'hourglass'}, {k:'configuracoes', label:'Configurações', icon:'settings'} ],
+  analista:[ {k:'flashcards', label:'Programação', icon:'calendar'}, {k:'recados', label:'Caixa de Entrada', icon:'inbox'}, {k:'resultadospr', label:'Resultado SPR', icon:'target'}, {k:'tempoexecucao', label:'Tempo de Execução', icon:'hourglass'}, {k:'formularios', label:'Formulários', icon:'clipboard-list'}, {k:'feedback', label:'Feedback', icon:'star'}, {k:'quiz', label:'Quiz', icon:'gamepad-2'}, {k:'configuracoes', label:'Configurações', icon:'settings'} ],
+  supervisor:[ {k:'cadastros', label:'Cadastros', icon:'users'}, {k:'basemestra', label:'Operações Fixas', icon:'map-pin'}, {k:'spr', label:'SPR', icon:'hash'}, {k:'resultadospr', label:'Resultado SPR', icon:'target'}, {k:'tempoexecucao', label:'Tempo de Execução', icon:'hourglass'}, {k:'suplencias', label:'Cobertura', icon:'repeat'}, {k:'programacao', label:'Programação Analista', icon:'calendar'}, {k:'domingos', label:'Controle de Domingos', icon:'calendar-days'}, {k:'reunioes', label:'Eventos', icon:'handshake'}, {k:'particularidades', label:'Particularidades', icon:'sticky-note'}, {k:'transmissao', label:'Caixa de Envio', icon:'megaphone'}, {k:'ocorrencias', label:'Ocorrências', icon:'flag'}, {k:'feedbacks', label:'Feedbacks', icon:'star'}, {k:'formularios', label:'Formulários', icon:'clipboard-list'}, {k:'quiz', label:'Quiz', icon:'gamepad-2'}, {k:'configuracoes', label:'Configurações', icon:'settings'} ],
+  coordenador:[ {k:'acessos', label:'Gestão de Acessos', icon:'key'}, {k:'dashboard', label:'Dashboard Global', icon:'globe'}, {k:'comunicados', label:'Comunicados', icon:'megaphone'}, {k:'painel', label:'Painel Hora a Hora', icon:'timer'}, {k:'status', label:'Status Operacional', icon:'wifi'}, {k:'anomalias', label:'Ocorrências', icon:'flag'}, {k:'metricas', label:'Métricas', icon:'bar-chart-3'}, {k:'resultadospr', label:'Resultado SPR', icon:'target'}, {k:'tempoexecucao', label:'Tempo de Execução', icon:'hourglass'}, {k:'quiz', label:'Quiz', icon:'gamepad-2'}, {k:'configuracoes', label:'Configurações', icon:'settings'} ],
 };
 
 let activeNavKey = null;
@@ -417,7 +417,7 @@ function renderMain(){
     activeNavKey = 'recados';
   }
   if(activeNavKey==='configuracoes') main.innerHTML = renderConfiguracoes();
-  else if(session.role==='analista') main.innerHTML = activeNavKey==='recados' ? renderRecadosAnalista() : activeNavKey==='feedback' ? renderFeedbackAnalista() : activeNavKey==='resultadospr' ? analistaResultadoSPR() : activeNavKey==='tempoexecucao' ? analistaTempoExecucao() : activeNavKey==='formularios' ? analistaFormularios() : activeNavKey==='programacaogeral' ? renderProgramacaoGeralAnalista() : renderAnalista();
+  else if(session.role==='analista') main.innerHTML = activeNavKey==='recados' ? renderRecadosAnalista() : activeNavKey==='feedback' ? renderFeedbackAnalista() : activeNavKey==='resultadospr' ? analistaResultadoSPR() : activeNavKey==='tempoexecucao' ? analistaTempoExecucao() : activeNavKey==='formularios' ? analistaFormularios() : activeNavKey==='programacaogeral' ? renderProgramacaoGeralAnalista() : activeNavKey==='quiz' ? renderQuiz() : renderAnalista();
   else if(session.role==='supervisor') main.innerHTML = renderSupervisor();
   else if(session.role==='coordenador') main.innerHTML = renderCoordenador();
   bindMainEvents();
@@ -429,6 +429,8 @@ function renderMain(){
   if(activeNavKey==='status') renderStatusCharts();
   if(activeNavKey==='resultadospr') renderSPRCharts();
   if(activeNavKey==='tempoexecucao') renderTempoCharts();
+  if(activeNavKey==='quiz' && uiState.quizView==='apresentar' && uiState.quizApresentandoId) quizGarantirPolling(uiState.quizApresentandoId);
+  else quizPararPolling();
   // Enquadra a coluna do horário atual na visão diária (Programação do
   // analista/supervisor) sem precisar rolar manualmente — só existe essa
   // classe quando o turno do dia exibido está rolando agora (ver

@@ -109,6 +109,13 @@ let uiState = {
   // Mostrado como banner no topo da tela até o supervisor resolver ou
   // descartar (ver renderImportPendentesBanner em render-supervisor.js).
   importPendentes: null,
+  // Quiz ao vivo (render-quiz.js): 'lista'|'criar'|'apresentar'. Rascunho de
+  // criação vive em quizDraft até o POST dar certo (perde-se ao trocar de
+  // tela de propósito — é um formulário só, não precisa persistir).
+  quizView: 'lista',
+  quizDraft: null,
+  quizApresentandoId: null,
+  quizApresentarDados: null,
 };
 
 const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -158,6 +165,12 @@ async function authHeaders(){
 // _loadDBInFlight faz chamadas concorrentes reaproveitarem a MESMA busca em
 // vez de disparar uma pra cada — o onAuthStateChanged (main.js) pode
 // disparar duas vezes em sequência rápida no mesmo login.
+// Carimbo do último loadDB() bem-sucedido, de QUALQUER chamador (login,
+// heartbeat de 10min, botão "Atualizar dados agora", aprovar/recusar
+// férias) — usado só por main.js (visibilitychange) pra decidir se vale a
+// pena buscar de novo assim que a aba volta a ficar visível, sem duplicar
+// uma busca que acabou de rodar por outro motivo.
+let ultimoLoadDBEm = 0;
 let _loadDBInFlight = null;
 async function loadDB(){
   if(_loadDBInFlight) return _loadDBInFlight;
@@ -182,6 +195,7 @@ async function loadDB(){
       apiRequest('GET', '/formulario-respostas'),
     ]);
     DB = { users, baseMestra, suplencias, sprs, raioX, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas };
+    ultimoLoadDBEm = Date.now();
   })();
   try{ await _loadDBInFlight; }
   finally{ _loadDBInFlight = null; }
@@ -327,4 +341,13 @@ const apiMarcarNotificacaoLida = (id) => apiRequest('PATCH', `/notificacoes/${id
 // Único endpoint que funciona sem sessão — chamado da tela de login, antes
 // de existir qualquer token (ver botão "Esqueci minha senha").
 const apiEsqueciSenha = (email) => apiRequest('POST', '/esqueci-senha', { email });
+
+// Quiz ao vivo (render-quiz.js) — não entra no loadDB/DB (é ao vivo, com
+// polling próprio a cada ~1.5s enquanto apresentando; carregar isso no ciclo
+// de 10min do resto do app não faria sentido, ver main.js).
+const apiListQuizzes = () => apiRequest('GET', '/quiz');
+const apiCreateQuiz = (data) => apiRequest('POST', '/quiz', data);
+const apiGetQuiz = (id) => apiRequest('GET', `/quiz/${id}`);
+const apiAvancarQuiz = (id) => apiRequest('PATCH', `/quiz/${id}/avancar`, {});
+const apiDeleteQuiz = (id) => apiRequest('DELETE', `/quiz/${id}`);
 

@@ -21,6 +21,8 @@ const formulariosRoutes = require("./formularios.routes");
 const formularioRespostasRoutes = require("./formularioRespostas.routes");
 const planilhaImportRoutes = require("./planilhaImport.routes");
 const roteirizacaoStatusRoutes = require("./roteirizacaoStatus.routes");
+const quizRoutes = require("./quiz.routes");
+const quizPlayRoutes = require("./quizPlay.routes");
 
 const router = Router();
 
@@ -35,6 +37,12 @@ router.post("/esqueci-senha", asyncHandler(esqueciSenha));
 // roteirização, não um usuário logado no Kronos — se autentica com um
 // token fixo (ver planilhaImport.controller.js), não um Supabase ID token.
 router.use("/planilha-import", planilhaImportRoutes);
+
+// Também público: quem entra num Quiz ao vivo pelo PIN não tem (nem precisa
+// de) conta no Kronos — ver quizPlay.controller.js e docs do feature no
+// plano salvo. O lado do host (criar/apresentar) exige login normalmente
+// e fica em "/quiz", abaixo do requireAuth.
+router.use("/quiz-play", quizPlayRoutes);
 
 // Tudo abaixo exige um Supabase ID token válido — ver middleware/auth.js.
 router.use(requireAuth);
@@ -57,5 +65,6 @@ router.use("/particularidade-ciente", particularidadeCienteRoutes);
 router.use("/reuniao-presenca", reuniaoPresencaRoutes);
 router.use("/formularios", formulariosRoutes);
 router.use("/formulario-respostas", formularioRespostasRoutes);
+router.use("/quiz", quizRoutes);
 
 module.exports = router;

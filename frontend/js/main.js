@@ -167,16 +167,34 @@ KronoAuth.onAuthStateChanged(async (user)=>{
 // aberto (alguém preenchendo Raio-X, compondo um comunicado etc.), só
 // atualiza os dados em memória e pula o renderMain — um redesenho da tela
 // nessa hora perderia o que a pessoa tava digitando.
-setInterval(async ()=>{
+//
+// Pula o ciclo inteiro (nem chama loadDB) enquanto a aba está em segundo
+// plano (document.hidden) — ninguém está olhando pra tela nesse momento,
+// então continuar buscando as 17 coleções a cada 10min é egress puro sem
+// nenhum ganho de "frescor" percebido. Isso não reabre o incidente do
+// Areli (dado obsoleto pra quem está OLHANDO a tela): assim que a aba volta
+// a ficar visível, refreshDBSeAtrasado() já dispara um loadDB() imediato se
+// fizer tempo desde o último — quem está de fato olhando nunca vê dado
+// velho, só quem tinha a aba minimizada/em outra janela deixa de gastar
+// egress à toa. Esse padrão de aba-de-monitoramento-sempre-aberta é comum
+// aqui (dashboards ficam ligados o turno inteiro numa tela da operação).
+async function refreshDBAgora(){
   if(!session) return;
   try{
     await loadDB();
     const modalAberto = document.getElementById('modalBg')?.style.display === 'flex';
     if(!modalAberto) renderMain();
   }catch(e){
-    console.error('KronoOP: falha na atualização automática periódica.', e);
+    console.error('KronoOP: falha na atualização automática do DB.', e);
   }
+}
+setInterval(()=>{
+  if(document.hidden) return;
+  refreshDBAgora();
 }, 10*60*1000);
+document.addEventListener('visibilitychange', ()=>{
+  if(!document.hidden && session && Date.now()-ultimoLoadDBEm > 2*60*1000) refreshDBAgora();
+});
 
 // Cronômetro ao vivo do card de operação (Tempo de Execução, ver
 // render-analista.js) — só atualiza o texto do timer a cada segundo, sem
@@ -191,6 +209,14 @@ setInterval(()=>{
     const h = Math.floor(totalSeg/3600), m = Math.floor((totalSeg%3600)/60), s = totalSeg%60;
     const numEl = el.querySelector('.timer-num');
     if(numEl) numEl.textContent = h>0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  });
+  // Cronômetro da pergunta do Quiz ao vivo (render-quiz.js, tela Apresentar)
+  // — mesma ideia do timer acima: só atualiza o número a cada segundo, sem
+  // esperar o próximo poll (a cada 1.5s) pra não parecer travado.
+  document.querySelectorAll('[data-quiz-countdown-fim]').forEach(el=>{
+    const fim = Number(el.dataset.quizCountdownFim);
+    if(!fim) return;
+    el.textContent = Math.max(0, Math.ceil((fim-Date.now())/1000));
   });
 }, 1000);
 

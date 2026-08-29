@@ -53,6 +53,7 @@ function renderCoordenador(){
   else if(activeNavKey==='metricas') content = coordMetricas();
   else if(activeNavKey==='resultadospr') content = coordResultadoSPR();
   else if(activeNavKey==='tempoexecucao') content = coordTempoExecucao();
+  else if(activeNavKey==='quiz') content = renderQuiz();
   return `<div class="page-head"><div><h1 class="page-title">${tabLabel}</h1><div class="page-desc">Visão executiva de toda a operação</div></div></div>${content}`;
 }
 

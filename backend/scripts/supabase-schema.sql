@@ -343,3 +343,56 @@ create table formulario_respostas (
 );
 create unique index idx_formresp_unico on formulario_respostas(formulario_id, analista_id);
 create index idx_formresp_formulario on formulario_respostas(formulario_id);
+
+-- Quiz ao vivo (estilo Kahoot) — feature independente do resto do sistema:
+-- perguntas vivem dentro da própria sessão (sem banco de perguntas
+-- reutilizável), e quem participa entra só com PIN + apelido, sem conta no
+-- Kronos (por isso quiz_participantes não referencia users). Criador é
+-- qualquer usuário logado, não só supervisor/coordenador (ver
+-- backend/src/controllers/quiz.controller.js).
+create table quiz_sessoes (
+  id                    uuid primary key default gen_random_uuid(),
+  titulo                text not null,
+  pin                   text not null unique,
+  criado_por            uuid not null references users(id),
+  status                text not null default 'lobby'
+                        check (status in ('lobby','pergunta','revelacao','ranking','encerrado')),
+  pergunta_atual_index  integer not null default -1,
+  pergunta_iniciada_em  bigint,
+  criado_em             bigint not null
+);
+create index idx_quizsessoes_pin on quiz_sessoes(pin);
+create index idx_quizsessoes_criador on quiz_sessoes(criado_por);
+
+create table quiz_perguntas (
+  id              uuid primary key default gen_random_uuid(),
+  quiz_sessao_id  uuid not null references quiz_sessoes(id) on delete cascade,
+  ordem           integer not null,
+  enunciado       text not null,
+  opcoes          text[] not null,
+  correta_index   integer not null,
+  tempo_segundos  integer not null default 20
+);
+create index idx_quizperguntas_sessao on quiz_perguntas(quiz_sessao_id);
+
+create table quiz_participantes (
+  id              uuid primary key default gen_random_uuid(),
+  quiz_sessao_id  uuid not null references quiz_sessoes(id) on delete cascade,
+  nome            text not null,
+  pontuacao       integer not null default 0,
+  entrou_em       bigint not null
+);
+create index idx_quizparticipantes_sessao on quiz_participantes(quiz_sessao_id);
+
+-- unique (quiz_pergunta_id, participante_id) impede responder a mesma
+-- pergunta duas vezes (ver POST /api/quiz-play/:pin/responder).
+create table quiz_respostas (
+  id               uuid primary key default gen_random_uuid(),
+  quiz_pergunta_id uuid not null references quiz_perguntas(id) on delete cascade,
+  participante_id  uuid not null references quiz_participantes(id) on delete cascade,
+  opcao_index      integer not null,
+  correta          boolean not null,
+  pontos_ganhos    integer not null default 0,
+  respondido_em    bigint not null,
+  unique (quiz_pergunta_id, participante_id)
+);

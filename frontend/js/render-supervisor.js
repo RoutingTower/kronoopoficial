@@ -18,6 +18,7 @@ function renderSupervisor(){
   else if(activeNavKey==='ocorrencias') content = supOcorrencias(myAnalistas);
   else if(activeNavKey==='feedbacks') content = supFeedbacks(myAnalistas);
   else if(activeNavKey==='formularios') content = supFormularios(myAnalistas);
+  else if(activeNavKey==='quiz') content = renderQuiz();
   return `<div class="page-head"><div><h1 class="page-title">${tabLabel}</h1><div class="page-desc">Gestão da equipe de ${session.name}</div></div></div>${content}`;
 }
 
