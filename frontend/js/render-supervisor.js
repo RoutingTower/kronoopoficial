@@ -11,11 +11,9 @@ function renderSupervisor(){
   else if(activeNavKey==='tempoexecucao') content = supTempoExecucao(myAnalistas);
   else if(activeNavKey==='suplencias') content = renderImportPendentesBanner('suplencias', myAnalistas) + supGerarEscalaDomingo(myAnalistas) + supSugerirSuplente(myAnalistas) + supSuplencias(myAnalistas);
   else if(activeNavKey==='programacao') content = supProgramacao(myAnalistas);
-  else if(activeNavKey==='grade') content = supGrade(myAnalistas);
   else if(activeNavKey==='domingos') content = supControleDomingos(myAnalistas);
   else if(activeNavKey==='reunioes') content = supReunioes(myAnalistas) + supPlantao();
   else if(activeNavKey==='particularidades') content = supParticularidadesAuditoria(myAnalistas);
-  else if(activeNavKey==='metricas') content = supMetricas(myAnalistas);
   else if(activeNavKey==='transmissao') content = supTransmissao(myAnalistas);
   else if(activeNavKey==='ocorrencias') content = supOcorrencias(myAnalistas);
   else if(activeNavKey==='feedbacks') content = supFeedbacks(myAnalistas);
@@ -583,85 +581,6 @@ function supProgramacao(myAnalistas){
 }
 
 
-function supGrade(myAnalistas){
-  const f = uiState.gradeFilters;
-  const dateStr = f.data || hojeAgendaISO();
-  const ids = myAnalistas.map(a=>a.id);
-  let rows = [];
-  ids.forEach(id=>{
-    const slots = getDaySlots(id, dateStr);
-    slots.forEach(s=>{
-      const status = computeStatus(s.horaInicio, dateStr, id, s.operacao, s.isOff);
-      rows.push({chave:s.id, analistaId:id, analista:userById(id).name, op:s.operacao, ciclo:s.ciclo||'', hora:s.horaInicio, horaFim:s.horaFim, nome:s.responsavelNome, isCobertura:!!s.isCobertura, status});
-    });
-  });
-  // Uma cobertura gera 2 entradas com o mesmo id em getDaySlots: uma na
-  // agenda do titular (operação coberta, sempre "Finalizada" porque ele
-  // não precisa fazer nada) e outra na agenda de quem está cobrindo (com
-  // o status real, incluindo Não Finalizado). Mantém só a segunda — é a
-  // que importa pro supervisor acompanhar.
-  const porId = new Map();
-  rows.forEach(r=>{ if(!porId.has(r.chave) || r.isCobertura) porId.set(r.chave, r); });
-  rows = [...porId.values()];
-  rows.sort((a,b)=> hourSortValue(a.hora)-hourSortValue(b.hora));
-  const uniq = key => ['all', ...new Set(rows.map(r=>r[key]).filter(Boolean))];
-  const filtered = rows.filter(r=>
-    (f.hora==='all' || r.hora===f.hora) &&
-    (f.analista==='all' || r.analista===f.analista) &&
-    (f.op==='all' || r.op===f.op) &&
-    (f.nome==='all' || r.nome===f.nome) &&
-    (f.status==='all' || r.status===f.status)
-  );
-  const statusLabels = {wait:'A Iniciar', live:'Em Andamento', done:'Finalizada', atraso:'Não Finalizado'};
-  const select = (key, label, values) => `
-    <select data-gradefilter="${key}">
-      <option value="all">${label}: todos</option>
-      ${values.filter(v=>v!=='all').map(v=>`<option value="${v}" ${f[key]===v?'selected':''}>${key==='status'?statusLabels[v]:v}</option>`).join('')}
-    </select>`;
-
-  // Mesmo alerta proativo + semáforo de risco do Dashboard Global do
-  // coordenador (analistasEmRisco, em render-coordenador.js), só que
-  // escopado à própria equipe — aqui é o equivalente do supervisor pra
-  // essa visão executiva.
-  const atrasoHoje = dateStr===hojeAgendaISO() ? filtered.filter(r=>r.status==='atraso').length : 0;
-  const risco = analistasEmRisco(myAnalistas);
-  gradeExportRows = filtered;
-
-  return `
-  <div class="filter-row">
-    <input type="date" data-gradefilter="data" value="${dateStr}">
-    ${select('hora','Horário', uniq('hora'))}
-    ${select('analista','Analista', uniq('analista'))}
-    ${select('op','Operação', uniq('op'))}
-    ${select('nome','Responsável', uniq('nome'))}
-    ${select('status','Status', ['all','wait','live','done','atraso'])}
-    <button class="btn" id="btnExportGrade">⬇ Exportar Excel</button>
-  </div>
-  <div class="card" style="margin-bottom:${(atrasoHoje>0||risco.length>0)?'16px':'0'};">
-  <table><thead><tr><th>Horário</th><th>Analista</th><th>Operação</th><th>Responsável</th><th>Status</th></tr></thead><tbody>
-  ${filtered.map(r=>
-    `<tr class="${r.isCobertura?'row-suplente':''}"><td class="mono">${r.hora}–${r.horaFim}</td><td style="cursor:pointer;" data-analista-timeline="${r.analistaId}" title="Ver histórico">${r.analista} ${r.isCobertura?'<span class="pill pill-suplente">🔁 Suplente</span>':''}</td><td>${r.op}</td><td>${r.nome}</td><td>${statusPill(r.status)}</td></tr>`
-  ).join('') || '<tr><td colspan="5" class="empty">Nenhum registro para os filtros selecionados</td></tr>'}
-  </tbody></table></div>
-  ${atrasoHoje>0 ? `<div class="highlight-card" style="margin-bottom:14px;border-color:var(--alert);">
-    <div class="section-title">🚨 ${atrasoHoje} operação(ões) de hoje com Raio-X pendente há mais de 1h</div>
-  </div>` : ''}
-  ${risco.length>0 ? `<div class="card">
-    <div class="section-title">🟡 Analistas em risco (últimos 7 dias)</div>
-    ${risco.map(r=>`<div class="msg-item" style="cursor:pointer;" data-analista-timeline="${r.id}">
-      <div class="msg-meta">${escapeHtml(r.name)}</div>
-      <div class="chip-row" style="margin-top:4px;">${r.motivos.map(m=>`<span class="chip-pessoa">${escapeHtml(m)}</span>`).join('')}</div>
-    </div>`).join('')}
-  </div>` : ''}`;
-}
-
-let gradeExportRows = [];
-function exportarGrade(){
-  const linhas = gradeExportRows.map(r=>[r.hora, r.analista, r.op, r.nome, r.isCobertura?'Suplente':'Titular', {wait:'A Iniciar',live:'Em Andamento',done:'Finalizada',atraso:'Não Finalizado'}[r.status]||r.status]);
-  exportarRelatorioExcel(`grade-do-dia_${uiState.gradeFilters.data||hojeAgendaISO()}.xlsx`, ['Hora Início','Analista','Operação','Responsável','Tipo','Status'], linhas);
-}
-
-
 // "Escalado no domingo" = tem pelo menos uma operação própria (fixa) ou
 // cobertura na agenda desse dia (categoriaOperacao, utils.js), OU está de
 // plantão nesse domingo (analistaEmPlantao, utils.js) — folga não conta.
@@ -947,10 +866,11 @@ function supFeedbacks(myAnalistas){
 // padrão de updateNavBadges()).
 let metricasChartData = null;
 
-// Núcleo do cálculo/render de Métricas, compartilhado entre supervisor
-// (supMetricas, filtra a própria equipe por analista) e coordenador
+// Núcleo do cálculo/render de Métricas — hoje usado só pelo coordenador
 // (coordMetricas em render-coordenador.js, filtra toda a operação por
-// supervisor — expande pra equipe de cada um selecionado). `picker` é o
+// supervisor — expande pra equipe de cada um selecionado); a aba de
+// Métricas do supervisor foi retirada, mas o corpo ficou aqui porque é
+// esse mesmo arquivo que já tinha o cálculo original. `picker` é o
 // dropdown de seleção, específico de cada tela; `notaSingular` aparece
 // junto do número de folgas quando a seleção resultante é só 1
 // pessoa/equipe (ex.: " (analista selecionado)"), pra dar contexto.
@@ -1056,28 +976,6 @@ function metricasBody(selecionados, picker, notaSingular){
     return `<tr><td>${escapeHtml(c.name)}</td><td>${statusPill(c)}</td><td class="mono">${cob}</td></tr>`;
   }).join('') || '<tr><td colspan="3" class="empty">Sem dados</td></tr>'}
   </tbody></table></div>` + coberturaHeatmap(selecionados);
-}
-
-function analistaPicker(myAnalistas){
-  const flt = uiState.metricasFiltro;
-  return `<div class="multiselect">
-      <button type="button" class="multiselect-btn" id="btnMetricasAnalistaToggle">
-        <span>${flt.analistas.length===0 ? 'Todos os analistas' : `${flt.analistas.length} analista(s) selecionado(s)`}</span>
-        <span>▾</span>
-      </button>
-      ${uiState.metricasAnalistaDropdownOpen ? `
-      <div class="multiselect-panel">
-        <label><input type="checkbox" id="metricasAnalistaTodos" ${flt.analistas.length===0?'checked':''}> <b>Todos</b></label>
-        <div class="msep"></div>
-        ${myAnalistas.map(a=>`<label><input type="checkbox" class="metricasAnalistaChk" value="${a.id}" ${flt.analistas.includes(a.id)?'checked':''}> ${escapeHtml(a.name)}</label>`).join('') || '<div class="help-text" style="margin:6px 8px;">Nenhum analista cadastrado</div>'}
-      </div>` : ''}
-    </div>`;
-}
-
-function supMetricas(myAnalistas){
-  const flt = uiState.metricasFiltro;
-  const selecionados = flt.analistas.length ? myAnalistas.filter(a=>flt.analistas.includes(a.id)) : myAnalistas;
-  return metricasBody(selecionados, analistaPicker(myAnalistas), flt.analistas.length===1 ? ' (analista selecionado)' : '');
 }
 
 // Chamado de novo a cada renderMain() (ver ui.js) — os canvases são

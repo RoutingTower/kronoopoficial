@@ -36,14 +36,10 @@ let uiState = {
   // Kanban (colunas por horário, rolagem horizontal) ou lista (linhas
   // verticais) na visão Diária da Programação — ver renderFlashcardRow.
   analistaDiariaLayout: 'kanban',
-  gradeFilters:{ data: hojeAgendaISO(), hora:'all', analista:'all', op:'all', nome:'all', status:'all' },
-  // analistas:[] = "Todos" (supervisor filtra por analista da própria
-  // equipe, ver supMetricas). supervisores:[] = "Todos" (coordenador filtra
-  // por supervisor — expande pra equipe de cada um, ver coordMetricas em
-  // render-coordenador.js). Preenchido = só os ids selecionados no
-  // dropdown de multi-seleção correspondente.
+  // supervisores:[] = "Todos" (coordenador filtra por supervisor — expande
+  // pra equipe de cada um, ver coordMetricas em render-coordenador.js).
+  // Preenchido = só os ids selecionados no dropdown de multi-seleção.
   metricasFiltro:{ inicio: addDaysISO(todayISO(), -7), fim: todayISO(), analistas: [], supervisores: [] },
-  metricasAnalistaDropdownOpen: false,
   metricasSupervisorDropdownOpen: false,
   // Telas do Coordenador (render-coordenador.js): supervisores:[] = "Todos"
   // em cada filtro abaixo, mesmo padrão de metricasFiltro.supervisores.

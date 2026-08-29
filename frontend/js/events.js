@@ -1,12 +1,13 @@
 /* bindMainEvents(): liga todos os listeners de clique/change do #mainArea a cada render. */
 
 // Wiring genérico dos dropdowns de multi-seleção usados em várias telas
-// (Métricas do supervisor/coordenador, Dashboard Global, Painel Hora a
-// Hora, Status Operacional) — todos seguem o mesmo HTML (botão toggle +
-// checkbox "Todos" + lista de checkboxes de item, ver ex. analistaPicker
-// em render-supervisor.js). `filtro` é o objeto do uiState (ex.:
-// uiState.metricasFiltro), `key` o campo array dele (ex.: "supervisores"),
-// `openKey` o campo booleano do uiState que controla o painel aberto.
+// (Métricas, Dashboard Global, Painel Hora a Hora, Status Operacional,
+// Resultado SPR) — todos seguem o mesmo HTML (botão toggle + checkbox
+// "Todos" + lista de checkboxes de item, ver ex. o picker de Supervisor
+// dentro de coordMetricas em render-coordenador.js). `filtro` é o objeto
+// do uiState (ex.: uiState.metricasFiltro), `key` o campo array dele
+// (ex.: "supervisores"), `openKey` o campo booleano do uiState que
+// controla o painel aberto.
 function bindMultiselect(main, toggleId, todosId, chkClass, filtro, key, openKey){
   const toggle = document.getElementById(toggleId);
   if(toggle) toggle.addEventListener('click', (e)=>{ e.stopPropagation(); uiState[openKey] = !uiState[openKey]; renderMain(); });
@@ -1148,10 +1149,6 @@ function bindMainEvents(){
   const btnNovaSuplenciaFerias = document.getElementById('btnNovaSuplenciaFerias');
   if(btnNovaSuplenciaFerias) btnNovaSuplenciaFerias.addEventListener('click', ()=> abrirModalNovaSuplencia('ferias'));
 
-  main.querySelectorAll('[data-gradefilter]').forEach(sel=>{
-    sel.addEventListener('change', ()=>{ uiState.gradeFilters[sel.dataset.gradefilter] = sel.value; renderMain(); });
-  });
-
   main.querySelectorAll('[data-metricasfiltro]').forEach(inp=>{
     inp.addEventListener('change', ()=>{
       const key = inp.dataset.metricasfiltro;
@@ -1212,9 +1209,7 @@ function bindMainEvents(){
   const btnExportMetricas = document.getElementById('btnExportMetricas');
   if(btnExportMetricas) btnExportMetricas.addEventListener('click', exportarMetricas);
   // Mesmos botões, agora também nas telas equivalentes do supervisor
-  // (render-supervisor.js: supGrade, supOcorrencias).
-  const btnExportGrade = document.getElementById('btnExportGrade');
-  if(btnExportGrade) btnExportGrade.addEventListener('click', exportarGrade);
+  // (render-supervisor.js: supOcorrencias).
   const btnExportDomingos = document.getElementById('btnExportDomingos');
   if(btnExportDomingos) btnExportDomingos.addEventListener('click', ()=>{
     exportarRelatorioExcel(`controle-domingos_${uiState.domingosMes.slice(0,7)}.xlsx`, ['Analista','Data','Status','Tipo'], domingosExportRows);
@@ -1226,7 +1221,6 @@ function bindMainEvents(){
   const btnExportTempo = document.getElementById('btnExportTempo');
   if(btnExportTempo) btnExportTempo.addEventListener('click', exportarTempo);
 
-  bindMultiselect(main, 'btnMetricasAnalistaToggle', 'metricasAnalistaTodos', 'metricasAnalistaChk', uiState.metricasFiltro, 'analistas', 'metricasAnalistaDropdownOpen');
   // Filtro por Supervisor da tela de Métricas do coordenador (ver
   // coordMetricas em render-coordenador.js) e das outras telas executivas.
   bindMultiselect(main, 'btnMetricasSupervisorToggle', 'metricasSupervisorTodos', 'metricasSupervisorChk', uiState.metricasFiltro, 'supervisores', 'metricasSupervisorDropdownOpen');
