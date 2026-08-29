@@ -262,8 +262,11 @@ function renderProgramacaoIntegrada(lista, dateStr){
     // (como card "pendente", ainda sem gravar nada) na linha de quem
     // recebeu — ver "Salvar alterações" em events.js pra quando isso vira
     // ausência de verdade.
+    // Casa só pelo id (uuid do base_mestra ou da suplência avulsa, já
+    // suficientemente único) — comparar categoria aqui não rola porque
+    // "avulsa" nunca bate com o categoriaOperacao(s) real ('cobertura').
     const saidas = movesPorOrigem[a.id] || [];
-    if(saidas.length) slots = slots.filter(s=> !saidas.some(m=>m.bmId===s.id && m.categoria===categoriaOperacao(s)));
+    if(saidas.length) slots = slots.filter(s=> !saidas.some(m=>m.bmId===s.id));
     const entradas = movesPorDestino[a.id] || [];
     if(entradas.length){
       slots = [...slots, ...entradas.map(m=>({
@@ -369,21 +372,22 @@ function renderProgramacaoIntegrada(lista, dateStr){
       ? `\n\n${'★'.repeat(Math.max(0,Math.min(5,rx.estrelas||0)))}${rx.semRoteirizacao ? ' · Sem roteirização' : rx.sprRoteirizado!=null ? ` · SPR ${rx.sprRoteirizado}` : ''}${rx.orfaos!=null ? ` · Órfãos ${rx.orfaos}` : ''}\n${obsTexto}`
       : '';
 
-    // Arrastar-e-soltar: só "fixa" (operação própria) e "cobertura" fazem
-    // sentido mover — "folga" é o card do dia em que o titular NÃO está
-    // trabalhando (outra pessoa já cobre), não tem o que arrastar dali. O
-    // card pendente (it._pendente) carrega a categoria ORIGINAL da
-    // operação (antes do drag) — é ela que decide, no salvar, se cria uma
-    // ausência nova ou só reatribui uma existente (ver btnSalvarProgMoves,
-    // events.js), mesmo que visualmente ele já apareça como "cobertura" na
-    // linha de quem recebeu.
-    const catOriginal = it._pendente ? it._pendente.categoria : categoriaOperacao(it);
-    // Cobertura avulsa (Suplências ad-hoc, sem base_mestra por trás — ver
-    // coberturaAdhoc em getDaySlots) usa outra tabela (suplencias) e não dá
-    // pra mover por aqui (o id do card nem é um baseMestraId nesse caso);
-    // só entra quem tem tipo 'folga'/'ferias' de verdade (ausência real).
-    const ehAdhoc = catOriginal==='cobertura' && !it._pendente && it.tipo==='cobertura';
-    const arrastavel = podeEditar && !ehAdhoc && (catOriginal==='fixa' || catOriginal==='cobertura');
+    // Arrastar-e-soltar: só "fixa" (operação própria), "cobertura" (ausência
+    // real, tem base_mestra por trás) e "avulsa" (Suplências ad-hoc — só o
+    // nome do suplente, sem base_mestra) fazem sentido mover — "folga" é o
+    // card do dia em que o titular NÃO está trabalhando (outra pessoa já
+    // cobre), não tem o que arrastar dali. O card pendente (it._pendente)
+    // carrega a categoria ORIGINAL da operação (antes do drag) — é ela que
+    // decide, no salvar, se cria uma ausência nova, reatribui uma ausência
+    // existente ou só troca o nome numa suplência avulsa (ver
+    // btnSalvarProgMoves, events.js), mesmo que visualmente ele já apareça
+    // como "cobertura" na linha de quem recebeu.
+    let catOriginal;
+    if(it._pendente) catOriginal = it._pendente.categoria;
+    else if(categoriaOperacao(it)==='fixa') catOriginal = 'fixa';
+    else if(categoriaOperacao(it)==='cobertura') catOriginal = it.tipo==='cobertura' ? 'avulsa' : 'cobertura';
+    else catOriginal = null; // 'folga' — nada pra arrastar
+    const arrastavel = podeEditar && catOriginal!=null;
     const titularIdDrag = it._pendente ? it._pendente.titularId : (catOriginal==='fixa' ? analistaId : it.responsavelId);
     const dragAttrs = arrastavel ? ` draggable="true" data-drag-categoria="${catOriginal}" data-drag-bmid="${it.id}" data-drag-titularid="${titularIdDrag}" data-drag-origemid="${analistaId}" data-drag-operacao="${escapeHtml(it.operacao)}" data-drag-ciclo="${escapeHtml(it.ciclo)}" data-drag-horainicio="${it.horaInicio}" data-drag-horafim="${it.horaFim}" data-drag-data="${dateStr}"` : '';
     const pendenteHtml = it._pendente ? `

@@ -401,11 +401,16 @@ function bindMainEvents(){
           const nova = await apiCreateAusencia({analistaId:m.titularId, baseMestraId:m.bmId, operacao:m.operacao, ciclo:m.ciclo,
             horaInicio:m.horaInicio, horaFim:m.horaFim, data:m.data, tipo:'folga', suplenteId:m.destinoAnalistaId, suplenteNome:m.destinoNome});
           DB.ausencias.push(nova);
-        } else {
+        } else if(m.categoria==='cobertura'){
           const existente = DB.ausencias.find(a=>a.baseMestraId===m.bmId && a.data===m.data && a.analistaId===m.titularId);
           if(!existente) throw new Error('cobertura original não encontrada (pode já ter sido alterada por outra pessoa)');
           const atualizada = await apiUpdateAusencia(existente.id, {suplenteId:m.destinoAnalistaId, suplenteNome:m.destinoNome});
           DB.ausencias = DB.ausencias.map(a=>a.id===existente.id ? atualizada : a);
+        } else {
+          // 'avulsa' — Suplências ad-hoc (ver suplencias.controller.js): não
+          // tem suplenteId, só o nome mesmo (campo texto "suplente").
+          const atualizada = await apiUpdateSuplencia(m.bmId, {suplente:m.destinoNome});
+          DB.suplencias = DB.suplencias.map(s=>s.id===m.bmId ? atualizada : s);
         }
         ok++;
       }catch(e){ console.error('KronoOP: falha ao mover operação.', m, e); fail++; }
