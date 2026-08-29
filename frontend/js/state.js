@@ -180,7 +180,16 @@ async function loadDB(){
       apiRequest('GET', '/base-mestra'),
       apiRequest('GET', '/suplencias'),
       apiRequest('GET', '/sprs'),
-      apiRequest('GET', '/raio-x'),
+      // ?inicio= explícito (7 dias) em vez de confiar no default de 30 dias
+      // do backend (ver raioX.controller.js) — é a coleção que mais cresce
+      // (1 registro por finalização de operação, de toda a equipe, pra
+      // sempre) e é buscada de novo a cada heartbeat de 10min (ver main.js),
+      // então é onde a janela mais pesa no egress do Supabase. Telas que
+      // precisarem de um histórico mais antigo que isso (ex.: Resultado SPR/
+      // Tempo de Execução com um período customizado bem no passado) hoje já
+      // ficam limitadas ao que loadDB carregou — isso não é novo, só ficou
+      // mais apertado (era 30 dias, virou 7).
+      apiRequest('GET', '/raio-x?inicio='+addDaysISO(todayISO(), -7)),
       apiRequest('GET', '/roteirizacao-status'),
       apiRequest('GET', '/ausencias'),
       apiRequest('GET', '/recados'),
