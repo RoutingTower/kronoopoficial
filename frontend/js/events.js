@@ -328,12 +328,64 @@ function bindMainEvents(){
     main.querySelectorAll('[data-carga-badge]').forEach(el=>el.remove());
   }
 
+  // Acha o compromisso que realmente bate no horário do destino — só os
+  // dois casos "resolvíveis" (própria operação ou outra cobertura que ele
+  // já faz; jornada/folga/vigência não têm o que mover pra desfazer). Usado
+  // só pela cascata automática de registrarMovimento.
+  function acharConflitoParaCascata(analistaId, dataStr, horaInicio, horaFim){
+    const s1 = hourSortValue(horaInicio), e1 = hourSortValue(horaFim);
+    const opsProprias = DB.baseMestra.filter(b=>b.analistaId===analistaId && bmRodaNoDia(b, dataStr))
+      .filter(b=>!DB.ausencias.some(x=>x.baseMestraId===b.id && x.data===dataStr));
+    const bmConflitante = opsProprias.find(b=>rangesOverlap(s1,e1, hourSortValue(b.horaInicio), hourSortValue(b.horaFim)));
+    if(bmConflitante) return { tipo:'fixa', bm:bmConflitante };
+    const ausConflitante = DB.ausencias.filter(x=>x.suplenteId===analistaId && x.data===dataStr)
+      .find(x=>rangesOverlap(s1,e1, hourSortValue(x.horaInicio), hourSortValue(x.horaFim)));
+    if(ausConflitante) return { tipo:'cobertura', ausencia:ausConflitante };
+    return null;
+  }
+
   // Registra (ou atualiza, se já existia) uma pendência de movimento —
   // usado tanto pelo drop do arrasto quanto pela escolha no modal do botão
   // "mover" (abrirModalMover), pra manter as duas vias 100% equivalentes.
+  //
+  // Cascata automática: se o destino escolhido já tem algo batendo bem
+  // nesse horário (própria operação ou outra cobertura), em vez de só
+  // empilhar dois compromissos conflitando na mesma pessoa, procura outro
+  // analista livre pra assumir ESSE conflitante e registra isso também
+  // como pendência (some/edita normalmente em "Ver detalhes", igual
+  // qualquer outra). Só acontece quando acha alguém pra receber a troca —
+  // sem candidato, cai no comportamento de antes (só avisa o conflito).
   function registrarMovimento(payload, destinoId){
+    let conflito = conflitoAoMoverPara(destinoId, payload.data, payload.horaInicio, payload.horaFim);
+    const cascata = acharConflitoParaCascata(destinoId, payload.data, payload.horaInicio, payload.horaFim);
+    if(cascata){
+      const destino = userById(destinoId);
+      const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===destino?.supervisorId);
+      let payloadCascata, titularCascata;
+      if(cascata.tipo==='fixa'){
+        const bm = cascata.bm;
+        titularCascata = destinoId;
+        payloadCascata = { categoria:'fixa', bmId:bm.id, titularId:destinoId, origemAnalistaId:destinoId,
+          operacao:bm.operacao, ciclo:bm.ciclo, horaInicio:bm.horaInicio, horaFim:bm.horaFim, data:payload.data };
+      } else {
+        const aus = cascata.ausencia;
+        const bm = DB.baseMestra.find(b=>b.id===aus.baseMestraId);
+        titularCascata = aus.analistaId;
+        payloadCascata = { categoria:'cobertura', bmId:aus.baseMestraId, titularId:aus.analistaId, origemAnalistaId:destinoId,
+          operacao: bm?.operacao || aus.operacao, ciclo: bm?.ciclo || aus.ciclo, horaInicio:aus.horaInicio, horaFim:aus.horaFim, data:payload.data };
+      }
+      const candidatos = candidatosParaSlot(myAnalistas, titularCascata, {horaInicio:payloadCascata.horaInicio, horaFim:payloadCascata.horaFim}, payload.data)
+        .filter(c=>c.id!==destinoId);
+      if(candidatos.length>0){
+        registrarMovimentoSimples(payloadCascata, candidatos[0].id);
+        conflito = null; // resolvido em cascata — a principal não bate mais em nada
+      }
+    }
+    registrarMovimentoSimples(payload, destinoId, conflito);
+  }
+  function registrarMovimentoSimples(payload, destinoId, conflitoForcado){
     const destino = userById(destinoId);
-    const conflito = conflitoAoMoverPara(destinoId, payload.data, payload.horaInicio, payload.horaFim);
+    const conflito = conflitoForcado!==undefined ? conflitoForcado : conflitoAoMoverPara(destinoId, payload.data, payload.horaInicio, payload.horaFim);
     const chave = `${payload.bmId}|${payload.categoria}|${payload.data}|${payload.origemAnalistaId}`;
     const existente = uiState.progMoves.find(m=>m.id===chave);
     const move = {
