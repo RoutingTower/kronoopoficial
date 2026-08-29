@@ -393,8 +393,17 @@ function renderProgramacaoIntegrada(lista, dateStr){
     const pendenteHtml = it._pendente ? `
       <span class="prog-pendente-badge" title="${it._pendente.conflito ? escapeHtml(it._pendente.conflito) : 'Pendente — ainda não salvo'}">${it._pendente.conflito ? icon('triangle-alert',10) : icon('move',10)} Pendente</span>
       <button class="prog-pendente-remover" data-remove-move="${it._pendente.id}" title="Desfazer esse movimento">${icon('x',11)}</button>` : '';
+    // Botão "mover" — alternativa ao arrastar pra quem não tem mouse
+    // (celular/tablet: o drag-and-drop nativo HTML5 é ruim ou nem funciona
+    // em touch). Abre um modal listando os outros analistas, mesma
+    // informação de carga que aparece nos badges durante o drag (ver
+    // calcularCargaParaMover, events.js). Fica em toda operação arrastável,
+    // não só em touch — não atrapalha quem usa mouse e evita detectar
+    // dispositivo (frágil).
+    const moverBtnHtml = arrastavel && !it._pendente ? `<button class="prog-mover-btn" data-mover-categoria="${catOriginal}" data-mover-bmid="${it.id}" data-mover-titularid="${titularIdDrag}" data-mover-origemid="${analistaId}" data-mover-operacao="${escapeHtml(it.operacao)}" data-mover-ciclo="${escapeHtml(it.ciclo)}" data-mover-horainicio="${it.horaInicio}" data-mover-horafim="${it.horaFim}" data-mover-data="${dateStr}" title="Mover pra outro analista">${icon('move',11)}</button>` : '';
 
     return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${dim?' prog-dim':''}${arrastavel?' prog-arrastavel':''}${it._pendente?' prog-card-pendente':''}" title="${escapeHtml(detalhe+resumoRaiox)}"${dragAttrs}>
+      ${moverBtnHtml}
       <span class="flash-sigla">${iconStatus?icon(iconStatus,11)+' ':''}${escapeHtml(it.operacao)}</span>
       <span class="prog-ciclo">${escapeHtml(it.ciclo)}</span>
       ${horarioLabel ? `<span class="prog-horario mono">${horarioLabel}</span>` : ''}

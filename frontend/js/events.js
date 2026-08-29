@@ -277,15 +277,14 @@ function bindMainEvents(){
   // dataTransfer.getData() de verdade no dragover, só no drop, e a gente
   // precisa saber o payload durante o dragover pra nada (só highlight), mas
   // precisa dele completo e confiável no drop.
-  // Badge de carga durante o arrasto: pra cada analista visível na grade
-  // (menos quem está soltando o card), mostra "X op · Y cobertura" naquele
-  // dia/mês — mesmas duas métricas que candidatosParaSlot usa pra priorizar
-  // (utils.js), só que aqui pra TODO mundo visível, não só pra quem passa
-  // nos filtros. Quem tem a menor carga e nenhum conflito ganha destaque
-  // verde. É manipulação direta do DOM (não passa por renderMain) porque
-  // um re-render no meio do gesto de arrastar cancela o drag em alguns
-  // navegadores.
-  function mostrarCargaDurantoDrag(payload){
+  // Carga de cada analista visível na grade (menos quem está soltando o
+  // card) naquele dia/mês — mesmas duas métricas que candidatosParaSlot usa
+  // pra priorizar (utils.js), só que aqui pra TODO mundo visível, não só
+  // pra quem passa nos filtros. Ordenado do melhor (sem conflito, menor
+  // carga) pro pior. Compartilhado entre o badge que aparece durante o
+  // arrasto (mostrarCargaDurantoDrag) e o modal do botão "mover"
+  // (abrirModalMover) — mesmo critério nos dois lugares.
+  function calcularCargaParaMover(payload){
     const zonas = [...main.querySelectorAll('[data-drop-analista]')];
     const ids = [...new Set(zonas.map(z=>z.dataset.dropAnalista))].filter(id=>id!==payload.origemAnalistaId);
     const mesRef = payload.data.slice(0,7);
@@ -294,14 +293,22 @@ function bindMainEvents(){
         .filter(b=>!DB.ausencias.some(x=>x.baseMestraId===b.id && x.data===payload.data)).length;
       const coberturasNoMes = DB.ausencias.filter(x=>x.suplenteId===id && x.data.slice(0,7)===mesRef).length;
       const conflito = conflitoAoMoverPara(id, payload.data, payload.horaInicio, payload.horaFim);
-      return { id, opsHoje, coberturasNoMes, conflito };
+      return { id, name: userById(id)?.name || '—', opsHoje, coberturasNoMes, conflito };
     });
-    const melhor = infos.filter(i=>!i.conflito).sort((a,b)=>a.opsHoje-b.opsHoje || a.coberturasNoMes-b.coberturasNoMes)[0];
+    infos.sort((a,b)=> (a.conflito?1:0)-(b.conflito?1:0) || a.opsHoje-b.opsHoje || a.coberturasNoMes-b.coberturasNoMes);
+    return infos;
+  }
+  // Badge de carga durante o arrasto — manipulação direta do DOM (não passa
+  // por renderMain) porque um re-render no meio do gesto de arrastar
+  // cancela o drag em alguns navegadores.
+  function mostrarCargaDurantoDrag(payload){
+    const infos = calcularCargaParaMover(payload);
+    const melhorId = infos.find(i=>!i.conflito)?.id;
     infos.forEach(info=>{
       const label = main.querySelector(`.prog-row-label[data-drop-analista="${info.id}"]`);
       if(!label) return;
       const badge = document.createElement('span');
-      badge.className = 'prog-carga-badge' + (info.conflito ? ' prog-carga-conflito' : (melhor && info.id===melhor.id) ? ' prog-carga-melhor' : '');
+      badge.className = 'prog-carga-badge' + (info.conflito ? ' prog-carga-conflito' : info.id===melhorId ? ' prog-carga-melhor' : '');
       badge.dataset.cargaBadge = '1';
       badge.textContent = info.conflito ? `⚠ ${info.conflito}` : `${info.opsHoje} op · ${info.coberturasNoMes} cob/mês`;
       label.appendChild(badge);
@@ -310,6 +317,57 @@ function bindMainEvents(){
   function limparCargaDrag(){
     main.querySelectorAll('[data-carga-badge]').forEach(el=>el.remove());
   }
+
+  // Registra (ou atualiza, se já existia) uma pendência de movimento —
+  // usado tanto pelo drop do arrasto quanto pela escolha no modal do botão
+  // "mover" (abrirModalMover), pra manter as duas vias 100% equivalentes.
+  function registrarMovimento(payload, destinoId){
+    const destino = userById(destinoId);
+    const conflito = conflitoAoMoverPara(destinoId, payload.data, payload.horaInicio, payload.horaFim);
+    const chave = `${payload.bmId}|${payload.categoria}|${payload.data}|${payload.origemAnalistaId}`;
+    const existente = uiState.progMoves.find(m=>m.id===chave);
+    const move = {
+      id: chave, categoria: payload.categoria, bmId: payload.bmId, titularId: payload.titularId,
+      origemAnalistaId: payload.origemAnalistaId, operacao: payload.operacao, ciclo: payload.ciclo,
+      horaInicio: payload.horaInicio, horaFim: payload.horaFim, data: payload.data,
+      destinoAnalistaId: destinoId, destinoNome: destino?.name || '—', conflito,
+    };
+    if(existente) Object.assign(existente, move);
+    else uiState.progMoves.push(move);
+  }
+
+  // Botão "mover" no card — alternativa ao arrastar pra quem usa touch
+  // (celular/tablet), onde o drag-and-drop nativo é ruim ou nem funciona.
+  // Abre um modal com a mesma lista/ordem de carga do badge de arrasto;
+  // escolher uma opção grava a pendência do mesmo jeito que um drop faria.
+  function abrirModalMover(payload){
+    const infos = calcularCargaParaMover(payload);
+    const linhas = infos.map(info=>`
+      <button class="prog-mover-opcao${info.conflito?' prog-mover-opcao-conflito':''}" data-mover-escolher="${info.id}">
+        <span class="prog-mover-nome">${escapeHtml(info.name)}</span>
+        <span class="prog-mover-info">${info.conflito ? `⚠ ${escapeHtml(info.conflito)}` : `${info.opsHoje} op · ${info.coberturasNoMes} cob/mês`}</span>
+      </button>`).join('');
+    openModal(`<h3>Mover ${escapeHtml(payload.operacao)}</h3>
+      <div class="help-text" style="margin-top:-6px;">${payload.horaInicio}–${payload.horaFim} · ${payload.data.slice(8,10)}/${payload.data.slice(5,7)} — escolha quem recebe:</div>
+      <div class="prog-mover-lista">${linhas || '<div class="empty">Nenhum outro analista disponível na grade agora.</div>'}</div>`);
+    document.querySelectorAll('[data-mover-escolher]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        registrarMovimento(payload, btn.dataset.moverEscolher);
+        closeModal();
+        renderMain();
+      });
+    });
+  }
+  main.querySelectorAll('[data-mover-categoria]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      abrirModalMover({
+        categoria: btn.dataset.moverCategoria, bmId: btn.dataset.moverBmid, titularId: btn.dataset.moverTitularid,
+        origemAnalistaId: btn.dataset.moverOrigemid, operacao: btn.dataset.moverOperacao, ciclo: btn.dataset.moverCiclo,
+        horaInicio: btn.dataset.moverHorainicio, horaFim: btn.dataset.moverHorafim, data: btn.dataset.moverData,
+      });
+    });
+  });
 
   let dragPayload = null;
   main.querySelectorAll('[data-drag-categoria]').forEach(card=>{
@@ -352,21 +410,7 @@ function bindMainEvents(){
       if(!dragPayload) return;
       const destinoId = zona.dataset.dropAnalista;
       if(destinoId===dragPayload.origemAnalistaId){ dragPayload=null; return; }
-      const destino = userById(destinoId);
-      const conflito = conflitoAoMoverPara(destinoId, dragPayload.data, dragPayload.horaInicio, dragPayload.horaFim);
-      // Mesma chave (bmId+categoria+data+origem) sempre reflete o mesmo
-      // card real — se ele já tinha sido arrastado antes (ainda não salvo)
-      // e agora vai pra outro lugar, atualiza em vez de empilhar duplicado.
-      const chave = `${dragPayload.bmId}|${dragPayload.categoria}|${dragPayload.data}|${dragPayload.origemAnalistaId}`;
-      const existente = uiState.progMoves.find(m=>m.id===chave);
-      const move = {
-        id: chave, categoria: dragPayload.categoria, bmId: dragPayload.bmId, titularId: dragPayload.titularId,
-        origemAnalistaId: dragPayload.origemAnalistaId, operacao: dragPayload.operacao, ciclo: dragPayload.ciclo,
-        horaInicio: dragPayload.horaInicio, horaFim: dragPayload.horaFim, data: dragPayload.data,
-        destinoAnalistaId: destinoId, destinoNome: destino?.name || '—', conflito,
-      };
-      if(existente) Object.assign(existente, move);
-      else uiState.progMoves.push(move);
+      registrarMovimento(dragPayload, destinoId);
       dragPayload = null;
       renderMain();
     });
