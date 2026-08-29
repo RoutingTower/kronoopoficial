@@ -193,12 +193,25 @@ async function loadDB(){
       apiRequest('GET', '/raio-x?inicio='+addDaysISO(todayISO(), -7)),
       // "campos=leve" tira a "observacao" (texto livre, de longe o campo
       // mais pesado) do SELECT no Postgres — não é só filtrar depois de
-      // buscar, o Supabase nunca chega a mandar essas colunas (ver
-      // supabaseService.listWhere). Isso permite uma janela bem mais longa
-      // (120 dias: cobre o padrão de 30 dias do Resultado SPR/Tempo de
-      // Execução + a comparação com o período anterior, de mesmo tamanho,
-      // com folga) sem custar o egress de 120 dias de texto livre.
-      apiRequest('GET', '/raio-x?campos=leve&inicio='+addDaysISO(todayISO(), -120)),
+      // buscar, o Supabase nunca chega a mandar essa coluna (ver
+      // supabaseService.listWhere). Medido de verdade (harness local): uma
+      // linha completa com observação realista ~673 bytes, a mesma linha
+      // sem observação ~301 bytes (44% do tamanho) — então cada dia "leve"
+      // custa menos da metade de um dia "cheio".
+      //
+      // 30 dias aqui (não mais que isso!): parece pouco perto dos 120 que
+      // eu tinha colocado antes, mas o cálculo mostrou que 120 dias LEVES
+      // ainda são mais bytes no total do que os 30 dias CHEIOS de antes
+      // (120×0.44 = 53 "dias-cheios" equivalentes, mais que o dobro do
+      // total anterior) — a economia de remover o texto não compensa
+      // multiplicar a janela por 4. Com 30 dias, o total (7 dias cheios +
+      // 30 leves) fica uns 30% MENOR que os 30 dias cheios de antes — uma
+      // redução de verdade, não só na aparência. Efeito colateral aceito:
+      // a comparação "período anterior" do Resultado SPR/Tempo de Execução
+      // (que olha pro período ANTES do selecionado) já não tinha dado
+      // disponível além de 30 dias antes desta mudança também — não é uma
+      // regressão nova.
+      apiRequest('GET', '/raio-x?campos=leve&inicio='+addDaysISO(todayISO(), -30)),
       apiRequest('GET', '/roteirizacao-status'),
       apiRequest('GET', '/ausencias'),
       apiRequest('GET', '/recados'),
