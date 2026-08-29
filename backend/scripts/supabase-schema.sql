@@ -396,3 +396,16 @@ create table quiz_respostas (
   respondido_em    bigint not null,
   unique (quiz_pergunta_id, participante_id)
 );
+
+-- Diferente do resto do schema (RLS desligado de propósito, ver comentário
+-- no topo do arquivo): aqui a chave "anon" (pública, embutida no JS do
+-- frontend) tem um motivo real pra ser barrada — sem RLS, dava pra ler
+-- quiz_perguntas.correta_index direto pela API do Supabase, furando a
+-- revelação (ver GET /api/quiz-play/:pin/estado, que só entrega a resposta
+-- certa depois da hora). Sem nenhuma política: bloqueia anon/authenticated
+-- por completo — a service_role (usada pelo backend) ignora RLS de
+-- qualquer forma, então nada muda pro app.
+alter table quiz_sessoes enable row level security;
+alter table quiz_perguntas enable row level security;
+alter table quiz_participantes enable row level security;
+alter table quiz_respostas enable row level security;
