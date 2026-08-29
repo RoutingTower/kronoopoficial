@@ -752,6 +752,10 @@ function bindMainEvents(){
         try{
           const novo = await apiCreateRaioX(entrada);
           DB.raioX.push(novo);
+          // DB.raioXHistorico (Resultado SPR/Tempo de Execução) é uma busca
+          // separada (ver loadDB, state.js) — sem isso, essa finalização só
+          // apareceria lá depois do próximo heartbeat de 10min.
+          DB.raioXHistorico.push(novo);
           closeModal(); renderMain();
         }catch(e){ alert('Não foi possível enviar: '+e.message); confirmBtn.disabled = false; }
       };
@@ -849,6 +853,11 @@ function bindMainEvents(){
         try{
           const atualizado = await apiUpdateRaioX(r.id, patch);
           Object.assign(r, atualizado);
+          // r veio de DB.raioX — DB.raioXHistorico é uma cópia separada (ver
+          // loadDB, state.js), precisa ser atualizada à parte pra Resultado
+          // SPR/Tempo de Execução não continuar mostrando o valor antigo.
+          const rHistorico = DB.raioXHistorico.find(x=>x.id===r.id);
+          if(rHistorico) Object.assign(rHistorico, atualizado);
           closeModal(); renderMain();
         }catch(e){ alert('Não foi possível salvar: '+e.message); confirmBtn.disabled = false; }
       };
@@ -862,6 +871,7 @@ function bindMainEvents(){
       try{
         await apiDeleteRaioX(id);
         DB.raioX = DB.raioX.filter(x=>x.id!==id);
+        DB.raioXHistorico = DB.raioXHistorico.filter(x=>x.id!==id);
         renderMain();
       }catch(e){ alert('Não foi possível excluir: '+e.message); btn.disabled = false; }
     });

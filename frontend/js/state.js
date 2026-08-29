@@ -175,7 +175,7 @@ let _loadDBInFlight = null;
 async function loadDB(){
   if(_loadDBInFlight) return _loadDBInFlight;
   _loadDBInFlight = (async ()=>{
-    const [users, baseMestra, suplencias, sprs, raioX, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas] = await Promise.all([
+    const [users, baseMestra, suplencias, sprs, raioX, raioXHistorico, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas] = await Promise.all([
       apiRequest('GET', '/users'),
       apiRequest('GET', '/base-mestra'),
       apiRequest('GET', '/suplencias'),
@@ -184,12 +184,21 @@ async function loadDB(){
       // do backend (ver raioX.controller.js) — é a coleção que mais cresce
       // (1 registro por finalização de operação, de toda a equipe, pra
       // sempre) e é buscada de novo a cada heartbeat de 10min (ver main.js),
-      // então é onde a janela mais pesa no egress do Supabase. Telas que
-      // precisarem de um histórico mais antigo que isso (ex.: Resultado SPR/
-      // Tempo de Execução com um período customizado bem no passado) hoje já
-      // ficam limitadas ao que loadDB carregou — isso não é novo, só ficou
-      // mais apertado (era 30 dias, virou 7).
+      // então é onde a janela mais pesa no egress do Supabase. Telas que só
+      // precisam do raio-x "de verdade" (com a observação, pra mostrar texto
+      // — Ocorrências, timeline do analista, kanban do dia) usam DB.raioX;
+      // quem só precisa dos números (Resultado SPR/Tempo de Execução) usa
+      // DB.raioXHistorico logo abaixo, que cobre uma janela bem mais longa
+      // por ser bem mais leve (sem o campo de texto).
       apiRequest('GET', '/raio-x?inicio='+addDaysISO(todayISO(), -7)),
+      // "campos=leve" tira a "observacao" (texto livre, de longe o campo
+      // mais pesado) do SELECT no Postgres — não é só filtrar depois de
+      // buscar, o Supabase nunca chega a mandar essas colunas (ver
+      // supabaseService.listWhere). Isso permite uma janela bem mais longa
+      // (120 dias: cobre o padrão de 30 dias do Resultado SPR/Tempo de
+      // Execução + a comparação com o período anterior, de mesmo tamanho,
+      // com folga) sem custar o egress de 120 dias de texto livre.
+      apiRequest('GET', '/raio-x?campos=leve&inicio='+addDaysISO(todayISO(), -120)),
       apiRequest('GET', '/roteirizacao-status'),
       apiRequest('GET', '/ausencias'),
       apiRequest('GET', '/recados'),
@@ -203,7 +212,7 @@ async function loadDB(){
       apiRequest('GET', '/formularios'),
       apiRequest('GET', '/formulario-respostas'),
     ]);
-    DB = { users, baseMestra, suplencias, sprs, raioX, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas };
+    DB = { users, baseMestra, suplencias, sprs, raioX, raioXHistorico, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas };
     ultimoLoadDBEm = Date.now();
   })();
   try{ await _loadDBInFlight; }

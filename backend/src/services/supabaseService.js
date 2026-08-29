@@ -93,10 +93,18 @@ async function listAll(collection) {
 
 // Mesma assinatura de firestoreService.listWhere — [campo, operador, valor]
 // em camelCase, convertido pra snake_case aqui como o resto do arquivo.
+//
+// "colunas" (opcional, camelCase) restringe o SELECT do Postgres — diferente
+// de filtrar depois de já ter buscado tudo, isso reduz o egress de verdade
+// (o Postgres nunca chega a mandar as colunas de fora pro backend). Usado
+// hoje só por raioX.controller.js (?campos=leve), pra pedir SPR/Tempo de
+// Execução (campos numéricos, pequenos) sem a "observacao" (texto livre,
+// de longe o campo mais pesado da tabela que mais cresce do sistema).
 const SUPABASE_OPS = { ">=": "gte", "<=": "lte", "==": "eq" };
-async function listWhere(collection, conditions) {
+async function listWhere(collection, conditions, colunas) {
+  const select = colunas ? colunas.map((c) => toSnake(c)).join(",") : "*";
   const data = await fetchAllPages(() => {
-    let query = getClient().from(tableName(collection)).select("*");
+    let query = getClient().from(tableName(collection)).select(select);
     for (const [field, op, value] of conditions) {
       const method = SUPABASE_OPS[op];
       if (!method) throw new Error(`operador não suportado em listWhere: ${op}`);

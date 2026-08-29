@@ -18,10 +18,24 @@ function inicioPadrao() {
   return d.toISOString().slice(0, 10);
 }
 
+// Colunas de "campos=leve" — tudo que Resultado SPR/Tempo de Execução
+// (render-supervisor.js: sprResultadoBody/tempoExecucaoBody) precisam pra
+// calcular médias/tendência, sem a "observacao": texto livre (≥150
+// caracteres por registro) que não entra em nenhuma conta ali, só é
+// mostrada em telas que olham raio-x recente de verdade (Ocorrências,
+// timeline do analista) — essas continuam pedindo sem "campos=leve", com a
+// janela padrão (curta) de qualquer forma. Ver docs do ajuste de egress.
+const CAMPOS_LEVE = [
+  "id", "analistaId", "operacao", "ciclo", "hora", "data", "estrelas",
+  "sprRoteirizado", "sprMeta", "semRoteirizacao", "orfaos",
+  "duracaoSegundos", "duracaoOrigem", "ts",
+];
+
 async function listRaioX(req, res) {
-  const { analistaId, inicio, fim } = req.query;
+  const { analistaId, inicio, fim, campos } = req.query;
   const inicioEfetivo = inicio || inicioPadrao();
-  let rows = await supabaseService.listWhere(COLLECTION, [["data", ">=", inicioEfetivo]]);
+  const colunas = campos === "leve" ? CAMPOS_LEVE : undefined;
+  let rows = await supabaseService.listWhere(COLLECTION, [["data", ">=", inicioEfetivo]], colunas);
   if (analistaId) rows = rows.filter((r) => r.analistaId === analistaId);
   if (fim) rows = rows.filter((r) => (r.data || "") <= fim);
   res.json(rows);

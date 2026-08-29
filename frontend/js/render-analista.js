@@ -594,8 +594,10 @@ function renderAnalista(){
   // janela padrão do Resultado SPR/Tempo de Execução) — os dois indicadores
   // da área, pra não precisar sair da própria Programação pra ver "como eu
   // tô indo". O resto da tela (operações do dia, coberturas) continua igual.
+  // DB.raioXHistorico (não DB.raioX) — só números (SPR/tempo), nunca
+  // observação, então usa a janela mais longa (ver loadDB, state.js).
   const janela30 = addDaysISO(todayISO(), -30);
-  const raioxRecente = DB.raioX.filter(r=>r.analistaId===session.userId && (r.data||'')>=janela30);
+  const raioxRecente = DB.raioXHistorico.filter(r=>r.analistaId===session.userId && (r.data||'')>=janela30);
   const comMetaRecente = raioxRecente.filter(r=>r.sprMeta!=null);
   const sprLancadoMedio = comMetaRecente.length ? comMetaRecente.reduce((s,r)=>s+r.sprRoteirizado,0)/comMetaRecente.length : null;
   const sprRefMedio = comMetaRecente.length ? comMetaRecente.reduce((s,r)=>s+r.sprMeta,0)/comMetaRecente.length : null;

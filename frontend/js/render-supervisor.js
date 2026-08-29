@@ -1055,11 +1055,14 @@ function sprResultadoBody(selecionados, picker){
     const supId = userById(r.analistaId)?.supervisorId;
     return supId ? regionalDaOperacao(supId, r.operacao, r.ciclo) : '';
   };
-  const doPeriodoAmplo = DB.raioX.filter(noPeriodo)
+  // DB.raioXHistorico (não DB.raioX) — janela bem mais longa que a de 7 dias
+  // do raio-x "cheio" (sem a observação, ver loadDB em state.js), porque
+  // essa tela usa só os números (sprRoteirizado/sprMeta), nunca o texto.
+  const doPeriodoAmplo = DB.raioXHistorico.filter(noPeriodo)
     .filter(r=> flt.operacao==='all' || r.operacao===flt.operacao)
     .filter(r=> flt.regional==='all' || regionalDoRaioX(r)===flt.regional);
-  const operacoesDisponiveis = [...new Set(DB.raioX.filter(noPeriodo).map(r=>r.operacao))].sort();
-  const regionaisDisponiveis = [...new Set(DB.raioX.filter(noPeriodo).map(regionalDoRaioX).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const operacoesDisponiveis = [...new Set(DB.raioXHistorico.filter(noPeriodo).map(r=>r.operacao))].sort();
+  const regionaisDisponiveis = [...new Set(DB.raioXHistorico.filter(noPeriodo).map(regionalDoRaioX).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
 
   const semanasDisponiveis = [...new Set(doPeriodoAmplo.map(r=>weekStartISO(r.data)))].sort();
 
@@ -1134,7 +1137,7 @@ function sprResultadoBody(selecionados, picker){
   const diasNoPeriodo = Math.round((new Date(efetivoFim+'T00:00:00') - new Date(efetivoInicio+'T00:00:00'))/86400000) + 1;
   const inicioAnterior = addDaysISO(efetivoInicio, -diasNoPeriodo);
   const fimAnterior = addDaysISO(efetivoInicio, -1);
-  const comMetaAnterior = DB.raioX.filter(r=> (r.data||'')>=inicioAnterior && (r.data||'')<=fimAnterior && ids.has(r.analistaId) && (flt.operacao==='all' || r.operacao===flt.operacao) && (flt.regional==='all' || regionalDoRaioX(r)===flt.regional) && r.sprMeta!=null);
+  const comMetaAnterior = DB.raioXHistorico.filter(r=> (r.data||'')>=inicioAnterior && (r.data||'')<=fimAnterior && ids.has(r.analistaId) && (flt.operacao==='all' || r.operacao===flt.operacao) && (flt.regional==='all' || regionalDoRaioX(r)===flt.regional) && r.sprMeta!=null);
   const roteirizadoMedioAnterior = comMetaAnterior.length ? comMetaAnterior.reduce((s,r)=>s+r.sprRoteirizado,0)/comMetaAnterior.length : null;
   const tendenciaPct = roteirizadoMedioAnterior ? ((roteirizadoMedioGeral-roteirizadoMedioAnterior)/roteirizadoMedioAnterior)*100 : null;
 
@@ -1347,8 +1350,10 @@ function tempoExecucaoBody(selecionados, picker){
   const ids = new Set(selecionados.map(a=>a.id));
   const noPeriodo = r => (r.data||'')>=inicio && (r.data||'')<=fim && ids.has(r.analistaId);
 
-  const doPeriodoAmplo = DB.raioX.filter(noPeriodo).filter(r=> flt.operacao==='all' || r.operacao===flt.operacao).filter(r=>r.duracaoSegundos!=null);
-  const operacoesDisponiveis = [...new Set(DB.raioX.filter(noPeriodo).map(r=>r.operacao))].sort();
+  // DB.raioXHistorico — mesmo motivo do Resultado SPR acima (só números,
+  // nunca observação, então pode usar a janela bem mais longa).
+  const doPeriodoAmplo = DB.raioXHistorico.filter(noPeriodo).filter(r=> flt.operacao==='all' || r.operacao===flt.operacao).filter(r=>r.duracaoSegundos!=null);
+  const operacoesDisponiveis = [...new Set(DB.raioXHistorico.filter(noPeriodo).map(r=>r.operacao))].sort();
   const semanasDisponiveis = [...new Set(doPeriodoAmplo.map(r=>weekStartISO(r.data)))].sort();
 
   const doPeriodo = flt.semana ? doPeriodoAmplo.filter(r=>weekStartISO(r.data)===flt.semana) : doPeriodoAmplo;
@@ -1392,7 +1397,7 @@ function tempoExecucaoBody(selecionados, picker){
   const diasNoPeriodo = Math.round((new Date(efetivoFim+'T00:00:00') - new Date(efetivoInicio+'T00:00:00'))/86400000) + 1;
   const inicioAnterior = addDaysISO(efetivoInicio, -diasNoPeriodo);
   const fimAnterior = addDaysISO(efetivoInicio, -1);
-  const anteriores = DB.raioX.filter(r=> (r.data||'')>=inicioAnterior && (r.data||'')<=fimAnterior && ids.has(r.analistaId) && (flt.operacao==='all' || r.operacao===flt.operacao) && r.duracaoSegundos!=null);
+  const anteriores = DB.raioXHistorico.filter(r=> (r.data||'')>=inicioAnterior && (r.data||'')<=fimAnterior && ids.has(r.analistaId) && (flt.operacao==='all' || r.operacao===flt.operacao) && r.duracaoSegundos!=null);
   const tempoMedioAnterior = anteriores.length ? anteriores.reduce((s,r)=>s+r.duracaoSegundos,0)/anteriores.length : null;
   const tendenciaPct = tempoMedioAnterior ? ((tempoMedioGeral-tempoMedioAnterior)/tempoMedioAnterior)*100 : null;
 
