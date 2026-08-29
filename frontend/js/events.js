@@ -277,16 +277,26 @@ function bindMainEvents(){
   // dataTransfer.getData() de verdade no dragover, só no drop, e a gente
   // precisa saber o payload durante o dragover pra nada (só highlight), mas
   // precisa dele completo e confiável no drop.
-  // Carga de cada analista visível na grade (menos quem está soltando o
-  // card) naquele dia/mês — mesmas duas métricas que candidatosParaSlot usa
-  // pra priorizar (utils.js), só que aqui pra TODO mundo visível, não só
-  // pra quem passa nos filtros. Ordenado do melhor (sem conflito, menor
-  // carga) pro pior. Compartilhado entre o badge que aparece durante o
-  // arrasto (mostrarCargaDurantoDrag) e o modal do botão "mover"
-  // (abrirModalMover) — mesmo critério nos dois lugares.
-  function calcularCargaParaMover(payload){
-    const zonas = [...main.querySelectorAll('[data-drop-analista]')];
-    const ids = [...new Set(zonas.map(z=>z.dataset.dropAnalista))].filter(id=>id!==payload.origemAnalistaId);
+  // Carga de cada analista candidato naquele dia/mês — mesmas duas métricas
+  // que candidatosParaSlot usa pra priorizar (utils.js), só que aqui pra
+  // TODO mundo do time, não só pra quem passa nos filtros. Ordenado do
+  // melhor (sem conflito, menor carga) pro pior. Compartilhado entre o
+  // badge que aparece durante o arrasto (mostrarCargaDurantoDrag) e o modal
+  // do botão "mover" (abrirModalMover) — mesmo critério nos dois lugares.
+  // apenasVisiveis=true (usado só pelo badge de arrasto) restringe a quem
+  // já tem uma linha na grade — só ela tem onde colar o badge. O modal usa
+  // o padrão (time inteiro): dá pra escalar alguém que não apareceu na
+  // grade hoje por não ter nenhuma operação (analista "livre" no dia).
+  function calcularCargaParaMover(payload, {apenasVisiveis=false}={}){
+    let ids;
+    if(apenasVisiveis){
+      const zonas = [...main.querySelectorAll('[data-drop-analista]')];
+      ids = [...new Set(zonas.map(z=>z.dataset.dropAnalista))];
+    } else {
+      const origem = userById(payload.origemAnalistaId);
+      ids = DB.users.filter(u=>u.role==='analista' && u.active && u.supervisorId===origem?.supervisorId).map(u=>u.id);
+    }
+    ids = ids.filter(id=>id!==payload.origemAnalistaId);
     const mesRef = payload.data.slice(0,7);
     const infos = ids.map(id=>{
       const opsHoje = DB.baseMestra.filter(b=>b.analistaId===id && bmRodaNoDia(b, payload.data))
@@ -302,7 +312,7 @@ function bindMainEvents(){
   // por renderMain) porque um re-render no meio do gesto de arrastar
   // cancela o drag em alguns navegadores.
   function mostrarCargaDurantoDrag(payload){
-    const infos = calcularCargaParaMover(payload);
+    const infos = calcularCargaParaMover(payload, {apenasVisiveis:true});
     const melhorId = infos.find(i=>!i.conflito)?.id;
     infos.forEach(info=>{
       const label = main.querySelector(`.prog-row-label[data-drop-analista="${info.id}"]`);
