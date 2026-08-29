@@ -655,10 +655,11 @@ function supParticularidadesAuditoria(myAnalistas){
     titularesPorOperacao.get(b.operacao).add(b.analistaId);
   });
   const nomesTitulares = op => [...(titularesPorOperacao.get(op)||[])].map(id=>userById(id)?.name).filter(Boolean).join(', ');
+  const operacoesTime = [...titularesPorOperacao.keys()].sort();
 
   const rows = DB.particularidades
     .filter(p=>p.supervisorId===session.userId)
-    .filter(p=>!f.operacao || p.operacao.toLowerCase().includes(f.operacao.toLowerCase()))
+    .filter(p=>!f.operacao || p.operacao===f.operacao)
     .filter(p=> f.analista==='all' || (titularesPorOperacao.get(p.operacao)||new Set()).has(f.analista))
     .sort((a,b)=>b.atualizadoEm-a.atualizadoEm);
 
@@ -670,7 +671,10 @@ function supParticularidadesAuditoria(myAnalistas){
   const temFiltro = f.operacao || f.analista!=='all';
   return `
   <div class="filter-row">
-    <input placeholder="Filtrar por operação..." data-particularidadesfiltro="operacao" value="${escapeHtml(f.operacao)}">
+    <select data-particularidadesfiltro="operacao">
+      <option value="">Operação: todas</option>
+      ${operacoesTime.map(op=>`<option value="${escapeHtml(op)}" ${f.operacao===op?'selected':''}>${escapeHtml(op)}</option>`).join('')}
+    </select>
     <select data-particularidadesfiltro="analista">
       <option value="all">Analista: todos</option>
       ${myAnalistas.map(a=>`<option value="${a.id}" ${f.analista===a.id?'selected':''}>${escapeHtml(a.name)}</option>`).join('')}
