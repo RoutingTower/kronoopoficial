@@ -1883,15 +1883,21 @@ function exportarOcorrencias(){
 function supOcorrencias(myAnalistas){
   const ids = myAnalistas.map(a=>a.id);
   const f = uiState.ocorrenciasFiltro;
-  const inicio = f.inicio || addDaysISO(todayISO(), -30);
-  const fim = f.fim || todayISO();
+  const inicio = f.inicio || hojeAgendaISO();
+  const fim = f.fim || hojeAgendaISO();
   const operacoesTime = [...new Set(DB.baseMestra.filter(b=>ids.includes(b.analistaId)).map(b=>b.operacao))].sort();
 
+  // Ordena por dia (mais recente primeiro) e, dentro do dia, por horário da
+  // OPERAÇÃO crescente (não por quando o Raio-X foi enviado) — é assim que
+  // o supervisor acompanha o turno, na ordem em que as operações realmente
+  // rodam. Isso também garante que cada dia fique num bloco contínuo pro
+  // agrupamento abaixo (ordenar só por ts podia intercalar datas diferentes
+  // se um Raio-X de um dia mais antigo fosse enviado depois de um mais novo).
   let rows = DB.raioX.filter(r=> ids.includes(r.analistaId)
     && (r.data||'')>=inicio && (r.data||'')<=fim
     && (f.analista==='all' || r.analistaId===f.analista)
     && (!f.operacao || f.operacao==='all' || r.operacao===f.operacao)
-  ).sort((a,b)=>b.ts-a.ts);
+  ).sort((a,b)=> b.data.localeCompare(a.data) || hourSortValue(a.hora)-hourSortValue(b.hora));
 
   // Filtro de "avaliação média" continua sendo por operação (não por
   // finalização individual): só entram na lista as operações cuja média no

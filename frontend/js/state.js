@@ -69,7 +69,11 @@ let uiState = {
   tempoAnalistaDropdownOpen: false,
   tempoSupervisorDropdownOpen: false,
   envioFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO() },
-  ocorrenciasFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), analista: 'all', operacao: 'all', avaliacaoMax: '' },
+  // Sempre abre no dia da data operacional (hojeAgendaISO — mesmo conceito
+  // de "hoje" usado na Programação, vira o dia anterior antes das 6h) em
+  // vez de uma janela de 30 dias: Ocorrências é pra acompanhar o turno do
+  // dia, não um histórico longo por padrão.
+  ocorrenciasFiltro:{ inicio: hojeAgendaISO(), fim: hojeAgendaISO(), analista: 'all', operacao: 'all', avaliacaoMax: '' },
   suplenciasFiltro:{ operacao:'', horario:'', suplente:'all', cobrindo:'all', inicio:'', fim:'' },
   baseMestraFiltro:{ operacao:'', horario:'', titular:'all', vigenciaInicio:'', vigenciaFim:'' },
   progAnalista:'all', progDate: hojeAgendaISO(), progView:'diaria', progStatusFiltro: null,

@@ -295,8 +295,9 @@ function fmtDataCurta(iso){
 // agosto". Deliberadamente mais longo/legível que fmtDataCurta (que é
 // pensado pra caber num chip pequeno, não pra ser o título de uma seção).
 function tituloDiaLongo(iso){
-  if(iso===todayISO()) return 'Hoje';
-  if(iso===addDaysISO(todayISO(),-1)) return 'Ontem';
+  const hoje = hojeAgendaISO();
+  if(iso===hoje) return 'Hoje';
+  if(iso===addDaysISO(hoje,-1)) return 'Ontem';
   const d = new Date(iso+'T00:00:00');
   const texto = d.toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'long'});
   return texto.charAt(0).toUpperCase()+texto.slice(1);
