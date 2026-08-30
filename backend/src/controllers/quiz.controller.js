@@ -45,27 +45,29 @@ async function listQuizzes(req, res) {
   res.json(rows);
 }
 
+// Usado por createQuiz e updateQuiz — mesma validação nos dois, retorna a
+// mensagem de erro (string) ou null se estiver tudo certo.
+function validarTituloEPerguntas(titulo, perguntas) {
+  if (!titulo || !titulo.trim()) return "Título é obrigatório.";
+  if (!Array.isArray(perguntas) || perguntas.length === 0) return "Adicione ao menos uma pergunta.";
+  for (const p of perguntas) {
+    if (!p.enunciado || !p.enunciado.trim()) return "Toda pergunta precisa de um enunciado.";
+    if (!Array.isArray(p.opcoes) || p.opcoes.length !== 4 || p.opcoes.some((o) => !o || !o.trim())) {
+      return "Toda pergunta precisa de 4 opções preenchidas.";
+    }
+    if (!Number.isInteger(p.corretaIndex) || p.corretaIndex < 0 || p.corretaIndex > 3) {
+      return "Marque qual opção é a correta.";
+    }
+  }
+  return null;
+}
+
 async function createQuiz(req, res) {
   const caller = await getCaller(req);
   if (!caller) return res.status(403).json({ error: "forbidden" });
   const { titulo, perguntas } = req.body;
-  if (!titulo || !titulo.trim()) {
-    return res.status(400).json({ error: "bad_request", message: "Título é obrigatório." });
-  }
-  if (!Array.isArray(perguntas) || perguntas.length === 0) {
-    return res.status(400).json({ error: "bad_request", message: "Adicione ao menos uma pergunta." });
-  }
-  for (const p of perguntas) {
-    if (!p.enunciado || !p.enunciado.trim()) {
-      return res.status(400).json({ error: "bad_request", message: "Toda pergunta precisa de um enunciado." });
-    }
-    if (!Array.isArray(p.opcoes) || p.opcoes.length !== 4 || p.opcoes.some((o) => !o || !o.trim())) {
-      return res.status(400).json({ error: "bad_request", message: "Toda pergunta precisa de 4 opções preenchidas." });
-    }
-    if (!Number.isInteger(p.corretaIndex) || p.corretaIndex < 0 || p.corretaIndex > 3) {
-      return res.status(400).json({ error: "bad_request", message: "Marque qual opção é a correta." });
-    }
-  }
+  const erro = validarTituloEPerguntas(titulo, perguntas);
+  if (erro) return res.status(400).json({ error: "bad_request", message: erro });
 
   const pin = await pinUnico();
   const sessao = await supabaseService.create(SESSOES, {
@@ -129,6 +131,49 @@ async function getQuiz(req, res) {
   res.json(await montarDetalhe(sessao));
 }
 
+// Edita título/perguntas de um quiz que ainda NÃO começou — só faz sentido
+// em 'lobby' (nenhum participante respondeu nada ainda, perguntaAtualIndex
+// ainda é -1, então trocar as perguntas não bagunça nenhum estado em
+// andamento). Reaproveita a MESMA tela de criação no frontend (ver
+// btnQuizEditar/quizDraft.editingId, events.js) — diferente de "Reaproveitar
+// perguntas" (que sempre cria um quiz NOVO a partir de um encerrado), aqui
+// o PIN e o id continuam os mesmos.
+async function updateQuiz(req, res) {
+  const caller = await getCaller(req);
+  const sessao = await supabaseService.getById(SESSOES, req.params.id);
+  if (!sessao) return res.status(404).json({ error: "not_found" });
+  if (!assertDonoQuiz(caller, sessao)) {
+    return res.status(403).json({ error: "forbidden", message: "Você só pode editar quizzes que criou." });
+  }
+  if (sessao.status !== "lobby") {
+    return res.status(409).json({ error: "conflict", message: "Só dá pra editar um quiz antes de iniciar." });
+  }
+  const { titulo, perguntas } = req.body;
+  const erro = validarTituloEPerguntas(titulo, perguntas);
+  if (erro) return res.status(400).json({ error: "bad_request", message: erro });
+
+  await supabaseService.update(SESSOES, sessao.id, { titulo: titulo.trim() });
+
+  const existentes = await supabaseService.listWhere(PERGUNTAS, [["quizSessaoId", "==", sessao.id]]);
+  for (const p of existentes) {
+    await supabaseService.remove(PERGUNTAS, p.id);
+  }
+  for (let i = 0; i < perguntas.length; i++) {
+    const p = perguntas[i];
+    await supabaseService.create(PERGUNTAS, {
+      quizSessaoId: sessao.id,
+      ordem: i,
+      enunciado: p.enunciado.trim(),
+      opcoes: p.opcoes.map((o) => o.trim()),
+      corretaIndex: p.corretaIndex,
+      tempoSegundos: Number(p.tempoSegundos) > 0 ? Number(p.tempoSegundos) : 20,
+    });
+  }
+
+  const atualizado = await supabaseService.getById(SESSOES, sessao.id);
+  res.json(await montarDetalhe(atualizado));
+}
+
 // Única ação de controle do host — um botão "Avançar" empurra a máquina de
 // estado adiante (ver docs do plano): lobby -> pergunta -> revelacao ->
 // ranking -> [próxima pergunta ou encerrado]. Mantém tudo num só endpoint
@@ -174,4 +219,4 @@ async function deleteQuiz(req, res) {
   res.status(204).send();
 }
 
-module.exports = { listQuizzes, createQuiz, getQuiz, avancarQuiz, deleteQuiz };
+module.exports = { listQuizzes, createQuiz, getQuiz, updateQuiz, avancarQuiz, deleteQuiz };

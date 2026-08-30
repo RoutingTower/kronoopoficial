@@ -3088,13 +3088,25 @@ function bindMainEvents(){
     const erroEl = document.getElementById('quizNovoErro');
     if(erroEl) erroEl.style.display = 'none';
     btnQuizSalvarNovo.disabled = true;
+    const editingId = uiState.quizDraft.editingId;
     try{
-      const criado = await apiCreateQuiz(uiState.quizDraft);
-      uiState.quizDraft = null;
-      _quizLista = null;
-      uiState.quizView = 'apresentar';
-      uiState.quizApresentandoId = criado.id;
-      uiState.quizApresentarDados = null;
+      if(editingId){
+        // Editar (só quiz em 'lobby', ver btn-quiz-editar abaixo) — mesmo
+        // id/PIN, volta pra lista em vez de ir pra apresentação: a pessoa
+        // pode ter mais de um ajuste pra fazer antes de apresentar de
+        // verdade.
+        await apiUpdateQuizConteudo(editingId, uiState.quizDraft);
+        uiState.quizDraft = null;
+        _quizLista = null;
+        uiState.quizView = 'lista';
+      } else {
+        const criado = await apiCreateQuiz(uiState.quizDraft);
+        uiState.quizDraft = null;
+        _quizLista = null;
+        uiState.quizView = 'apresentar';
+        uiState.quizApresentandoId = criado.id;
+        uiState.quizApresentarDados = null;
+      }
       renderMain();
     }catch(e){
       btnQuizSalvarNovo.disabled = false;
@@ -3107,6 +3119,25 @@ function bindMainEvents(){
       uiState.quizApresentandoId = btn.dataset.id;
       uiState.quizApresentarDados = null;
       renderMain();
+    });
+  });
+  main.querySelectorAll('.btn-quiz-editar').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      btn.disabled = true;
+      try{
+        // Só quiz em 'lobby' (o botão nem aparece pros outros status, ver
+        // quizCardHtml) — edita no MESMO id/PIN (editingId), diferente de
+        // "Reaproveitar perguntas" (sempre cria um quiz novo).
+        const dados = await apiGetQuiz(btn.dataset.id);
+        uiState.quizDraft = {
+          editingId: dados.id,
+          titulo: dados.titulo,
+          perguntas: dados.perguntas.map(p=>({ enunciado:p.enunciado, opcoes:[...p.opcoes], corretaIndex:p.corretaIndex, tempoSegundos:p.tempoSegundos })),
+        };
+        uiState.quizView = 'criar';
+        renderMain();
+      }catch(e){ alert('Não foi possível carregar as perguntas: '+e.message); }
+      finally{ btn.disabled = false; }
     });
   });
   main.querySelectorAll('.btn-quiz-reaproveitar').forEach(btn=>{

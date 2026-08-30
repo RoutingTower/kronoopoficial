@@ -392,6 +392,9 @@ const apiEsqueciSenha = (email) => apiRequest('POST', '/esqueci-senha', { email 
 const apiListQuizzes = () => apiRequest('GET', '/quiz');
 const apiCreateQuiz = (data) => apiRequest('POST', '/quiz', data);
 const apiGetQuiz = (id) => apiRequest('GET', `/quiz/${id}`);
+// Só funciona com o quiz ainda em 'lobby' (ver updateQuiz, backend) —
+// diferente de apiCreateQuiz, edita no mesmo id/PIN em vez de criar um novo.
+const apiUpdateQuizConteudo = (id, data) => apiRequest('PATCH', `/quiz/${id}`, data);
 const apiAvancarQuiz = (id) => apiRequest('PATCH', `/quiz/${id}/avancar`, {});
 const apiDeleteQuiz = (id) => apiRequest('DELETE', `/quiz/${id}`);
 

@@ -65,6 +65,7 @@ function quizCardHtml(q){
     </div>
     <div class="card-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
       ${podeApresentar ? `<button class="btn btn-sm btn-brand btn-quiz-apresentar" data-id="${q.id}">▶ Apresentar</button>` : ''}
+      ${q.status==='lobby' ? `<button class="btn btn-sm btn-quiz-editar" data-id="${q.id}">✏️ Editar</button>` : ''}
       ${q.status==='encerrado' ? `<button class="btn btn-sm btn-quiz-reaproveitar" data-id="${q.id}">🔁 Reaproveitar perguntas</button>` : ''}
       ${q.totalParticipantes>0 ? `<button class="btn btn-sm btn-quiz-ranking" data-id="${q.id}">🏆 Ver ranking</button>` : ''}
       <button class="btn btn-sm btn-danger btn-quiz-excluir" data-id="${q.id}">🗑 Excluir</button>
@@ -108,9 +109,10 @@ function quizScrapeDraftFromDom(){
 function quizCriarHtml(){
   quizGarantirDraft();
   const d = uiState.quizDraft;
+  const editando = !!d.editingId;
   const perguntasHtml = d.perguntas.map((p,idx)=>quizPerguntaFormHtml(p,idx,d.perguntas.length>1)).join('');
   return `
-  <div class="section-title">Novo quiz
+  <div class="section-title">${editando ? 'Editar quiz' : 'Novo quiz'}
     <span class="spacer" style="flex:1;"></span>
     <button class="btn btn-sm" id="btnQuizCancelarNovo">✕ Cancelar</button>
   </div>
@@ -121,7 +123,7 @@ function quizCriarHtml(){
   <div style="display:flex;gap:8px;margin:14px 0;">
     <button class="btn btn-sm" id="btnQuizAddPergunta">+ Adicionar pergunta</button>
   </div>
-  <button class="btn btn-brand" id="btnQuizSalvarNovo">Criar quiz</button>
+  <button class="btn btn-brand" id="btnQuizSalvarNovo">${editando ? 'Salvar alterações' : 'Criar quiz'}</button>
   <div id="quizNovoErro" class="login-error" style="display:none;margin-top:10px;"></div>`;
 }
 
