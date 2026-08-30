@@ -72,6 +72,23 @@ function segundosAjustados(segundos) {
   return segundos < 7 * 3600 ? segundos + 24 * 3600 : segundos;
 }
 
+// Casa o nome da operação ignorando acento e maiúscula/minúscula — a
+// planilha de roteirização vem de um sistema externo, e nomes com acento
+// (ex.: "Hub_MA_São Luís_02") são o tipo de texto mais propenso a chegar
+// diferente entre os dois lados (sem acento, capitalização diferente),
+// fazendo a comparação exata falhar silenciosamente mesmo com o Raio-X já
+// finalizado (achado real: São Luís_02 nunca recebia hora/duração real).
+// Usado só como CHAVE de cruzamento — o valor `operacao` gravado no
+// Raio-X nunca muda, continua com a grafia cadastrada no Kronos.
+function normalizarOperacao(valor) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
 // Janela de tolerância pra casar por horário quando o ciclo não bate — 3h
 // cobre a folga normal entre horário agendado e início real sem risco de
 // confundir com outro ciclo do mesmo hub mais tarde no dia (esses costumam

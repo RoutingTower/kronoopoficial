@@ -24,7 +24,15 @@ app.use(
     },
   })
 );
-app.use(express.json({ limit: "2mb" })); // folga para importações em massa (XLSX/CSV) via Cadastros
+// 2mb estourou de verdade em produção (29/08/2026): o Apps Script da
+// planilha de roteirização (enviarParaKronos, roda a cada 5min) manda um
+// corpo maior que isso, e o Express rejeita a requisição inteira ANTES de
+// chegar em importarPlanilha — nenhuma linha é processada, mesmo as óbvias.
+// Sobe pra 20mb com folga. Se a função da planilha estiver mandando o
+// histórico inteiro a cada chamada (em vez de só os dias recentes), isso
+// só adia o problema — o ideal é limitar o que a própria planilha envia a
+// uma janela de poucos dias por chamada.
+app.use(express.json({ limit: "20mb" }));
 app.use("/api", apiRoutes);
 
 app.use((err, _req, res, _next) => {
