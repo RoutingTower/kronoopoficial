@@ -7,6 +7,7 @@ function renderSupervisor(){
   if(activeNavKey==='cadastros') content = supCadastros(myAnalistas);
   else if(activeNavKey==='basemestra') content = renderImportPendentesBanner('basemestra', myAnalistas) + supGerarEscalaMensal(myAnalistas) + supBaseMestra(myAnalistas);
   else if(activeNavKey==='spr') content = supSPR();
+  else if(activeNavKey==='linksseatalk') content = supLinksSeatalk();
   else if(activeNavKey==='resultadospr') content = supResultadoSPR(myAnalistas);
   else if(activeNavKey==='tempoexecucao') content = supTempoExecucao(myAnalistas);
   else if(activeNavKey==='suplencias') content = renderImportPendentesBanner('suplencias', myAnalistas) + supGerarEscalaDomingo(myAnalistas) + supSugerirSuplente(myAnalistas) + supSuplencias(myAnalistas);
@@ -270,13 +271,7 @@ function supBaseMestra(myAnalistas){
 let sprCadastroExportRows = [];
 
 function supSPR(){
-  const view = uiState.cadastroSprView;
-  return `
-  <div class="toggle-group" data-scope="cadastrospr" style="margin-bottom:16px;">
-    <button data-view="spr" class="${view==='spr'?'active':''}">SPR</button>
-    <button data-view="links" class="${view==='links'?'active':''}">Links SeaTalk</button>
-  </div>
-  ${view==='links' ? linksSeatalkBody() : sprCadastroBody()}`;
+  return sprCadastroBody();
 }
 
 function sprCadastroBody(){
@@ -314,12 +309,22 @@ function sprCadastroBody(){
 // vez por hub (o link não muda, ver comentário na tabela operacao_links).
 // Aparece como botão no card do analista (titular ou suplente cobrindo,
 // ver buildHourCardsHtml em render-analista.js).
-function linksSeatalkBody(){
+let linksSeatalkExportRows = [];
+
+function supLinksSeatalk(){
   const rows = [...(DB.operacaoLinks||[])].sort((a,b)=>a.operacao.localeCompare(b.operacao));
+  linksSeatalkExportRows = rows;
   const opsConhecidas = [...new Set([...DB.baseMestra, ...DB.suplencias].map(b=>b.operacao))].sort();
   return `
   <datalist id="linkSeatalkOpList">${opsConhecidas.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>
   <div class="help-text">Cadastre o link do grupo do SeaTalk de cada operação aqui — ele aparece como botão no card do analista (titular ou quem está cobrindo) na Programação. O link geralmente não muda, então isso só precisa ser feito uma vez por hub novo.</div>
+  <div class="csv-row">
+    <span class="csv-label">Carga em massa de links (Excel)</span>
+    <button class="btn" id="btnExportarLinkSeatalk">⬇ Exportar atuais</button>
+    <button class="btn" id="btnBaixarModeloLinkSeatalk">⭳ Baixar modelo Excel</button>
+    <label class="btn" style="margin:0;">⭱ Importar Excel<input type="file" accept=".xlsx,.xls" id="fileImportLinkSeatalk" style="display:none;"></label>
+  </div>
+  <div class="help-text" style="margin-top:-10px;">Reimportar uma operação que já existe atualiza o link (não duplica).</div>
   <div class="action-row-end" style="margin-bottom:14px;">
     <button class="btn btn-brand" id="btnNovoLinkSeatalk">+ Novo link</button>
   </div>

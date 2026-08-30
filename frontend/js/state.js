@@ -61,9 +61,6 @@ let uiState = {
   // Lançado — pensado pro relatório de fim de turno (quem ficou muito
   // abaixo/acima da meta), ver sprResultadoBody em render-supervisor.js.
   sprView: 'painel',
-  // Tela de Cadastros > SPR (supSPR, render-supervisor.js) tem 2 abas
-  // internas: a tabela de SPR de sempre, e "Links SeaTalk" (novo).
-  cadastroSprView: 'spr',
   tempoFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), operacao: 'all', semana: '', analistas: [], supervisores: [] },
   tempoAnalistaDropdownOpen: false,
   tempoSupervisorDropdownOpen: false,

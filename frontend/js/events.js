@@ -616,9 +616,6 @@ function bindMainEvents(){
   main.querySelectorAll('.toggle-group[data-scope="reunioes"] [data-view]').forEach(el=>{
     el.addEventListener('click', ()=>{ uiState.reunioesView = el.dataset.view; renderMain(); });
   });
-  main.querySelectorAll('.toggle-group[data-scope="cadastrospr"] [data-view]').forEach(el=>{
-    el.addEventListener('click', ()=>{ uiState.cadastroSprView = el.dataset.view; renderMain(); });
-  });
   const datePick = document.getElementById('analistaDatePick');
   if(datePick) datePick.addEventListener('change', ()=>{ uiState.analistaDate = datePick.value; renderMain(); });
   const reunioesDatePick = document.getElementById('reunioesDatePick');
@@ -2195,6 +2192,49 @@ function bindMainEvents(){
     fileImportSpr.value='';
     renderMain();
     alert(`Importação concluída: ${ok} entrada(s) salva(s)${fail?`, ${fail} linha(s) ignorada(s) (campos obrigatórios ausentes)`:''}.`);
+  });
+
+  // Carga em massa de Links SeaTalk (Cadastros > Links SeaTalk) — mesmo
+  // padrão do SPR acima: reimportar operação já cadastrada atualiza o
+  // link (não duplica).
+  const btnExportarLinkSeatalk = document.getElementById('btnExportarLinkSeatalk');
+  if(btnExportarLinkSeatalk) btnExportarLinkSeatalk.addEventListener('click', ()=>{
+    const linhas = linksSeatalkExportRows.map(l=>[l.operacao, l.link]);
+    exportarRelatorioExcel(`links_seatalk_${todayISO()}.xlsx`, ['operacao','link'], linhas);
+  });
+  const btnBaixarModeloLinkSeatalk = document.getElementById('btnBaixarModeloLinkSeatalk');
+  if(btnBaixarModeloLinkSeatalk) btnBaixarModeloLinkSeatalk.addEventListener('click', ()=>{
+    downloadXLSX('modelo_links_seatalk.xlsx', ['operacao','link'], ['LM Hub_SP_Atibaia_Ponte_Alta','https://web.seatalk.io/group/12345']);
+  });
+  const fileImportLinkSeatalk = document.getElementById('fileImportLinkSeatalk');
+  if(fileImportLinkSeatalk) fileImportLinkSeatalk.addEventListener('change', async ()=>{
+    const file = fileImportLinkSeatalk.files[0]; if(!file) return;
+    let rows;
+    try { rows = await parseXLSX(file); }
+    catch(e){ fileImportLinkSeatalk.value=''; alert('Não foi possível ler o arquivo Excel: '+e.message); return; }
+    let ok=0, fail=0;
+    openProgressModal('Importando links...');
+    for(const [idx, r] of rows.entries()){
+      const operacao = (r.operacao||'').trim();
+      const link = (r.link||'').trim();
+      if(!operacao || !link){ fail++; updateProgressModal(idx+1, rows.length); continue; }
+      const existente = DB.operacaoLinks.find(l=>l.operacao===operacao);
+      try{
+        if(existente){
+          const atualizado = await apiUpdateOperacaoLink(existente.id, {link});
+          DB.operacaoLinks = DB.operacaoLinks.map(x=>x.id===existente.id ? atualizado : x);
+        } else {
+          const novo = await apiCreateOperacaoLink({operacao, link});
+          DB.operacaoLinks.push(novo);
+        }
+        ok++;
+      }catch(e){ console.error('Falha ao importar link SeaTalk', r, e); fail++; }
+      updateProgressModal(idx+1, rows.length);
+    }
+    closeModal();
+    fileImportLinkSeatalk.value='';
+    renderMain();
+    alert(`Importação concluída: ${ok} link(s) salvo(s)${fail?`, ${fail} linha(s) ignorada(s) (campos obrigatórios ausentes)`:''}.`);
   });
 
   const btnExportarMestra = document.getElementById('btnExportarMestra');
