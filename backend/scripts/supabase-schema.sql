@@ -409,3 +409,14 @@ alter table quiz_sessoes enable row level security;
 alter table quiz_perguntas enable row level security;
 alter table quiz_participantes enable row level security;
 alter table quiz_respostas enable row level security;
+
+-- Link do grupo do SeaTalk por operação — tabela própria, independente de
+-- base_mestra (que ganha linha nova a cada vigência/mês) e de sprs (que é
+-- reimportada em massa com frequência): o link é cadastrado uma vez por
+-- hub e não muda, então não faz sentido acoplar a nenhuma tabela que já
+-- tem esse churn (ver conversa: "o link do Seatalk nunca muda").
+create table operacao_links (
+  id        uuid primary key default gen_random_uuid(),
+  operacao  text not null unique,
+  link      text not null
+);

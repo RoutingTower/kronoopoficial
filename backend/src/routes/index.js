@@ -23,6 +23,7 @@ const planilhaImportRoutes = require("./planilhaImport.routes");
 const roteirizacaoStatusRoutes = require("./roteirizacaoStatus.routes");
 const quizRoutes = require("./quiz.routes");
 const quizPlayRoutes = require("./quizPlay.routes");
+const operacaoLinksRoutes = require("./operacaoLinks.routes");
 
 const router = Router();
 
@@ -66,5 +67,6 @@ router.use("/reuniao-presenca", reuniaoPresencaRoutes);
 router.use("/formularios", formulariosRoutes);
 router.use("/formulario-respostas", formularioRespostasRoutes);
 router.use("/quiz", quizRoutes);
+router.use("/operacao-links", operacaoLinksRoutes);
 
 module.exports = router;

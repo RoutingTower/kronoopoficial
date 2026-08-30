@@ -61,6 +61,9 @@ let uiState = {
   // Lançado — pensado pro relatório de fim de turno (quem ficou muito
   // abaixo/acima da meta), ver sprResultadoBody em render-supervisor.js.
   sprView: 'painel',
+  // Tela de Cadastros > SPR (supSPR, render-supervisor.js) tem 2 abas
+  // internas: a tabela de SPR de sempre, e "Links SeaTalk" (novo).
+  cadastroSprView: 'spr',
   tempoFiltro:{ inicio: addDaysISO(todayISO(), -30), fim: todayISO(), operacao: 'all', semana: '', analistas: [], supervisores: [] },
   tempoAnalistaDropdownOpen: false,
   tempoSupervisorDropdownOpen: false,
@@ -175,7 +178,7 @@ let _loadDBInFlight = null;
 async function loadDB(){
   if(_loadDBInFlight) return _loadDBInFlight;
   _loadDBInFlight = (async ()=>{
-    const [users, baseMestra, suplencias, sprs, raioX, raioXHistorico, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas] = await Promise.all([
+    const [users, baseMestra, suplencias, sprs, raioX, raioXHistorico, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas, operacaoLinks] = await Promise.all([
       apiRequest('GET', '/users'),
       apiRequest('GET', '/base-mestra'),
       apiRequest('GET', '/suplencias'),
@@ -224,8 +227,12 @@ async function loadDB(){
       apiRequest('GET', '/reuniao-presenca'),
       apiRequest('GET', '/formularios'),
       apiRequest('GET', '/formulario-respostas'),
+      // Link do grupo do SeaTalk por operação — tabela pequena e estável
+      // (cadastrada uma vez por hub, não muda), ver botão "SeaTalk" no
+      // card do analista (render-analista.js).
+      apiRequest('GET', '/operacao-links'),
     ]);
-    DB = { users, baseMestra, suplencias, sprs, raioX, raioXHistorico, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas };
+    DB = { users, baseMestra, suplencias, sprs, raioX, raioXHistorico, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas, operacaoLinks };
     ultimoLoadDBEm = Date.now();
   })();
   try{ await _loadDBInFlight; }
@@ -330,6 +337,12 @@ const apiConfirmarCoberturaResposta = (respostaId, confirmado) => apiRequest('PA
 const apiCreateReuniao = (data) => apiRequest('POST', '/reunioes', data);
 const apiUpdateReuniao = (id, patch) => apiRequest('PATCH', `/reunioes/${id}`, patch);
 const apiDeleteReuniao = (id) => apiRequest('DELETE', `/reunioes/${id}`);
+
+// operacaoLinks (link do grupo do SeaTalk por operação, ver Cadastros > SPR
+// > "Links SeaTalk" em render-supervisor.js)
+const apiCreateOperacaoLink = (data) => apiRequest('POST', '/operacao-links', data);
+const apiUpdateOperacaoLink = (id, patch) => apiRequest('PATCH', `/operacao-links/${id}`, patch);
+const apiDeleteOperacaoLink = (id) => apiRequest('DELETE', `/operacao-links/${id}`);
 
 // particularidades — uma nota por Operação+Supervisor (ver "Ver
 // Particularidade" no card, render-analista.js). Upsert: o backend acha o

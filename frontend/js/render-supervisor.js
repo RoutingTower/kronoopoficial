@@ -270,6 +270,16 @@ function supBaseMestra(myAnalistas){
 let sprCadastroExportRows = [];
 
 function supSPR(){
+  const view = uiState.cadastroSprView;
+  return `
+  <div class="toggle-group" data-scope="cadastrospr" style="margin-bottom:16px;">
+    <button data-view="spr" class="${view==='spr'?'active':''}">SPR</button>
+    <button data-view="links" class="${view==='links'?'active':''}">Links SeaTalk</button>
+  </div>
+  ${view==='links' ? linksSeatalkBody() : sprCadastroBody()}`;
+}
+
+function sprCadastroBody(){
   const rows = [...DB.sprs].filter(s=>s.supervisorId===session.userId).sort((a,b)=> a.operacao.localeCompare(b.operacao) || a.ciclo.localeCompare(b.ciclo));
   sprCadastroExportRows = rows;
   // Sugestões pro datalist do modal (Nova entrada/Editar) — operação e
@@ -297,6 +307,26 @@ function supSPR(){
   <table><thead><tr><th>Operação</th><th>Ciclo</th><th>SPR</th><th>Regional</th><th></th></tr></thead><tbody>
   ${rows.map(s=>`<tr><td>${escapeHtml(s.operacao)}</td><td>${escapeHtml(s.ciclo)}</td><td class="mono">${escapeHtml(String(s.spr))}</td><td>${s.regional ? escapeHtml(s.regional) : '<span style="color:var(--text-faint);">—</span>'}</td>
   <td style="text-align:right;white-space:nowrap;"><button class="btn" data-editar-spr="${s.id}">Editar</button> <button class="btn btn-danger" data-excluir-spr="${s.id}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="5" class="empty">Nenhum SPR cadastrado</td></tr>'}
+  </tbody></table></div>`;
+}
+
+// Link do grupo do SeaTalk por operação — tabela própria, cadastrada uma
+// vez por hub (o link não muda, ver comentário na tabela operacao_links).
+// Aparece como botão no card do analista (titular ou suplente cobrindo,
+// ver buildHourCardsHtml em render-analista.js).
+function linksSeatalkBody(){
+  const rows = [...(DB.operacaoLinks||[])].sort((a,b)=>a.operacao.localeCompare(b.operacao));
+  const opsConhecidas = [...new Set([...DB.baseMestra, ...DB.suplencias].map(b=>b.operacao))].sort();
+  return `
+  <datalist id="linkSeatalkOpList">${opsConhecidas.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>
+  <div class="help-text">Cadastre o link do grupo do SeaTalk de cada operação aqui — ele aparece como botão no card do analista (titular ou quem está cobrindo) na Programação. O link geralmente não muda, então isso só precisa ser feito uma vez por hub novo.</div>
+  <div class="action-row-end" style="margin-bottom:14px;">
+    <button class="btn btn-brand" id="btnNovoLinkSeatalk">+ Novo link</button>
+  </div>
+  <div class="card">
+  <table><thead><tr><th>Operação</th><th>Link</th><th></th></tr></thead><tbody>
+  ${rows.map(l=>`<tr><td>${escapeHtml(l.operacao)}</td><td style="max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><a href="${escapeHtml(normalizeUrl(l.link))}" target="_blank" rel="noopener noreferrer">${escapeHtml(l.link)}</a></td>
+  <td style="text-align:right;white-space:nowrap;"><button class="btn" data-editar-link-seatalk="${l.id}">Editar</button> <button class="btn btn-danger" data-excluir-link-seatalk="${l.id}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="3" class="empty">Nenhum link cadastrado</td></tr>'}
   </tbody></table></div>`;
 }
 

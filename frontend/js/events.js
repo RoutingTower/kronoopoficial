@@ -616,6 +616,9 @@ function bindMainEvents(){
   main.querySelectorAll('.toggle-group[data-scope="reunioes"] [data-view]').forEach(el=>{
     el.addEventListener('click', ()=>{ uiState.reunioesView = el.dataset.view; renderMain(); });
   });
+  main.querySelectorAll('.toggle-group[data-scope="cadastrospr"] [data-view]').forEach(el=>{
+    el.addEventListener('click', ()=>{ uiState.cadastroSprView = el.dataset.view; renderMain(); });
+  });
   const datePick = document.getElementById('analistaDatePick');
   if(datePick) datePick.addEventListener('change', ()=>{ uiState.analistaDate = datePick.value; renderMain(); });
   const reunioesDatePick = document.getElementById('reunioesDatePick');
@@ -2088,6 +2091,63 @@ function bindMainEvents(){
       if(!confirm('Excluir esta entrada de SPR?')) return;
       const id = btn.dataset.excluirSpr;
       try{ await apiDeleteSpr(id); DB.sprs = DB.sprs.filter(x=>x.id!==id); renderMain(); }
+      catch(e){ alert('Não foi possível excluir: '+e.message); }
+    });
+  });
+
+  // Links SeaTalk (Cadastros > SPR > aba "Links SeaTalk", render-supervisor.js)
+  const btnNovoLinkSeatalk = document.getElementById('btnNovoLinkSeatalk');
+  if(btnNovoLinkSeatalk) btnNovoLinkSeatalk.addEventListener('click', ()=>{
+    openModal(`<h3>Novo link SeaTalk</h3>
+      <div class="field"><label>Operação</label><input id="fLinkOp" list="linkSeatalkOpList" placeholder="ex: LM Hub_SP_Atibaia_Ponte_Alta"></div>
+      <div class="field"><label>Link do grupo</label><input id="fLinkUrl" placeholder="https://..."></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn" data-modal-cancel>Cancelar</button>
+        <button class="btn btn-brand" id="confirmNovoLinkSeatalk">Salvar</button>
+      </div>`);
+    const cancelBtn = document.querySelector('[data-modal-cancel]');
+    if(cancelBtn) cancelBtn.onclick = closeModal;
+    document.getElementById('confirmNovoLinkSeatalk').onclick = async ()=>{
+      const operacao = document.getElementById('fLinkOp').value.trim();
+      const link = document.getElementById('fLinkUrl').value.trim();
+      if(!operacao || !link){ alert('Preencha operação e link.'); return; }
+      try{
+        const novo = await apiCreateOperacaoLink({operacao, link});
+        DB.operacaoLinks.push(novo);
+        closeModal(); renderMain();
+      }catch(e){ alert('Não foi possível salvar: '+e.message); }
+    };
+  });
+  main.querySelectorAll('[data-editar-link-seatalk]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const l = DB.operacaoLinks.find(x=>x.id===btn.dataset.editarLinkSeatalk);
+      if(!l) return;
+      openModal(`<h3>Editar link SeaTalk</h3>
+        <div class="field"><label>Operação</label><input id="fEditLinkOp" list="linkSeatalkOpList" value="${escapeHtml(l.operacao)}"></div>
+        <div class="field"><label>Link do grupo</label><input id="fEditLinkUrl" value="${escapeHtml(l.link)}"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn" data-modal-cancel>Cancelar</button>
+          <button class="btn btn-brand" id="confirmEditarLinkSeatalk">Salvar</button>
+        </div>`);
+      const cancelBtn = document.querySelector('[data-modal-cancel]');
+      if(cancelBtn) cancelBtn.onclick = closeModal;
+      document.getElementById('confirmEditarLinkSeatalk').onclick = async ()=>{
+        const operacao = document.getElementById('fEditLinkOp').value.trim();
+        const link = document.getElementById('fEditLinkUrl').value.trim();
+        if(!operacao || !link){ alert('Preencha operação e link.'); return; }
+        try{
+          const atualizado = await apiUpdateOperacaoLink(l.id, {operacao, link});
+          DB.operacaoLinks = DB.operacaoLinks.map(x=>x.id===l.id ? atualizado : x);
+          closeModal(); renderMain();
+        }catch(e){ alert('Não foi possível salvar: '+e.message); }
+      };
+    });
+  });
+  main.querySelectorAll('[data-excluir-link-seatalk]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(!confirm('Excluir este link do SeaTalk?')) return;
+      const id = btn.dataset.excluirLinkSeatalk;
+      try{ await apiDeleteOperacaoLink(id); DB.operacaoLinks = DB.operacaoLinks.filter(x=>x.id!==id); renderMain(); }
       catch(e){ alert('Não foi possível excluir: '+e.message); }
     });
   });

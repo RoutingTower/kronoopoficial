@@ -230,6 +230,14 @@ function getSPR(supervisorId, operacao, ciclo){
   return rec ? rec.spr : null;
 }
 
+// Link do grupo do SeaTalk da operação (Cadastros > SPR > "Links SeaTalk",
+// render-supervisor.js) — por nome de operação só, sem ciclo/supervisor
+// (o link não muda entre ciclos do mesmo hub, ver conversa/schema).
+function getOperacaoLink(operacao){
+  const rec = (DB.operacaoLinks||[]).find(l=>l.operacao===operacao);
+  return rec ? rec.link : null;
+}
+
 function statusPill(status, emojiOnly){
   const map = { wait:['pill-wait','clock','A Iniciar'], live:['pill-live','circle-play','Em Andamento'], done:['pill-done','circle-check-big','Finalizada'], off:['pill-off','moon','Ausente'], atraso:['pill-atraso','octagon-alert','Não Finalizado'] };
   const [cls,ic,text] = map[status] || map.wait;

@@ -78,6 +78,13 @@ function buildHourCardsHtml(items, rns, lembretes, ctx){
       const souEuExec = souEu;
       const raioxDaOperacao = !it.isOff && DB.raioX.some(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===it.horaInicio && r.data===dateStr);
       const mostrarExec = souEuExec || (!souEu && session.role==='supervisor' && raioxDaOperacao);
+      // Botão SeaTalk: só quando a pessoa está DE FATO nessa operação
+      // agora (titular rodando a própria, ou suplente cobrindo) — não faz
+      // sentido em quem está de folga (it.isOff), o grupo é de quem tá
+      // trabalhando ali. Link cadastrado por nome de operação (ver
+      // getOperacaoLink, utils.js) — sem cadastro, o botão simplesmente
+      // não aparece.
+      const linkSeatalk = !it.isOff ? getOperacaoLink(it.operacao) : null;
       return `<div class="flash-card flash-card-${categoriaOperacao(it)}${status==='atraso'?' flash-card-atraso':''}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
           <span class="flash-sigla">${it.operacao}</span>${statusPill(status, true)}
@@ -89,6 +96,7 @@ function buildHourCardsHtml(items, rns, lembretes, ctx){
         ${mostrarExec ? renderExecucaoActions(it, dateStr, analistaId, spr, souEu) : ''}
         <div class="flash-actions" style="margin-top:8px;">
           <button class="btn btn-particularidade" data-particularidade-op="${escapeHtml(it.operacao)}" data-particularidade-sup="${supervisorId||''}" data-particularidade-cobertura="${it.isCobertura?'1':'0'}" data-particularidade-analista="${analistaId}" data-particularidade-data="${dateStr}" data-ciente="${ciente?'1':'0'}">${icon('settings',12)} Ver Particularidade${(it.isCobertura && !ciente) ? '<span class="badge-alerta-ciente" title="Ainda sem confirmação de ciência"></span>' : ''}</button>
+          ${linkSeatalk ? `<a class="btn btn-brand" href="${escapeHtml(normalizeUrl(linkSeatalk))}" target="_blank" rel="noopener noreferrer">${icon('message-circle',12)} SeaTalk</a>` : ''}
         </div>
       </div>`;
     }).join('');
