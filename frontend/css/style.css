@@ -441,6 +441,14 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .prog-row-count{font-size:10px;color:var(--text-faint);}
 .prog-cell{box-sizing:border-box;border-left:1px solid var(--border);border-top:1px solid var(--border);padding:4px;min-height:40px;display:flex;flex-direction:column;justify-content:center;gap:3px;}
 .prog-cell.prog-cell-agora{background:rgba(238,77,45,0.05);border-left:1.5px dashed var(--brand);border-right:1.5px dashed var(--brand);}
+/* Fora da jornada cadastrada do analista (--bg-2 já é o "outro" fundo do
+   tema, cinza claro no claro e cinza-azulado no escuro — sempre distinto
+   de --panel nos dois temas, sem precisar de uma cor nova). Dentro da
+   jornada mas sem operação: um toque bem sutil da cor da marca, só pra
+   diferenciar de "não está de plantão" sem competir com as cores das
+   categorias de operação (fixa/cobertura/folga). */
+.prog-cell-fora-jornada{background:var(--bg-2);}
+.prog-cell-dentro-jornada{background:color-mix(in srgb, var(--brand) 6%, var(--panel));}
 .prog-cell .flash-card{padding:4px 7px;border-radius:7px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:1px;line-height:1.2;}
 .prog-cell .flash-sigla{font-size:10.8px;}
 .prog-ciclo{font-size:9.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.03em;}

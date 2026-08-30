@@ -224,6 +224,21 @@ function renderFlashcardRow(analistaId, dateStr, showLembretes, opFiltro){
 // (cada um repetindo a régua). Analista sem nenhuma operação própria/
 // cobertura no dia (só folga) fica de fora da lista — pedido do supervisor
 // pra não ocupar espaço com quem não tem nada pra acompanhar.
+// true = hora dentro da jornada cadastrada do analista, false = fora,
+// null = sem jornada cadastrada (não pinta nada, não arrisca informação
+// que não existe). Mesma convenção de virada de madrugada de janela/
+// janelaSlot (utils.js) — hourSortValue já soma 24h pra hora antes das 7h,
+// então uma jornada tipo 19:00–01:00 vira [19,25) e compara direto.
+function dentroDaJornada(analista, hour){
+  const j = analista.jornada;
+  if(!j || !j.horaInicio || !j.horaFim) return null;
+  const h = hourSortValue(hour);
+  const s = hourSortValue(j.horaInicio);
+  let e = hourSortValue(j.horaFim);
+  if(e<=s) e += 24;
+  return h>=s && h<e;
+}
+
 function renderProgramacaoIntegrada(lista, dateStr){
   const turnoInicio = slotTimestamp(dateStr, HOURS[0]);
   const turnoFim = slotTimestamp(dateStr, HOURS[HOURS.length-1]) + 60*60*1000;
@@ -437,11 +452,14 @@ function renderProgramacaoIntegrada(lista, dateStr){
   const dropAttrs = a => podeEditar ? ` data-drop-analista="${a.id}"` : '';
   const rowsHtml = linhas.map(({analista,slots})=>{
     const qtd = slots.length;
-    const label = `<div class="prog-row-label"${dropAttrs(analista)}><div class="nm">${escapeHtml(analista.name)}</div><div class="prog-row-count">${qtd} operaç${qtd===1?'ão':'ões'}</div></div>`;
+    const jornadaTxt = analista.jornada?.horaInicio && analista.jornada?.horaFim ? `${analista.jornada.horaInicio}–${analista.jornada.horaFim}` : '';
+    const label = `<div class="prog-row-label"${dropAttrs(analista)}><div class="nm">${escapeHtml(analista.name)}</div><div class="prog-row-count">${qtd} operaç${qtd===1?'ão':'ões'}${jornadaTxt?` · <span class="mono">${jornadaTxt}</span>`:''}</div></div>`;
     const cellsHtml = HOURS.map(hour=>{
       const items = slots.filter(s=>s.horaInicio===hour);
       const conteudo = items.map(it=>cardHtml(it, hour, analista.id)).join('');
-      return `<div class="prog-cell${hour===horaAtual?' prog-cell-agora':''}"${dropAttrs(analista)}>${conteudo}</div>`;
+      const dentro = dentroDaJornada(analista, hour);
+      const jornadaClasse = dentro===true ? ' prog-cell-dentro-jornada' : dentro===false ? ' prog-cell-fora-jornada' : '';
+      return `<div class="prog-cell${hour===horaAtual?' prog-cell-agora':''}${jornadaClasse}"${dropAttrs(analista)}>${conteudo}</div>`;
     }).join('');
     return label + cellsHtml;
   }).join('');
