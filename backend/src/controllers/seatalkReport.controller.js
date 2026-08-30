@@ -142,7 +142,12 @@ function montarHora(rows, horaInicio, horaFim) {
 
 // POST /api/reports/seatalk — fora do requireAuth (ver routes/index.js),
 // autenticado pelo token compartilhado (mesmo esquema do planilha-import).
-// Body: { tipo:'fechamento', data } ou { tipo:'hora', data, horaInicio, horaFim }.
+// Body: { tipo:'fechamento', data, supervisorEmail? } ou
+// { tipo:'hora', data, horaInicio, horaFim, supervisorEmail? }.
+// supervisorEmail (opcional) escopa o report só pra equipe desse
+// supervisor — sem ele, o report sai da empresa inteira (todo mundo
+// junto). E-mail (não id) porque quem chama é um Apps Script sem acesso
+// fácil ao uuid do usuário no Kronos.
 async function enviarReportSeatalk(req, res) {
   const auth = req.headers.authorization || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
@@ -150,12 +155,24 @@ async function enviarReportSeatalk(req, res) {
     return res.status(403).json({ error: "forbidden", message: "Token inválido." });
   }
 
-  const { tipo, data, horaInicio, horaFim } = req.body;
+  const { tipo, data, horaInicio, horaFim, supervisorEmail } = req.body;
   if (!data || (tipo !== "fechamento" && tipo !== "hora")) {
     return res.status(400).json({ error: "bad_request", message: "tipo ('fechamento' ou 'hora') e data são obrigatórios." });
   }
 
-  const todasDoDia = await supabaseService.listWhere(COLLECTION, [["data", "==", data]]);
+  let todasDoDia = await supabaseService.listWhere(COLLECTION, [["data", "==", data]]);
+
+  if (supervisorEmail) {
+    const usuarios = await supabaseService.listAll("users");
+    const supervisor = usuarios.find((u) => (u.email || "").toLowerCase() === supervisorEmail.toLowerCase());
+    if (!supervisor) {
+      return res.status(400).json({ error: "bad_request", message: `Nenhum usuário encontrado com o e-mail ${supervisorEmail}.` });
+    }
+    // analistaId -> supervisorId, pra filtrar o raio-x (que só guarda
+    // analistaId, não supervisorId) pela equipe de quem pediu.
+    const supervisorPorAnalista = new Map(usuarios.map((u) => [u.id, u.supervisorId]));
+    todasDoDia = todasDoDia.filter((r) => supervisorPorAnalista.get(r.analistaId) === supervisor.id);
+  }
 
   let texto;
   if (tipo === "fechamento") {
