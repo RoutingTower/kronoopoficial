@@ -38,4 +38,13 @@ module.exports = {
   // fica FORA do requireAuth (routes/index.js), porque quem chama não é um
   // usuário logado no Kronos, então se autentica com esse token no lugar.
   planilhaImportToken: process.env.PLANILHA_IMPORT_TOKEN || "",
+  // Report automático no SeaTalk (hora a hora + fechamento de turno) — ver
+  // backend/src/controllers/seatalkReport.controller.js. seatalkReportToken
+  // autentica quem chama o endpoint (o mesmo Apps Script da planilha, com
+  // um gatilho de hora em hora à parte); seatalkWebhookUrl é o "System
+  // Account" do grupo do SeaTalk (criado pelo dono do grupo, SeaTalk
+  // Desktop > configurações do grupo > System Accounts) — o backend só faz
+  // POST nele, nunca expõe essa URL pro frontend.
+  seatalkReportToken: process.env.SEATALK_REPORT_TOKEN || "",
+  seatalkWebhookUrl: process.env.SEATALK_REPORT_WEBHOOK_URL || "",
 };

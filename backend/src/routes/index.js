@@ -24,6 +24,7 @@ const roteirizacaoStatusRoutes = require("./roteirizacaoStatus.routes");
 const quizRoutes = require("./quiz.routes");
 const quizPlayRoutes = require("./quizPlay.routes");
 const operacaoLinksRoutes = require("./operacaoLinks.routes");
+const seatalkReportRoutes = require("./seatalkReport.routes");
 
 const router = Router();
 
@@ -44,6 +45,11 @@ router.use("/planilha-import", planilhaImportRoutes);
 // plano salvo. O lado do host (criar/apresentar) exige login normalmente
 // e fica em "/quiz", abaixo do requireAuth.
 router.use("/quiz-play", quizPlayRoutes);
+
+// Também fora do requireAuth: quem chama é o mesmo Apps Script da planilha
+// de roteirização (gatilho de hora em hora à parte), não um usuário logado
+// no Kronos — token fixo próprio (ver seatalkReport.controller.js).
+router.use("/reports/seatalk", seatalkReportRoutes);
 
 // Tudo abaixo exige um Supabase ID token válido — ver middleware/auth.js.
 router.use(requireAuth);
