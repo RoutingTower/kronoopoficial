@@ -827,6 +827,25 @@ function renderFeedbackAnalista(){
 // Mesmo núcleo de Resultado SPR do supervisor/coordenador (sprResultadoBody,
 // em render-supervisor.js), só que sempre escopado ao próprio analista —
 // sem seletor de "quem" (picker vazio), só os hubs fixos dele mesmo.
+// Consulta (só leitura) do mesmo cadastro de SPR que o supervisor gerencia
+// em Cadastros > SPR (sprCadastroBody, render-supervisor.js) — o dado já
+// chegava pro analista via loadDB (DB.sprs, usado hoje só pra mostrar "SPR
+// REF" em cada card da Programação), só faltava uma tela pra ver a tabela
+// inteira da própria equipe de uma vez, pra ajudar nas análises. Sem
+// editar/excluir nem carga em massa — isso continua exclusivo do
+// supervisor (ver Links SeaTalk pro mesmo motivo de separar visualização
+// de edição).
+function analistaSPR(){
+  const meuSupervisorId = userById(session.userId)?.supervisorId;
+  const rows = DB.sprs.filter(s=>s.supervisorId===meuSupervisorId).sort((a,b)=> a.operacao.localeCompare(b.operacao) || a.ciclo.localeCompare(b.ciclo));
+  return `
+  <div class="help-text">SPR de referência cadastrado pelo seu supervisor, por Operação/Ciclo — o mesmo valor que já aparece nos cards da sua Programação.</div>
+  <div class="card">
+  <table><thead><tr><th>Operação</th><th>Ciclo</th><th>SPR</th><th>Regional</th></tr></thead><tbody>
+  ${rows.map(s=>`<tr><td>${escapeHtml(s.operacao)}</td><td>${escapeHtml(s.ciclo)}</td><td class="mono">${escapeHtml(String(s.spr))}</td><td>${s.regional ? escapeHtml(s.regional) : '<span style="color:var(--text-faint);">—</span>'}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">Nenhum SPR cadastrado pelo seu supervisor ainda</td></tr>'}
+  </tbody></table></div>`;
+}
+
 function analistaResultadoSPR(){
   const me = userById(session.userId);
   return sprResultadoBody([me], '');
