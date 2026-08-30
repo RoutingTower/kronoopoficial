@@ -569,10 +569,13 @@ function proximaOcorrencia(predicate, maxDias){
 // Card de contagem regressiva (próxima cobertura/folga): número grande é
 // os dias faltando ("Hoje" se for hoje mesmo), com a data e o emoji no
 // rótulo. Sem nada encontrado na janela de busca, mostra "—" com o aviso.
+// proxima.horaInicio (opcional — só cobertura tem, folga é o dia inteiro)
+// aparece logo depois da data, ex.: "· 05/09 22:00 (3 dias)".
 function statCardContagem(proxima, iconHtml, label, semLabel){
   if(!proxima) return `<div class="stat-card"><div class="stat-num">—</div><div class="stat-label">${iconHtml} ${semLabel}</div></div>`;
   const sufixoDias = proxima.diasFaltando>0 ? ` (${proxima.diasFaltando} dia${proxima.diasFaltando>1?'s':''})` : '';
-  return `<div class="stat-card"><div class="stat-num">${proxima.diasFaltando===0?'Hoje':proxima.diasFaltando}</div><div class="stat-label">${iconHtml} ${label} · ${formatarDataCurta(proxima.data)}${sufixoDias}</div></div>`;
+  const horaTxt = proxima.horaInicio ? ` <span class="mono">${proxima.horaInicio}</span>` : '';
+  return `<div class="stat-card"><div class="stat-num">${proxima.diasFaltando===0?'Hoje':proxima.diasFaltando}</div><div class="stat-label">${iconHtml} ${label} · ${formatarDataCurta(proxima.data)}${horaTxt}${sufixoDias}</div></div>`;
 }
 
 // Variante do card acima só pra "Próxima reunião" — mostra a HORA no número
@@ -611,7 +614,13 @@ function renderAnalista(){
   // "Próxima cobertura/folga" sempre a partir de HOJE de verdade, não da
   // data selecionada no calendário (dateStr) — o card não deve mudar só
   // porque o analista está navegando pra outro mês.
-  const proxCobertura = proximaOcorrencia(d=> getDaySlots(session.userId, d).some(s=>categoriaOperacao(s)==='cobertura'), 90);
+  const proxCoberturaDia = proximaOcorrencia(d=> getDaySlots(session.userId, d).some(s=>categoriaOperacao(s)==='cobertura'), 90);
+  // Pega o horário de início da cobertura mais cedo do dia (pode ter mais
+  // de uma) — statCardContagem mostra isso ao lado da data.
+  const proxCobertura = proxCoberturaDia ? (()=>{
+    const coberturas = getDaySlots(session.userId, proxCoberturaDia.data).filter(s=>categoriaOperacao(s)==='cobertura').sort((a,b)=>hourSortValue(a.horaInicio)-hourSortValue(b.horaInicio));
+    return { ...proxCoberturaDia, horaInicio: coberturas[0].horaInicio };
+  })() : null;
   // isFolgaDSR() já expressa exatamente "dia totalmente livre" (nenhuma
   // operação própria sem cobertura, nenhuma cobertura de terceiro, sem
   // plantão) — o nome vem do uso específico de domingo (ver
