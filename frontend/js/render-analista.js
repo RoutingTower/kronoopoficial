@@ -20,9 +20,11 @@ function renderExecucaoActions(it, dateStr, analistaId, sprMeta, souEu){
     // (ver raioX.controller.js, updateRaioX/assertPodeEditarRaioX). Excluir
     // continua só pro supervisor por aqui — mais destrutivo, sem pedido pra
     // liberar pro próprio analista.
+    // Só ícone (com legenda no title=) pra deixar o card mais organizado —
+    // mesmo padrão de "Ver Particularidade"/"SeaTalk" logo abaixo.
     const acoesRaioX = `<div class="flash-actions" style="margin-top:6px;">
-        <button class="btn" data-editar-raiox="${raiox.id}">${icon('pencil',12)} Editar</button>
-        ${!souEu ? `<button class="btn btn-danger" data-excluir-raiox="${raiox.id}">${icon('trash-2',12)} Excluir</button>` : ''}
+        <button class="btn btn-icon-only" data-editar-raiox="${raiox.id}" title="Editar Raio-X">${icon('pencil',14)}</button>
+        ${!souEu ? `<button class="btn btn-icon-only btn-danger" data-excluir-raiox="${raiox.id}" title="Excluir Raio-X">${icon('trash-2',14)}</button>` : ''}
       </div>`;
     // Órfãos é independente de semRoteirizacao (pode ter órfão registrado
     // mesmo sem roteirização) — nulo é "não informado", não mostra nada.
@@ -43,7 +45,7 @@ function renderExecucaoActions(it, dateStr, analistaId, sprMeta, souEu){
       <span class="timer-dot"></span><span class="timer-num mono">00:00</span><span class="timer-tag">em andamento</span>
     </div>` : '';
   const dataAttrs = `data-finalizar-op="${escapeHtml(it.operacao)}" data-hora="${it.horaInicio}" data-data="${dateStr}" data-ciclo="${escapeHtml(it.ciclo)}" data-spr-meta="${sprMeta!=null?sprMeta:''}"`;
-  return `${timerHtml}<div class="flash-actions"><button class="btn btn-brand" ${dataAttrs}>${icon('send',12)} Enviar Raio-X</button></div>`;
+  return `${timerHtml}<div class="flash-actions"><button class="btn btn-brand btn-icon-only" ${dataAttrs} title="Enviar Raio-X">${icon('send',14)}</button></div>`;
 }
 
 // showLembretes só é true na própria Programação do analista (renderAnalista) —
@@ -95,8 +97,8 @@ function buildHourCardsHtml(items, rns, lembretes, ctx){
           : it.isCobertura ? `<div class="flash-cover">${icon('repeat',12)} Cobrindo ${it.tipo==='ferias'?'férias':'folga'} de ${it.responsavelNome}</div>` : ''}
         ${mostrarExec ? renderExecucaoActions(it, dateStr, analistaId, spr, souEu) : ''}
         <div class="flash-actions" style="margin-top:8px;">
-          <button class="btn btn-particularidade" data-particularidade-op="${escapeHtml(it.operacao)}" data-particularidade-sup="${supervisorId||''}" data-particularidade-cobertura="${it.isCobertura?'1':'0'}" data-particularidade-analista="${analistaId}" data-particularidade-data="${dateStr}" data-ciente="${ciente?'1':'0'}">${icon('settings',12)} Ver Particularidade${(it.isCobertura && !ciente) ? '<span class="badge-alerta-ciente" title="Ainda sem confirmação de ciência"></span>' : ''}</button>
-          ${linkSeatalk ? `<a class="btn btn-brand" href="${escapeHtml(normalizeUrl(linkSeatalk))}" target="_blank" rel="noopener noreferrer">${icon('message-circle',12)} SeaTalk</a>` : ''}
+          <button class="btn btn-icon-only btn-particularidade" data-particularidade-op="${escapeHtml(it.operacao)}" data-particularidade-sup="${supervisorId||''}" data-particularidade-cobertura="${it.isCobertura?'1':'0'}" data-particularidade-analista="${analistaId}" data-particularidade-data="${dateStr}" data-ciente="${ciente?'1':'0'}" title="Ver Particularidade">${icon('settings',14)}${(it.isCobertura && !ciente) ? '<span class="badge-alerta-ciente" title="Ainda sem confirmação de ciência"></span>' : ''}</button>
+          ${linkSeatalk ? `<a class="btn btn-brand btn-icon-only" href="${escapeHtml(normalizeUrl(linkSeatalk))}" target="_blank" rel="noopener noreferrer" title="Abrir grupo do SeaTalk">${icon('message-circle',14)}</a>` : ''}
         </div>
       </div>`;
     }).join('');
