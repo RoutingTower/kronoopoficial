@@ -3049,6 +3049,24 @@ function bindMainEvents(){
       renderMain();
     });
   });
+  main.querySelectorAll('.btn-quiz-reaproveitar').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      btn.disabled = true;
+      try{
+        // Reaproveita a tela de Criar já preenchida — salvar daqui gera um
+        // quiz NOVO (PIN novo, ranking zerado), o antigo continua intacto
+        // e consultável em "Ver ranking". Dá pra editar tudo antes de salvar.
+        const dados = await apiGetQuiz(btn.dataset.id);
+        uiState.quizDraft = {
+          titulo: dados.titulo,
+          perguntas: dados.perguntas.map(p=>({ enunciado:p.enunciado, opcoes:[...p.opcoes], corretaIndex:p.corretaIndex, tempoSegundos:p.tempoSegundos })),
+        };
+        uiState.quizView = 'criar';
+        renderMain();
+      }catch(e){ alert('Não foi possível carregar as perguntas: '+e.message); }
+      finally{ btn.disabled = false; }
+    });
+  });
   main.querySelectorAll('.btn-quiz-ranking').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       btn.disabled = true;

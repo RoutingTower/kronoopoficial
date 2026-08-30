@@ -65,6 +65,7 @@ function quizCardHtml(q){
     </div>
     <div class="card-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
       ${podeApresentar ? `<button class="btn btn-sm btn-brand btn-quiz-apresentar" data-id="${q.id}">▶ Apresentar</button>` : ''}
+      ${q.status==='encerrado' ? `<button class="btn btn-sm btn-quiz-reaproveitar" data-id="${q.id}">🔁 Reaproveitar perguntas</button>` : ''}
       ${q.totalParticipantes>0 ? `<button class="btn btn-sm btn-quiz-ranking" data-id="${q.id}">🏆 Ver ranking</button>` : ''}
       <button class="btn btn-sm btn-danger btn-quiz-excluir" data-id="${q.id}">🗑 Excluir</button>
     </div>
