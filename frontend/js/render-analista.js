@@ -720,7 +720,9 @@ function extraChipsForDay(analistaId, ds){
   // cobertas por outra pessoa, nenhuma operação própria sem cobertura e
   // sem plantão — exatamente o critério de "folgando".
   else if(isFolgaDSR(analistaId, ds)) chips.push(`<div class="cal-chip cal-chip-folga-dia" title="Dia de folga">${icon('moon',11)} Folgando</div>`);
-  getReunioesForDate(analistaId, ds).forEach(r=>{
+  // hourSortValue (não ordem de inserção) — mesma convenção operacional:
+  // madrugada conta como "depois" da noite anterior (22:00 antes de 01:00).
+  getReunioesForDate(analistaId, ds).sort((a,b)=>hourSortValue(a.hora)-hourSortValue(b.hora)).forEach(r=>{
     const faixa = r.horaFim ? `${r.hora}–${r.horaFim}` : r.hora;
     chips.push(`<div class="cal-chip cal-chip-reuniao" title="${escapeHtml(r.titulo)} · ${r.tipo==='grupo'?'Grupo':'Individual'} · ${faixa}">${icon('calendar',11)} ${r.hora} ${escapeHtml(r.titulo)}</div>`);
   });

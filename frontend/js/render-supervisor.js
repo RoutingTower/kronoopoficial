@@ -738,7 +738,10 @@ function reuniaoCard(r){
 }
 
 function reunioesDiaria(rows, dateStr){
-  const doDia = rows.filter(r=>r.data===dateStr).sort((a,b)=>a.hora.localeCompare(b.hora));
+  // hourSortValue (não localeCompare) — mesma convenção operacional do
+  // resto do app: madrugada (antes das 7h) conta como "depois" da noite
+  // anterior, então 22:00 vem antes de 01:00/02:00, não o contrário.
+  const doDia = rows.filter(r=>r.data===dateStr).sort((a,b)=>hourSortValue(a.hora)-hourSortValue(b.hora));
   return `<div class="cal-grid" style="grid-template-columns:repeat(auto-fill,minmax(230px,1fr));">
     ${doDia.length===0 ? '<div class="empty">Nenhuma reunião nesse dia</div>' : doDia.map(reuniaoCard).join('')}
   </div>`;
@@ -751,7 +754,7 @@ function reunioesSemanal(rows, dateStr){
   const header = WEEKDAY_LABELS.map(w=>`<div class="cal-weekday-header">${w}</div>`).join('');
   const cells = Array.from({length:7}, (_,i)=>{
     const ds = addDaysISO(inicioSemana, i);
-    const doDia = rows.filter(r=>r.data===ds).sort((a,b)=>a.hora.localeCompare(b.hora));
+    const doDia = rows.filter(r=>r.data===ds).sort((a,b)=>hourSortValue(a.hora)-hourSortValue(b.hora));
     const dd = new Date(ds+'T00:00:00');
     const label = dd.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
     const isToday = ds===todayStr;
@@ -777,7 +780,7 @@ function reunioesMensal(rows, dateStr){
   }
   for(let day=1; day<=daysInMonth; day++){
     const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    const doDia = rows.filter(r=>r.data===ds).sort((a,b)=>a.hora.localeCompare(b.hora));
+    const doDia = rows.filter(r=>r.data===ds).sort((a,b)=>hourSortValue(a.hora)-hourSortValue(b.hora));
     const isToday = ds===todayStr;
     cells += `<div class="cal-day-cell${isToday?' today':''}">
       <div class="cal-day-num${isToday?' today':''}" data-daypick="${ds}" data-target="reunioes">${day}</div>
