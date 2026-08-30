@@ -575,6 +575,16 @@ function statCardContagem(proxima, iconHtml, label, semLabel){
   return `<div class="stat-card"><div class="stat-num">${proxima.diasFaltando===0?'Hoje':proxima.diasFaltando}</div><div class="stat-label">${iconHtml} ${label} · ${formatarDataCurta(proxima.data)}${sufixoDias}</div></div>`;
 }
 
+// Variante do card acima só pra "Próxima reunião" — mostra a HORA no número
+// grande (não os dias faltando), porque é a informação que mais importa
+// aqui (ver pedido do usuário: "próxima reunião (data+horário)"); título da
+// reunião vai no tooltip (title=), sem competir por espaço no card.
+function statCardReuniao(proxima){
+  if(!proxima) return `<div class="stat-card"><div class="stat-num">—</div><div class="stat-label">${icon('calendar',12)} Sem reunião agendada</div></div>`;
+  const sufixoDias = proxima.diasFaltando>0 ? ` (${proxima.diasFaltando} dia${proxima.diasFaltando>1?'s':''})` : '';
+  return `<div class="stat-card" title="${escapeHtml(proxima.titulo)}"><div class="stat-num mono">${proxima.hora}</div><div class="stat-label">${icon('calendar',12)} Próxima reunião · ${proxima.diasFaltando===0?'Hoje':formatarDataCurta(proxima.data)}${sufixoDias}</div></div>`;
+}
+
 // Aba extra de quem foi delegado pelo supervisor (ver
 // renderDelegacaoProgramacao, ui.js) — mesma tela do supervisor
 // (supProgramacao), só que escopada pela equipe do supervisor QUE delegou,
@@ -607,6 +617,15 @@ function renderAnalista(){
   // plantão) — o nome vem do uso específico de domingo (ver
   // filtrarSlotsAgenda), mas a definição vale pra qualquer dia da semana.
   const proxFolga = proximaOcorrencia(d=> isFolgaDSR(session.userId, d), 90);
+  // Próxima reunião: acha o DIA (proximaOcorrencia) e, dentro dele, a
+  // reunião mais cedo (pode ter mais de uma no mesmo dia) — statCardReuniao
+  // mostra hora (não "dias faltando") no número grande, já que é a
+  // informação que o horário pede aqui (ver pedido: "data+horário").
+  const proxReuniaoDia = proximaOcorrencia(d=> getReunioesForDate(session.userId, d).length>0, 90);
+  const proxReuniao = proxReuniaoDia ? (()=>{
+    const doDia = getReunioesForDate(session.userId, proxReuniaoDia.data).sort((a,b)=>hourSortValue(a.hora)-hourSortValue(b.hora));
+    return { ...proxReuniaoDia, hora: doDia[0].hora, titulo: doDia[0].titulo };
+  })() : null;
 
   // Tira de foco no topo (SPR + Tempo de Execução, últimos 30 dias, mesma
   // janela padrão do Resultado SPR/Tempo de Execução) — os dois indicadores
@@ -652,10 +671,11 @@ function renderAnalista(){
       <div class="stat-label">${icon('hourglass',12)} Tempo médio de execução <span style="color:var(--text-faint);">(SLA 1h · 30 dias)</span></div>
     </div>
   </div>
-  <div class="grid-3" style="margin-bottom:22px;">
+  <div class="grid-4" style="margin-bottom:22px;">
     <div class="stat-card"><div class="stat-num">${todaySlots.length}</div><div class="stat-label">${icon('clipboard-list',12)} Operações do dia</div></div>
     ${statCardContagem(proxCobertura, icon('repeat',12), 'Próxima cobertura', 'Sem cobertura agendada')}
     ${statCardContagem(proxFolga, icon('moon',12), 'Próxima folga', 'Sem folga agendada')}
+    ${statCardReuniao(proxReuniao)}
   </div>
   <div class="filter-row" style="align-items:center;margin-bottom:16px;">
     <input type="date" id="analistaDatePick" value="${dateStr}" class="mono" style="background:var(--bg-2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;">
