@@ -65,6 +65,7 @@ function quizCardHtml(q){
     </div>
     <div class="card-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
       ${podeApresentar ? `<button class="btn btn-sm btn-brand btn-quiz-apresentar" data-id="${q.id}">▶ Apresentar</button>` : ''}
+      ${q.totalParticipantes>0 ? `<button class="btn btn-sm btn-quiz-ranking" data-id="${q.id}">🏆 Ver ranking</button>` : ''}
       <button class="btn btn-sm btn-danger btn-quiz-excluir" data-id="${q.id}">🗑 Excluir</button>
     </div>
   </div>`;
@@ -245,4 +246,18 @@ function quizPodioMedalha(i){
   if(i===1) return '<span class="quiz-ranking-pos">🥈</span>';
   if(i===2) return '<span class="quiz-ranking-pos">🥉</span>';
   return `<span class="quiz-ranking-pos">${i+1}º</span>`;
+}
+
+// Modal de ranking a partir da LISTA (botão "Ver ranking" no card, ver
+// btnQuizNovo etc. em events.js) — útil sobretudo pra quiz já encerrado,
+// que não tem mais botão "Apresentar" pra reabrir o ranking ao vivo.
+// `dados` vem de apiGetQuiz (já traz participantes ordenados por pontuação).
+function quizRankingModalHtml(dados){
+  const ranking = (dados.participantes||[]).slice(0,10);
+  return `
+  <h3>${escapeHtml(dados.titulo)} — Ranking</h3>
+  <div class="quiz-ranking-list" style="margin-top:12px;">
+    ${ranking.map((p,i)=>`<div class="quiz-ranking-item">${quizPodioMedalha(i)}<span class="quiz-ranking-nome">${escapeHtml(p.nome)}</span><span class="mono">${p.pontuacao} pts</span></div>`).join('') || '<div class="empty">Ninguém pontuou.</div>'}
+  </div>
+  <div style="display:flex;justify-content:flex-end;margin-top:14px;"><button class="btn" data-modal-cancel>Fechar</button></div>`;
 }

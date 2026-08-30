@@ -96,13 +96,15 @@ async function createQuiz(req, res) {
   res.status(201).json({ ...sessao, perguntas: perguntasCriadas });
 }
 
-async function getQuiz(req, res) {
-  const caller = await getCaller(req);
-  const sessao = await supabaseService.getById(SESSOES, req.params.id);
-  if (!sessao) return res.status(404).json({ error: "not_found" });
-  if (!assertDonoQuiz(caller, sessao)) {
-    return res.status(403).json({ error: "forbidden", message: "Você só pode ver quizzes que criou." });
-  }
+// Monta o detalhe completo (sessão + perguntas + participantes + respostas
+// da pergunta corrente) — usado tanto pelo GET quanto pelo PATCH /avancar,
+// que precisa devolver a MESMA forma: o frontend guarda a resposta direto
+// em uiState.quizApresentarDados (ver btnQuizAvancar, events.js) e
+// renderiza sem esperar o próximo poll — se avancarQuiz devolvesse só a
+// sessão crua (sem perguntas/participantes), o render seguinte quebrava em
+// "Cannot read properties of undefined (reading 'length')" (dados.perguntas
+// undefined), mesmo com o avanço em si já tendo sido salvo com sucesso.
+async function montarDetalhe(sessao) {
   const perguntas = (await supabaseService.listWhere(PERGUNTAS, [["quizSessaoId", "==", sessao.id]])).sort((a, b) => a.ordem - b.ordem);
   const participantes = (await supabaseService.listWhere(PARTICIPANTES, [["quizSessaoId", "==", sessao.id]])).sort((a, b) => b.pontuacao - a.pontuacao);
 
@@ -114,7 +116,17 @@ async function getQuiz(req, res) {
     respostasAtuais = await supabaseService.listWhere(RESPOSTAS, [["quizPerguntaId", "==", perguntaAtual.id]]);
   }
 
-  res.json({ ...sessao, perguntas, participantes, respostasAtuais });
+  return { ...sessao, perguntas, participantes, respostasAtuais };
+}
+
+async function getQuiz(req, res) {
+  const caller = await getCaller(req);
+  const sessao = await supabaseService.getById(SESSOES, req.params.id);
+  if (!sessao) return res.status(404).json({ error: "not_found" });
+  if (!assertDonoQuiz(caller, sessao)) {
+    return res.status(403).json({ error: "forbidden", message: "Você só pode ver quizzes que criou." });
+  }
+  res.json(await montarDetalhe(sessao));
 }
 
 // Única ação de controle do host — um botão "Avançar" empurra a máquina de
@@ -148,7 +160,7 @@ async function avancarQuiz(req, res) {
   }
 
   const atualizado = await supabaseService.update(SESSOES, sessao.id, patch);
-  res.json(atualizado);
+  res.json(await montarDetalhe(atualizado));
 }
 
 async function deleteQuiz(req, res) {

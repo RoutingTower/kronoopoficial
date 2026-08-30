@@ -3049,6 +3049,17 @@ function bindMainEvents(){
       renderMain();
     });
   });
+  main.querySelectorAll('.btn-quiz-ranking').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      btn.disabled = true;
+      try{
+        const dados = await apiGetQuiz(btn.dataset.id);
+        openModal(quizRankingModalHtml(dados));
+        document.querySelector('[data-modal-cancel]').onclick = closeModal;
+      }catch(e){ alert('Não foi possível carregar o ranking: '+e.message); }
+      finally{ btn.disabled = false; }
+    });
+  });
   main.querySelectorAll('.btn-quiz-excluir').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       if(!confirm('Excluir este quiz? Essa ação não pode ser desfeita.')) return;
