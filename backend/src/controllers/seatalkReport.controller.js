@@ -131,7 +131,14 @@ function montarHora(rows, horaInicio, horaFim) {
           segs.push(`${r.horaInicioReal} às ${r.horaFimReal}`);
           segs.push(formatarDuracao(r.duracaoSegundos));
         }
-        if (!r.semRoteirizacao && r.sprRoteirizado != null) segs.push(`SPR ${r.sprRoteirizado}`);
+        if (!r.semRoteirizacao && r.sprRoteirizado != null) {
+          if (r.sprMeta != null) {
+            const delta = r.sprRoteirizado - r.sprMeta;
+            segs.push(`SPR ${r.sprRoteirizado} (meta ${r.sprMeta}, ${delta >= 0 ? "+" : ""}${delta})`);
+          } else {
+            segs.push(`SPR ${r.sprRoteirizado}`);
+          }
+        }
         segs.push(`Órf ${r.orfaos ?? 0}`);
         linhas.push(`✅ ${r.operacao} - ${segs.join(" | ")}`);
       });
