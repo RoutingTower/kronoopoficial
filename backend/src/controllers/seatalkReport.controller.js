@@ -53,7 +53,7 @@ async function enviarParaSeatalk(texto) {
   }
 }
 
-function montarFechamento(rows, horaFechamento) {
+function montarFechamento(rows, horaFechamento, nomeSupervisor) {
   const analisados = rows.length;
   const roteirizados = rows.filter((r) => r.duracaoSegundos != null).length;
   const comSpr = rows.filter((r) => !r.semRoteirizacao && r.sprRoteirizado != null);
@@ -67,7 +67,7 @@ function montarFechamento(rows, horaFechamento) {
 
   const linhas = [];
   linhas.push(`📢 REPORT DE FECHAMENTO | ${horaFechamento}`, "");
-  linhas.push("📊 CONSOLIDADO GERAL", "");
+  linhas.push(`📊 CONSOLIDADO ${nomeSupervisor ? nomeSupervisor.toUpperCase() : "GERAL"}`, "");
   linhas.push(`• Hubs analisados: ${analisados}`);
   linhas.push(`• Hubs roteirizados: ${roteirizados}`);
   linhas.push(`• SPR médio: ${sprMedio}`);
@@ -168,10 +168,11 @@ async function enviarReportSeatalk(req, res) {
   }
 
   let todasDoDia = await supabaseService.listWhere(COLLECTION, [["data", "==", data]]);
+  let supervisor = null;
 
   if (supervisorEmail) {
     const usuarios = await supabaseService.listAll("users");
-    const supervisor = usuarios.find((u) => (u.email || "").toLowerCase() === supervisorEmail.toLowerCase());
+    supervisor = usuarios.find((u) => (u.email || "").toLowerCase() === supervisorEmail.toLowerCase());
     if (!supervisor) {
       return res.status(400).json({ error: "bad_request", message: `Nenhum usuário encontrado com o e-mail ${supervisorEmail}.` });
     }
@@ -183,7 +184,7 @@ async function enviarReportSeatalk(req, res) {
 
   let texto;
   if (tipo === "fechamento") {
-    texto = montarFechamento(todasDoDia, req.body.horaFechamento || "05h");
+    texto = montarFechamento(todasDoDia, req.body.horaFechamento || "05h", supervisor?.name);
   } else {
     if (!horaInicio || !horaFim) {
       return res.status(400).json({ error: "bad_request", message: "horaInicio e horaFim são obrigatórios pra tipo='hora'." });
