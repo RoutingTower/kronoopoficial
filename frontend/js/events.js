@@ -2408,10 +2408,17 @@ function bindMainEvents(){
       const b = DB.baseMestra.find(x=>x.id===btn.dataset.editarMestra);
       if(!b) return;
       const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
+      // SPR/Regional não vivem no base_mestra (tabela própria, ver
+      // sprCadastroBody/render-supervisor.js) — casam por Operação+Ciclo,
+      // igual ao reimport da planilha de SPR. Pré-preenche com o que já
+      // existir pra essa Operação+Ciclo, se existir.
+      const sprExistente = DB.sprs.find(s=>s.supervisorId===session.userId && s.operacao===b.operacao && s.ciclo===b.ciclo);
       openModal(`<h3>Editar operação fixa</h3>
         <div class="field"><label>Analista (titular)</label><select id="fEditAnalista">${myAnalistas.map(a=>`<option value="${a.id}" ${a.id===b.analistaId?'selected':''}>${escapeHtml(a.name)}</option>`).join('')}</select></div>
         <div class="field"><label>Operação (sigla)</label><input id="fEditOp" value="${b.operacao}"></div>
         <div class="field"><label>Ciclo</label><input id="fEditCiclo" value="${b.ciclo}"></div>
+        <div class="grid-2"><div class="field"><label>SPR (opcional)</label><input id="fEditMestraSpr" type="number" value="${sprExistente!=null ? sprExistente.spr : ''}" placeholder="ex: 92"></div>
+        <div class="field"><label>Regional (opcional)</label><input id="fEditMestraRegional" list="regionalList" value="${sprExistente && sprExistente.regional ? escapeHtml(sprExistente.regional) : ''}" placeholder="ex: Sudeste"></div></div>
         <div class="grid-2"><div class="field"><label>Início</label><select id="fEditHi">${HOURS.map(h=>`<option ${h===b.horaInicio?'selected':''}>${h}</option>`).join('')}</select></div>
         <div class="field"><label>Fim</label><select id="fEditHf">${HOURS.map(h=>`<option ${h===b.horaFim?'selected':''}>${h}</option>`).join('')}</select></div></div>
         <div class="field"><label>Dias da semana</label>
@@ -2451,9 +2458,27 @@ function bindMainEvents(){
           patch.analistaId = analistaSelect.value;
           patch.titular = userById(analistaSelect.value)?.name || '';
         }
+        const sprValor = document.getElementById('fEditMestraSpr').value.trim();
+        const regionalValor = document.getElementById('fEditMestraRegional').value.trim() || null;
         try{
           const atualizado = await apiUpdateBaseMestra(b.id, patch);
           DB.baseMestra = DB.baseMestra.map(x=>x.id===b.id ? atualizado : x);
+          // SPR vazio = não mexe no cadastro de SPR (campo é opcional aqui,
+          // não apaga o que já existia só por ter ficado em branco no
+          // formulário). Casa por Operação+Ciclo já ATUALIZADOS — se a
+          // sigla/ciclo mudou nesse mesmo salvar, cria uma entrada nova pro
+          // nome novo (mesmo comportamento do reimport da planilha de SPR).
+          if(sprValor!==''){
+            const opFinal = patch.operacao, cicloFinal = patch.ciclo;
+            const sprExistenteAgora = DB.sprs.find(s=>s.supervisorId===session.userId && s.operacao===opFinal && s.ciclo===cicloFinal);
+            if(sprExistenteAgora){
+              const sprAtualizado = await apiUpdateSpr(sprExistenteAgora.id, {spr:Number(sprValor), regional:regionalValor});
+              DB.sprs = DB.sprs.map(x=>x.id===sprExistenteAgora.id ? sprAtualizado : x);
+            } else {
+              const sprNovo = await apiCreateSpr({supervisorId:session.userId, operacao:opFinal, ciclo:cicloFinal, spr:Number(sprValor), regional:regionalValor});
+              DB.sprs.push(sprNovo);
+            }
+          }
           closeModal(); renderMain();
         }catch(e){ alert('Não foi possível salvar: '+e.message); }
       };
