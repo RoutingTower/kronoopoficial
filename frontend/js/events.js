@@ -424,7 +424,13 @@ function bindMainEvents(){
         resolvido = true;
       }
     }
-    if(!resolvido && conflito){
+    // "Fora da jornada cadastrada" sozinho NÃO entra na cadeia de troca —
+    // é o único tipo de conflito que o supervisor pode querer de propósito
+    // (ex.: remanejamento de domingo, escalando alguém num horário fora da
+    // janela normal dele). Os outros tipos (folga, vigência, choque de
+    // horário) continuam acionando a busca por troca — só esse aqui cai
+    // direto pro fallback de "coloca mesmo assim, com aviso de conflito".
+    if(!resolvido && conflito && conflito!=='fora da jornada cadastrada'){
       const cadeia = acharCadeiaDeTroca(payload, destinoId);
       if(cadeia){
         registrarMovimentoSimples(cadeia.cascata, destinoId);
