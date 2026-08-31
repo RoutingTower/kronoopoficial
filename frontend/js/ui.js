@@ -557,3 +557,25 @@ function updateProgressModal(done, total){
   if(label) label.textContent = `${done} / ${total} (${pct}%)`;
 }
 
+// Comemoração "dia fechado" (ver diaAnalistaCompleto, utils.js) — toast
+// autônomo fora do fluxo de modal (não trava clique, some sozinho), com
+// confete em CSS puro. dataStr só decide qual frase/emoji usar (dia da
+// semana), não afeta o gatilho em si (isso já foi decidido antes de chamar).
+function dispararComemoracaoDiaCompleto(dataStr){
+  const dia = COMEMORACAO_DIA[new Date(dataStr+'T12:00:00').getDay()];
+  const cores = ['#EE4D2D','#FF6B45','#FFC145','#4DB6AC','#7C8CFF'];
+  const confete = Array.from({length:28}).map((_,i)=>{
+    const x = (Math.random()*100).toFixed(1);
+    const delay = (Math.random()*0.4).toFixed(2);
+    const dur = (2.2+Math.random()*1.2).toFixed(2);
+    return `<span class="confete-piece" style="left:${x}%;background:${cores[i%cores.length]};animation-delay:${delay}s;animation-duration:${dur}s;"></span>`;
+  }).join('');
+  const el = document.createElement('div');
+  el.className = 'dia-completo-toast';
+  el.innerHTML = `<div class="dia-completo-confete">${confete}</div>
+    <div class="dia-completo-card"><span class="dia-completo-emoji">${dia.emoji}</span><span>${dia.texto}</span></div>`;
+  document.body.appendChild(el);
+  setTimeout(()=>el.classList.add('sumindo'), 3200);
+  setTimeout(()=>el.remove(), 3700);
+}
+

@@ -757,6 +757,20 @@ function bindMainEvents(){
           // apareceria lá depois do próximo heartbeat de 10min.
           DB.raioXHistorico.push(novo);
           closeModal(); renderMain();
+          // Comemoração "dia fechado" — só na primeira vez que o dia vira
+          // completo (não a cada re-render/reload). localStorage por
+          // analista+data porque é só um efeito visual pontual, não precisa
+          // sincronizar entre dispositivos nem sobreviver a limpeza de dados
+          // do navegador.
+          if(diaAnalistaCompleto(session.userId, data)){
+            const chaveComemoracao = `kronosComemoracaoDia_${session.userId}_${data}`;
+            try{
+              if(!localStorage.getItem(chaveComemoracao)){
+                localStorage.setItem(chaveComemoracao, '1');
+                dispararComemoracaoDiaCompleto(data);
+              }
+            }catch(e){ dispararComemoracaoDiaCompleto(data); }
+          }
         }catch(e){ alert('Não foi possível enviar: '+e.message); confirmBtn.disabled = false; }
       };
     });

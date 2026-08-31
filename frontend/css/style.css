@@ -205,6 +205,23 @@ input,select,textarea{font-family:inherit;}
 .progress-track{width:100%;height:10px;border-radius:6px;background:var(--bg-2);border:1px solid var(--border);overflow:hidden;}
 .progress-fill{height:100%;background:linear-gradient(135deg,var(--brand),var(--brand-2));transition:width .15s ease;}
 
+/* Comemoração "dia fechado" (dispararComemoracaoDiaCompleto, ui.js) — toast
+   que aparece sozinho no topo da tela e some depois de ~3.5s, com confete
+   caindo em CSS puro. pointer-events:none em tudo pra nunca atrapalhar
+   clique em quem está por baixo. */
+.dia-completo-toast{position:fixed;inset:0;z-index:9998;pointer-events:none;display:flex;justify-content:center;overflow:hidden;}
+.dia-completo-card{margin-top:22px;height:fit-content;display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:12px 20px;box-shadow:0 14px 34px rgba(0,0,0,0.3);font-weight:600;font-size:14.5px;color:var(--text);transition:opacity .4s ease,transform .4s ease;animation:dia-completo-pop .45s cubic-bezier(.34,1.56,.64,1);}
+.dia-completo-toast.sumindo .dia-completo-card{opacity:0;transform:translateY(-10px) scale(0.96);}
+.dia-completo-emoji{font-size:22px;line-height:1;}
+@keyframes dia-completo-pop{from{opacity:0;transform:translateY(-16px) scale(0.9);}to{opacity:1;transform:translateY(0) scale(1);}}
+.dia-completo-confete{position:absolute;inset:0;}
+.confete-piece{position:absolute;top:-14px;width:8px;height:14px;border-radius:2px;opacity:0.9;animation-name:confete-cair;animation-timing-function:ease-in;animation-fill-mode:forwards;}
+@keyframes confete-cair{from{transform:translateY(0) rotate(0deg);opacity:0.95;}to{transform:translateY(70vh) rotate(540deg);opacity:0;}}
+@media (prefers-reduced-motion: reduce){
+  .confete-piece{display:none;}
+  .dia-completo-card{animation:none;}
+}
+
 /* Cobre a tela inteira enquanto o Supabase Auth confirma (de forma
    assíncrona) se já existe uma sessão salva — sem isso, quem já está
    logado vê a tela de login piscar por um instante a cada F5, antes do

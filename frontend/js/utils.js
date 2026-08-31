@@ -137,6 +137,31 @@ function isOperacaoFinalizada(analistaId, operacao, hora, dataStr){
   return DB.raioX.some(r=>r.analistaId===analistaId && r.operacao===operacao && r.hora===hora && r.data===dataStr);
 }
 
+// Dia "fechado" = toda operação de verdade do analista nesse dia (exclui
+// folga, it.isOff) já tem Raio-X enviado. slots.length===0 não conta como
+// fechado (nada pra fechar, ex.: dia todo de folga) — ver
+// dispararComemoracaoDiaCompleto (ui.js) e o gatilho em events.js
+// (confirmFinalizar), que dispara a comemoração só quando isso vira true
+// pela primeira vez no dia.
+function diaAnalistaCompleto(analistaId, dataStr){
+  const itens = filtrarSlotsAgenda(analistaId, dataStr).filter(s=>!s.isOff);
+  if(itens.length===0) return false;
+  return itens.every(it=>isOperacaoFinalizada(analistaId, it.operacao, it.horaInicio, dataStr));
+}
+
+// Frase/emoji variam por dia da semana (getDay(): 0=domingo...6=sábado) só
+// pra não repetir sempre a mesma mensagem — sem nenhum significado
+// operacional além disso.
+const COMEMORACAO_DIA = [
+  { emoji:'🌙', texto:'Domingo fechado!' },
+  { emoji:'🚀', texto:'Segunda no ar, dia fechado!' },
+  { emoji:'💪', texto:'Terça fechada com força!' },
+  { emoji:'🔥', texto:'Quarta on fire, tudo fechado!' },
+  { emoji:'⚡', texto:'Quinta relâmpago, dia fechado!' },
+  { emoji:'🏁', texto:'Sextou com o dia fechado!' },
+  { emoji:'🎉', texto:'Sábado fechado, só comemorar!' },
+];
+
 // Acha o Raio-X de um analista+operação+hora+data — igual um .find(), mas
 // blindado contra duplicata (o mesmo analista reenviando o mesmo Raio-X cria
 // mais de um registro pro mesmo slot; visto em produção, ex.:
