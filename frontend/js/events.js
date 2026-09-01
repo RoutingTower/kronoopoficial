@@ -3298,6 +3298,19 @@ function bindMainEvents(){
       }catch(e){ alert('Não foi possível excluir: '+e.message); }
     });
   });
+  const btnQuizCopiarLink = document.getElementById('btnQuizCopiarLink');
+  if(btnQuizCopiarLink) btnQuizCopiarLink.addEventListener('click', async ()=>{
+    // quiz.html é irmão do index.html (mesma pasta frontend/) — resolver
+    // relativo à URL atual funciona tanto local quanto no GitHub Pages, sem
+    // precisar hardcodar domínio/subpasta.
+    const link = new URL('quiz.html', window.location.href).toString() + '?pin=' + btnQuizCopiarLink.dataset.pin;
+    try{
+      await navigator.clipboard.writeText(link);
+      btnQuizCopiarLink.textContent = '✅ Link copiado!';
+    }catch(e){
+      prompt('Não foi possível copiar automaticamente — copie o link abaixo:', link);
+    }
+  });
   const btnQuizSairApresentacao = document.getElementById('btnQuizSairApresentacao');
   if(btnQuizSairApresentacao) btnQuizSairApresentacao.addEventListener('click', ()=>{
     uiState.quizView = 'lista';

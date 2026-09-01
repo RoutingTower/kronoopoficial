@@ -579,3 +579,26 @@ function dispararComemoracaoDiaCompleto(dataStr){
   setTimeout(()=>el.remove(), 3700);
 }
 
+// Comemoração do ranking FINAL do Quiz ao vivo (ver quizGarantirPolling,
+// render-quiz.js — dispara uma vez só por quiz, quando o host chega no
+// último ranking). Mesmo mecanismo de confete de dispararComemoracaoDiaCompleto
+// acima, só que com as 4 cores do próprio Quiz (QUIZ_CORES, render-quiz.js)
+// em vez das cores da marca, e um pouco mais de confete/duração pra sentir
+// "final de verdade".
+function dispararComemoracaoQuizFinal(titulo){
+  const cores = ['#D9362E','#2F80ED','#B8860B','#2FAE60'];
+  const confete = Array.from({length:44}).map((_,i)=>{
+    const x = (Math.random()*100).toFixed(1);
+    const delay = (Math.random()*0.6).toFixed(2);
+    const dur = (2.4+Math.random()*1.4).toFixed(2);
+    return `<span class="confete-piece" style="left:${x}%;background:${cores[i%cores.length]};animation-delay:${delay}s;animation-duration:${dur}s;"></span>`;
+  }).join('');
+  const el = document.createElement('div');
+  el.className = 'dia-completo-toast';
+  el.innerHTML = `<div class="dia-completo-confete">${confete}</div>
+    <div class="dia-completo-card"><span class="dia-completo-emoji">🎆</span><span>Parabéns${titulo ? ` — ${escapeHtml(titulo)}` : ''}! 🎉</span></div>`;
+  document.body.appendChild(el);
+  setTimeout(()=>el.classList.add('sumindo'), 4200);
+  setTimeout(()=>el.remove(), 4700);
+}
+

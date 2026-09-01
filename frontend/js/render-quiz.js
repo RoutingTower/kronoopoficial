@@ -14,6 +14,10 @@ let _quizLista = null;
 let _quizListaCarregando = false;
 let _quizPollTimer = null;
 let _quizPollId = null;
+// Guarda o id do quiz que já disparou a comemoração de ranking final, pra
+// não repetir a cada tick de polling (1.5s) enquanto o host fica parado
+// nessa tela — ver dispararComemoracaoQuizFinal, ui.js.
+let _quizConfeteFinalPara = null;
 
 // 4 cores fixas pras opções, igual Kahoot (vermelho/azul/dourado/verde) —
 // reaproveita as variáveis de tema já existentes, então funciona nos dois temas.
@@ -162,6 +166,12 @@ function quizGarantirPolling(id){
   const tick = async ()=>{
     try{ uiState.quizApresentarDados = await apiGetQuiz(id); }
     catch(e){ /* falha de rede pontual — mantém o último estado bom até o próximo tick */ }
+    const d = uiState.quizApresentarDados;
+    const éRankingFinal = d && d.status==='ranking' && d.perguntaAtualIndex>=d.perguntas.length-1;
+    if(éRankingFinal && _quizConfeteFinalPara!==id){
+      _quizConfeteFinalPara = id;
+      dispararComemoracaoQuizFinal(d.titulo);
+    }
     if(activeNavKey==='quiz' && uiState.quizView==='apresentar' && uiState.quizApresentandoId===id) renderMain();
     else quizPararPolling();
   };
@@ -193,7 +203,8 @@ function quizApresentarHtml(){
     <div class="quiz-pin-display">
       <div class="quiz-pin-label">PIN do quiz</div>
       <div class="quiz-pin-numero mono">${dados.pin}</div>
-      <div class="help-text">Participantes entram em "Entrar em um quiz", na tela de login.</div>
+      <div class="help-text">Participantes entram em "Entrar em um quiz", na tela de login — ou clicando no link abaixo, que já leva direto pra digitar o nome.</div>
+      <button class="btn btn-sm" id="btnQuizCopiarLink" data-pin="${dados.pin}" style="margin-top:8px;">🔗 Copiar link de convite</button>
     </div>
     <div class="section-title" style="margin-top:22px;">${dados.participantes.length} participante(s) já entraram</div>
     <div class="quiz-lobby-participantes">${dados.participantes.map(p=>`<span class="tag">${escapeHtml(p.nome)}</span>`).join('') || '<span class="help-text">Aguardando...</span>'}</div>`;

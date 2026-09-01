@@ -33,15 +33,27 @@ function qpPararPolling(){ if(qpPollTimer){ clearInterval(qpPollTimer); qpPollTi
 function qpPararCountdown(){ if(qpCountdownTimer){ clearInterval(qpCountdownTimer); qpCountdownTimer = null; } }
 function qpPararTudo(){ qpPararPolling(); qpPararCountdown(); }
 
+// Link direto com PIN embutido (?pin=123456, ver btnQuizCopiarLink em
+// events.js/render-quiz.js) — quem abre por esse link não precisa digitar o
+// PIN, só o nome. Link sem esse parâmetro (ex.: "Entrar em um quiz" da tela
+// de login) continua pedindo os dois campos normalmente.
+function qpPinDaUrl(){
+  try{
+    const pin = new URLSearchParams(window.location.search).get('pin') || '';
+    return /^\d{4,8}$/.test(pin) ? pin : null;
+  }catch(e){ return null; }
+}
+
 // ---------- Tela: entrar ----------
 
 function qpTelaEntrar(erro){
   qpPararTudo();
+  const pinFixo = qpPinDaUrl();
   qpRender(`
     <div class="quiz-play-card">
       <h1 class="quiz-play-title">Entrar no quiz</h1>
-      <p class="quiz-play-sub">Peça o PIN pra quem está apresentando.</p>
-      <div class="quiz-play-field"><label>PIN</label><input id="qpPinInput" inputmode="numeric" maxlength="6" placeholder="123456"></div>
+      <p class="quiz-play-sub">${pinFixo ? 'Só falta seu nome pra entrar.' : 'Peça o PIN pra quem está apresentando.'}</p>
+      <div class="quiz-play-field"><label>PIN</label><input id="qpPinInput" inputmode="numeric" maxlength="6" placeholder="123456" ${pinFixo ? `value="${pinFixo}" readonly style="opacity:0.65;"` : ''}></div>
       <div class="quiz-play-field"><label>Seu nome</label><input id="qpNomeInput" maxlength="40" placeholder="Como quer aparecer no ranking"></div>
       <button class="quiz-play-btn" id="qpEntrarBtn">Entrar</button>
       ${erro ? `<div class="quiz-play-erro">${qpEscapeHtml(erro)}</div>` : ''}
@@ -49,7 +61,7 @@ function qpTelaEntrar(erro){
   const btn = document.getElementById('qpEntrarBtn');
   btn.addEventListener('click', qpOnEntrar);
   document.getElementById('qpNomeInput').addEventListener('keydown', e=>{ if(e.key==='Enter') qpOnEntrar(); });
-  document.getElementById('qpPinInput').focus();
+  (pinFixo ? document.getElementById('qpNomeInput') : document.getElementById('qpPinInput')).focus();
 }
 
 async function qpOnEntrar(){
@@ -179,7 +191,28 @@ function qpTelaRevelacao(dados){
     </div>`);
 }
 
+// Confete no ranking final do PRÓPRIO jogador — reaproveita as classes
+// .dia-completo-toast/.dia-completo-confete/.confete-piece já definidas em
+// css/style.css (mesmo arquivo que esta página carrega) pra comemoração de
+// "dia fechado"/ranking final do host (ui.js) — aqui só o confete, sem o
+// card de texto por cima. Dispara uma vez só por jogo (qpConfetiFinalMostrado).
+let qpConfetiFinalMostrado = false;
+function qpDispararConfetiFinal(){
+  const confete = Array.from({length:36}).map((_,i)=>{
+    const x = (Math.random()*100).toFixed(1);
+    const delay = (Math.random()*0.5).toFixed(2);
+    const dur = (2.2+Math.random()*1.2).toFixed(2);
+    return `<span class="confete-piece" style="left:${x}%;background:${QUIZ_PLAY_CORES[i%QUIZ_PLAY_CORES.length]};animation-delay:${delay}s;animation-duration:${dur}s;"></span>`;
+  }).join('');
+  const el = document.createElement('div');
+  el.className = 'dia-completo-toast';
+  el.innerHTML = `<div class="dia-completo-confete">${confete}</div>`;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(), 3800);
+}
+
 function qpTelaRanking(dados){
+  if(dados.final && !qpConfetiFinalMostrado){ qpConfetiFinalMostrado = true; qpDispararConfetiFinal(); }
   const pos = dados.minhaPosicao;
   qpRender(`
     <div class="quiz-play-card">
