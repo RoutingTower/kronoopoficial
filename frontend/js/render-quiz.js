@@ -119,6 +119,11 @@ function quizCriarHtml(){
   <div class="card" style="margin-bottom:14px;">
     <div class="field"><label>Título do quiz</label><input type="text" id="quiz-novo-titulo" value="${escapeHtml(d.titulo)}" placeholder="ex: Quiz de segurança — Agosto"></div>
   </div>
+  <div class="csv-row" style="margin-bottom:14px;">
+    <span class="csv-label">Importar perguntas em massa (Excel)</span>
+    <button class="btn" id="btnBaixarModeloQuiz">⭳ Baixar modelo Excel</button>
+    <label class="btn" style="margin:0;">⭱ Importar Excel<input type="file" accept=".xlsx,.xls" id="fileImportQuiz" style="display:none;"></label>
+  </div>
   ${perguntasHtml}
   <div style="display:flex;gap:8px;margin:14px 0;">
     <button class="btn btn-sm" id="btnQuizAddPergunta">+ Adicionar pergunta</button>

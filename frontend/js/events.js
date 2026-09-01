@@ -3167,6 +3167,40 @@ function bindMainEvents(){
       renderMain();
     });
   });
+  const btnBaixarModeloQuiz = document.getElementById('btnBaixarModeloQuiz');
+  if(btnBaixarModeloQuiz) btnBaixarModeloQuiz.addEventListener('click', ()=>{
+    downloadXLSX('modelo_perguntas_quiz.xlsx',
+      ['enunciado','opcao_1','opcao_2','opcao_3','opcao_4','correta','tempo_segundos'],
+      ['Qual é a capital do Brasil?','Rio de Janeiro','São Paulo','Brasília','Salvador',3,20]);
+  });
+  const fileImportQuiz = document.getElementById('fileImportQuiz');
+  if(fileImportQuiz) fileImportQuiz.addEventListener('change', async ()=>{
+    const file = fileImportQuiz.files[0]; if(!file) return;
+    let rows;
+    try { rows = await parseXLSX(file); }
+    catch(e){ fileImportQuiz.value=''; alert('Não foi possível ler o arquivo Excel: '+e.message); return; }
+    quizScrapeDraftFromDom();
+    let ok=0, fail=0;
+    const importadas = [];
+    rows.forEach(r=>{
+      const enunciado = String(r.enunciado||'').trim();
+      const opcoes = [r.opcao_1, r.opcao_2, r.opcao_3, r.opcao_4].map(o=>String(o||'').trim());
+      const correta = Number(r.correta);
+      const tempoSegundos = Number(r.tempo_segundos) || 20;
+      if(!enunciado || opcoes.some(o=>!o) || !Number.isInteger(correta) || correta<1 || correta>4){ fail++; return; }
+      importadas.push({ enunciado, opcoes, corretaIndex: correta-1, tempoSegundos });
+      ok++;
+    });
+    // A pergunta em branco que já vem por padrão num quiz novo (ver
+    // quizGarantirDraft) não serve de nada se a importação trouxe pergunta
+    // de verdade — descarta ela em vez de deixar um "Pergunta 1" vazio.
+    const perguntasAtuais = uiState.quizDraft.perguntas;
+    const soTemPlaceholderVazio = perguntasAtuais.length===1 && !perguntasAtuais[0].enunciado && perguntasAtuais[0].opcoes.every(o=>!o);
+    uiState.quizDraft.perguntas = [...(soTemPlaceholderVazio ? [] : perguntasAtuais), ...importadas];
+    fileImportQuiz.value = '';
+    renderMain();
+    alert(`Importação concluída: ${ok} pergunta(s) adicionada(s)${fail?`, ${fail} linha(s) inválida(s) ignorada(s) (confira enunciado, as 4 opções e "correta" entre 1 e 4)`:''}.`);
+  });
   const btnQuizSalvarNovo = document.getElementById('btnQuizSalvarNovo');
   if(btnQuizSalvarNovo) btnQuizSalvarNovo.addEventListener('click', async ()=>{
     quizScrapeDraftFromDom();
