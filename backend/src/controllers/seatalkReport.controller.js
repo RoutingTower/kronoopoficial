@@ -102,6 +102,55 @@ function separarNaoFinalizados(esperadas, rowsDoDia) {
   return esperadas.filter((e) => !rowsDoDia.some((r) => r.operacao === e.operacao && r.hora === e.horaInicio));
 }
 
+// Mesma convenção de extração de UF do nome do hub do frontend
+// (ufDaOperacao, frontend/js/utils.js — "LM Hub_UF_Cidade...", 92/92 hubs
+// reais seguem esse padrão). Hub fora do padrão simplesmente não entra na
+// comparação por UF (retorna ''), igual ao frontend.
+function ufDaOperacao(operacao) {
+  const m = /^LM Hub_([A-Za-z]{2})_/.exec(operacao || "");
+  return m ? m[1].toUpperCase() : "";
+}
+
+function diaAnterior(dataStr) {
+  const d = new Date(dataStr + "T12:00:00");
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatarDataBR(dataStr) {
+  const [, mes, dia] = dataStr.split("-");
+  return `${dia}/${mes}`;
+}
+
+// Média de SPR agrupada por uma chave (operação ou UF) — só entre linhas
+// COM SPR lançado (mesmo filtro de sempre: sem "sem roteirização" e sem
+// sprRoteirizado nulo). `count` fica junto do resultado de propósito: quem
+// usa isso (montarAnaliseDiaria) precisa saber o TAMANHO da amostra antes
+// de atribuir qualquer variação a uma chave — ver LIMITE_MIN_AMOSTRA_UF.
+function mediaSprPorChave(rows, chaveFn) {
+  const somas = new Map();
+  rows
+    .filter((r) => !r.semRoteirizacao && r.sprRoteirizado != null)
+    .forEach((r) => {
+      const chave = chaveFn(r);
+      if (!chave) return;
+      if (!somas.has(chave)) somas.set(chave, { soma: 0, count: 0 });
+      const d = somas.get(chave);
+      d.soma += r.sprRoteirizado;
+      d.count += 1;
+    });
+  const out = new Map();
+  somas.forEach((d, chave) => out.set(chave, { media: d.soma / d.count, count: d.count }));
+  return out;
+}
+
+// Só atribui a variação do dia a um estado (UF) se os dois dias tiverem
+// pelo menos essa quantidade de finalizações COM SPR naquele estado — sem
+// isso, 1 hub com SPR ruim por acaso já "explicaria" o dia inteiro, o que
+// não é uma leitura confiável. Pedido explícito: "atribui as variações a
+// volumetria se possível".
+const LIMITE_MIN_AMOSTRA_UF = 3;
+
 async function enviarParaSeatalk(texto) {
   if (!seatalkWebhookUrl) throw new Error("SEATALK_REPORT_WEBHOOK_URL não configurado.");
   const res = await fetch(seatalkWebhookUrl, {
@@ -229,6 +278,88 @@ function montarHora(rows, horaInicio, horaFim, naoFinalizados) {
   return linhas.join("\n");
 }
 
+// Compara hoje com ontem — sempre dia contra dia (não semana), pedido
+// explícito. Só usa o que já existe no Raio-X (SPR lançado/meta), sem
+// depender de pedidos/rotas. A atribuição por UF (qual estado puxou a alta
+// ou a queda) é aritmética pura (soma/média por grupo, maior/menor delta)
+// — não é uma IA "opinando", só uma regra bem desenhada.
+function montarAnaliseDiaria(rowsHoje, rowsOntem, dataHoje, dataOntem, nomeSupervisor) {
+  const comSprHoje = rowsHoje.filter((r) => !r.semRoteirizacao && r.sprRoteirizado != null);
+  const comSprOntem = rowsOntem.filter((r) => !r.semRoteirizacao && r.sprRoteirizado != null);
+  const sprMedioHoje = comSprHoje.length ? comSprHoje.reduce((s, r) => s + r.sprRoteirizado, 0) / comSprHoje.length : 0;
+  const sprMedioOntem = comSprOntem.length ? comSprOntem.reduce((s, r) => s + r.sprRoteirizado, 0) / comSprOntem.length : 0;
+  const deltaGeral = sprMedioHoje - sprMedioOntem;
+  const deltaPct = sprMedioOntem ? (deltaGeral / sprMedioOntem) * 100 : null;
+
+  const abaixoMetaHoje = comSprHoje.filter((r) => r.sprMeta != null && r.sprRoteirizado < r.sprMeta).length;
+  const abaixoMetaOntem = comSprOntem.filter((r) => r.sprMeta != null && r.sprRoteirizado < r.sprMeta).length;
+
+  // Por operação — casa só quem finalizou nos DOIS dias (média do dia, pro
+  // caso raro de mais de uma finalização da mesma operação no mesmo dia).
+  const porOperacaoHoje = mediaSprPorChave(rowsHoje, (r) => r.operacao);
+  const porOperacaoOntem = mediaSprPorChave(rowsOntem, (r) => r.operacao);
+  const deltasOperacao = [];
+  porOperacaoHoje.forEach((h, operacao) => {
+    const o = porOperacaoOntem.get(operacao);
+    if (!o) return;
+    deltasOperacao.push({ operacao, hoje: h.media, ontem: o.media, delta: h.media - o.media });
+  });
+  const maiorEvolucao = deltasOperacao.filter((d) => d.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 2);
+  const maiorQueda = deltasOperacao.filter((d) => d.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 2);
+
+  // Por UF — só entram no ranking os estados com amostra mínima nos DOIS
+  // dias (ver LIMITE_MIN_AMOSTRA_UF).
+  const porUfHoje = mediaSprPorChave(rowsHoje, (r) => ufDaOperacao(r.operacao));
+  const porUfOntem = mediaSprPorChave(rowsOntem, (r) => ufDaOperacao(r.operacao));
+  const deltasUf = [];
+  porUfHoje.forEach((h, uf) => {
+    const o = porUfOntem.get(uf);
+    if (!o) return;
+    if (h.count < LIMITE_MIN_AMOSTRA_UF || o.count < LIMITE_MIN_AMOSTRA_UF) return;
+    deltasUf.push({ uf, delta: h.media - o.media, countHoje: h.count });
+  });
+  deltasUf.sort((a, b) => b.delta - a.delta);
+  const ufAlta = deltasUf.length && deltasUf[0].delta > 0 ? deltasUf[0] : null;
+  const ufBaixaCandidata = deltasUf[deltasUf.length - 1];
+  const ufBaixa = ufBaixaCandidata && ufBaixaCandidata.delta < 0 && ufBaixaCandidata.uf !== ufAlta?.uf ? ufBaixaCandidata : null;
+
+  const linhas = [];
+  linhas.push(`📊 ANÁLISE DIÁRIA DE SPR | CONSOLIDADO ${nomeSupervisor ? nomeSupervisor.toUpperCase() : "GERAL"}`, "");
+  linhas.push(`📅 ${formatarDataBR(dataHoje)} (vs. ${formatarDataBR(dataOntem)})`, "");
+  linhas.push(`• SPR médio: ${sprMedioHoje.toFixed(1)} (dia anterior: ${sprMedioOntem.toFixed(1)}) → ${deltaPct != null ? `${deltaPct >= 0 ? "+" : ""}${deltaPct.toFixed(1)}%` : "—"} ${deltaGeral >= 0 ? "📈" : "📉"}`);
+  linhas.push(`• Hubs analisados: ${rowsHoje.length} (dia anterior: ${rowsOntem.length})`);
+  linhas.push(`• Hubs abaixo da meta: ${abaixoMetaHoje} — dia anterior: ${abaixoMetaOntem}`, "");
+
+  linhas.push("🏆 MAIOR EVOLUÇÃO", "");
+  if (maiorEvolucao.length === 0) {
+    linhas.push("Nenhuma operação com SPR maior que ontem.");
+  } else {
+    maiorEvolucao.forEach((d) => linhas.push(`🟢 ${d.operacao} — SPR ${d.ontem.toFixed(0)} → ${d.hoje.toFixed(0)} (+${d.delta.toFixed(0)})`));
+  }
+  linhas.push("");
+
+  linhas.push("⚠️ MAIOR QUEDA", "");
+  if (maiorQueda.length === 0) {
+    linhas.push("Nenhuma operação com SPR menor que ontem.");
+  } else {
+    maiorQueda.forEach((d) => linhas.push(`🔴 ${d.operacao} — SPR ${d.ontem.toFixed(0)} → ${d.hoje.toFixed(0)} (${d.delta.toFixed(0)})`));
+  }
+  linhas.push("");
+
+  if (ufAlta || ufBaixa) {
+    const partes = [];
+    if (ufAlta) partes.push(`${ufAlta.uf} foi o estado que mais puxou a alta de hoje (SPR médio +${ufAlta.delta.toFixed(1)}, ${ufAlta.countHoje} hubs)`);
+    if (ufBaixa) partes.push(`${ufBaixa.uf} foi o que mais recuou (${ufBaixa.delta.toFixed(1)}, ${ufBaixa.countHoje} hubs)`);
+    linhas.push(`📍 ${partes.join(" — ")}.`);
+  } else {
+    linhas.push("📍 Sem volume suficiente pra atribuir a variação a um estado específico hoje.");
+  }
+  linhas.push("");
+
+  linhas.push(`Status: SPR médio ${deltaGeral >= 0 ? "subiu" : deltaGeral < 0 ? "caiu" : "ficou estável"} em relação a ontem.`);
+  return linhas.join("\n");
+}
+
 // POST /api/reports/seatalk — fora do requireAuth (ver routes/index.js),
 // autenticado pelo token compartilhado (mesmo esquema do planilha-import).
 // Body: { tipo:'fechamento', data, supervisorEmail? } ou
@@ -245,21 +376,25 @@ async function enviarReportSeatalk(req, res) {
   }
 
   const { tipo, data, horaInicio, horaFim, supervisorEmail } = req.body;
-  if (!data || (tipo !== "fechamento" && tipo !== "hora")) {
-    return res.status(400).json({ error: "bad_request", message: "tipo ('fechamento' ou 'hora') e data são obrigatórios." });
+  const TIPOS_VALIDOS = ["fechamento", "hora", "analise_diaria"];
+  if (!data || !TIPOS_VALIDOS.includes(tipo)) {
+    return res.status(400).json({ error: "bad_request", message: `tipo (${TIPOS_VALIDOS.map((t) => `'${t}'`).join(", ")}) e data são obrigatórios.` });
   }
 
   // Bruta (sem filtro de equipe) fica reservada pra achar "não finalizados"
   // — um Raio-X pode ter sido enviado por alguém de OUTRA equipe cobrindo
   // um hub que é seu (ex.: suplência entre supervisores), e nesse caso
   // `todasDoDia` (escopada por quem SUBMETEU) não incluiria essa linha,
-  // fazendo um hub já finalizado aparecer como pendente à toa.
+  // fazendo um hub já finalizado aparecer como pendente à toa. Mesmo
+  // raciocínio vale pra escopar rowsOntem, por isso usuarios/supervisor são
+  // resolvidos aqui em cima, fora do if/else de cada tipo.
   const todasDoDiaBruta = await supabaseService.listWhere(COLLECTION, [["data", "==", data]]);
   let todasDoDia = todasDoDiaBruta;
   let supervisor = null;
+  let usuarios = null;
 
   if (supervisorEmail) {
-    const usuarios = await supabaseService.listAll("users");
+    usuarios = await supabaseService.listAll("users");
     supervisor = usuarios.find((u) => (u.email || "").toLowerCase() === supervisorEmail.toLowerCase());
     if (!supervisor) {
       return res.status(400).json({ error: "bad_request", message: `Nenhum usuário encontrado com o e-mail ${supervisorEmail}.` });
@@ -270,24 +405,34 @@ async function enviarReportSeatalk(req, res) {
     todasDoDia = todasDoDiaBruta.filter((r) => supervisorPorAnalista.get(r.analistaId) === supervisor.id);
   }
 
-  const esperadas = await operacoesEsperadas(data, supervisor?.id || null);
-
   let texto;
-  if (tipo === "fechamento") {
-    const naoFinalizados = separarNaoFinalizados(esperadas, todasDoDiaBruta);
-    texto = montarFechamento(todasDoDia, req.body.horaFechamento || "05h", supervisor?.name, naoFinalizados);
-  } else {
-    if (!horaInicio || !horaFim) {
-      return res.status(400).json({ error: "bad_request", message: "horaInicio e horaFim são obrigatórios pra tipo='hora'." });
+  if (tipo === "analise_diaria") {
+    const dataOntem = diaAnterior(data);
+    const rowsOntemBruta = await supabaseService.listWhere(COLLECTION, [["data", "==", dataOntem]]);
+    let rowsOntem = rowsOntemBruta;
+    if (supervisor) {
+      const supervisorPorAnalista = new Map(usuarios.map((u) => [u.id, u.supervisorId]));
+      rowsOntem = rowsOntemBruta.filter((r) => supervisorPorAnalista.get(r.analistaId) === supervisor.id);
     }
-    const doPeriodo = todasDoDia.filter((r) => horaValor(r.hora) >= horaValor(horaInicio) && horaValor(r.hora) < horaValor(horaFim));
-    const esperadasDoPeriodo = esperadas.filter((e) => horaValor(e.horaInicio) >= horaValor(horaInicio) && horaValor(e.horaInicio) < horaValor(horaFim));
-    const naoFinalizados = separarNaoFinalizados(esperadasDoPeriodo, todasDoDiaBruta);
-    texto = montarHora(doPeriodo, horaInicio, horaFim, naoFinalizados);
+    texto = montarAnaliseDiaria(todasDoDia, rowsOntem, data, dataOntem, supervisor?.name);
+  } else {
+    const esperadas = await operacoesEsperadas(data, supervisor?.id || null);
+    if (tipo === "fechamento") {
+      const naoFinalizados = separarNaoFinalizados(esperadas, todasDoDiaBruta);
+      texto = montarFechamento(todasDoDia, req.body.horaFechamento || "05h", supervisor?.name, naoFinalizados);
+    } else {
+      if (!horaInicio || !horaFim) {
+        return res.status(400).json({ error: "bad_request", message: "horaInicio e horaFim são obrigatórios pra tipo='hora'." });
+      }
+      const doPeriodo = todasDoDia.filter((r) => horaValor(r.hora) >= horaValor(horaInicio) && horaValor(r.hora) < horaValor(horaFim));
+      const esperadasDoPeriodo = esperadas.filter((e) => horaValor(e.horaInicio) >= horaValor(horaInicio) && horaValor(e.horaInicio) < horaValor(horaFim));
+      const naoFinalizados = separarNaoFinalizados(esperadasDoPeriodo, todasDoDiaBruta);
+      texto = montarHora(doPeriodo, horaInicio, horaFim, naoFinalizados);
+    }
   }
 
   await enviarParaSeatalk(texto);
   res.json({ enviado: true, tamanho: texto.length, preview: texto });
 }
 
-module.exports = { enviarReportSeatalk, montarFechamento, montarHora, operacoesEsperadas, separarNaoFinalizados };
+module.exports = { enviarReportSeatalk, montarFechamento, montarHora, montarAnaliseDiaria, operacoesEsperadas, separarNaoFinalizados };
