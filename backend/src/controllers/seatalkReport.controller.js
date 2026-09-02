@@ -40,6 +40,68 @@ function formatarNumero(n) {
   return Number(n || 0).toLocaleString("pt-BR");
 }
 
+// Mesma convenção de dias da base mestra do frontend (WEEKDAYS/bmRodaNoDia,
+// frontend/js/utils.js) — portado aqui porque o backend não importa código
+// do frontend. dataStr sem componente de hora: getDay() bate com o dia
+// certo independente do fuso do processo (Render roda em UTC), já que uma
+// string "yyyy-MM-ddT00:00:00" sem offset não cruza dia nenhuma hora.
+const WEEKDAYS_PT = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
+function bmRodaNoDia(bm, dataStr) {
+  if (dataStr < bm.dataInicio || dataStr > bm.dataFim) return false;
+  if (!bm.dias || bm.dias.length === 0) return true;
+  const weekday = WEEKDAYS_PT[new Date(dataStr + "T00:00:00").getDay()];
+  return bm.dias.includes(weekday);
+}
+
+// Operações que DEVERIAM ter Raio-X nessa data — mesmo raciocínio de
+// getDaySlots (frontend/js/utils.js), simplificado pra só o que o report
+// precisa (operação/ciclo/horário/quem é o responsável — não a agenda
+// completa de ninguém). Cobertura (ausência com suplente, ou suplência
+// avulsa) troca quem é o responsável esperado, mas o hub continua contando
+// — o titular de folga sem ninguém cobrindo (suplenteId nulo) não entra:
+// nesse caso não tem quem cobrar Raio-X ainda, é problema de escala, não
+// de execução. supervisorId (opcional) escopa pelo DONO original do hub
+// (base_mestra.analistaId), não por quem efetivamente cobre — é o hub que
+// pertence à equipe, mesmo se um suplente de fora vier ajudar.
+async function operacoesEsperadas(data, supervisorId) {
+  const [usuarios, baseMestra, ausencias, suplencias] = await Promise.all([
+    supabaseService.listAll("users"),
+    supabaseService.listAll("baseMestra"),
+    supabaseService.listWhere("ausencias", [["data", "==", data]]),
+    supabaseService.listWhere("suplencias", [["dataCobertura", "==", data]]),
+  ]);
+  const donoNaEquipe = (analistaId) => !supervisorId || usuarios.find((u) => u.id === analistaId)?.supervisorId === supervisorId;
+
+  const esperadas = [];
+  baseMestra
+    .filter((bm) => bmRodaNoDia(bm, data) && donoNaEquipe(bm.analistaId))
+    .forEach((bm) => {
+      const aus = ausencias.find((a) => a.baseMestraId === bm.id);
+      if (aus) {
+        if (!aus.suplenteId) return;
+        const sup = usuarios.find((u) => u.id === aus.suplenteId);
+        esperadas.push({ operacao: bm.operacao, ciclo: bm.ciclo, horaInicio: bm.horaInicio, responsavelNome: sup?.name || aus.suplenteNome || "—" });
+      } else {
+        esperadas.push({ operacao: bm.operacao, ciclo: bm.ciclo, horaInicio: bm.horaInicio, responsavelNome: bm.titular });
+      }
+    });
+
+  suplencias.filter((s) => donoNaEquipe(s.analistaOriginalId)).forEach((s) => {
+    esperadas.push({ operacao: s.operacao, ciclo: s.ciclo, horaInicio: s.horaInicio, responsavelNome: s.suplente });
+  });
+
+  return esperadas;
+}
+
+// Cruza o esperado com o que já tem Raio-X (rows) — casa só por
+// operação+horário (a mesma convenção de chave já usada em todo o resto do
+// app pra SPR/Links SeaTalk: nome de operação é único). Não exige bater o
+// analistaId porque o objetivo aqui é "esse hub foi finalizado por
+// ALGUÉM", não "por quem era esperado".
+function separarNaoFinalizados(esperadas, rowsDoDia) {
+  return esperadas.filter((e) => !rowsDoDia.some((r) => r.operacao === e.operacao && r.hora === e.horaInicio));
+}
+
 async function enviarParaSeatalk(texto) {
   if (!seatalkWebhookUrl) throw new Error("SEATALK_REPORT_WEBHOOK_URL não configurado.");
   const res = await fetch(seatalkWebhookUrl, {
@@ -53,7 +115,8 @@ async function enviarParaSeatalk(texto) {
   }
 }
 
-function montarFechamento(rows, horaFechamento, nomeSupervisor) {
+function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados) {
+  naoFinalizados = naoFinalizados || [];
   const analisados = rows.length;
   const roteirizados = rows.filter((r) => r.duracaoSegundos != null).length;
   const comSpr = rows.filter((r) => !r.semRoteirizacao && r.sprRoteirizado != null);
@@ -64,6 +127,7 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor) {
   const sprAlto = comSpr.filter((r) => r.sprRoteirizado >= LIMITE_SPR_ALTO).sort((a, b) => b.sprRoteirizado - a.sprRoteirizado);
   const sprBaixo = comSpr.filter((r) => r.sprRoteirizado < LIMITE_SPR_BAIXO).sort((a, b) => a.sprRoteirizado - b.sprRoteirizado);
   const comOrfaos = rows.filter((r) => (r.orfaos || 0) > LIMITE_ORFAOS).sort((a, b) => b.orfaos - a.orfaos);
+  const pendentes = naoFinalizados.slice().sort((a, b) => horaValor(a.horaInicio) - horaValor(b.horaInicio));
 
   const linhas = [];
   linhas.push(`📢 REPORT DE FECHAMENTO | ${horaFechamento}`, "");
@@ -72,6 +136,14 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor) {
   linhas.push(`• Hubs roteirizados: ${roteirizados}`);
   linhas.push(`• SPR médio: ${sprMedio}`);
   linhas.push(`• Total de órfãos: ${formatarNumero(totalOrfaos)}`, "");
+
+  linhas.push("⏳ HUBS AINDA SEM RAIO-X", "");
+  if (pendentes.length === 0) {
+    linhas.push("✅ Todos os hubs programados do turno já têm Raio-X.");
+  } else {
+    pendentes.forEach((p) => linhas.push(`⏳ ${p.operacao} (${p.responsavelNome}) — previsto p/ ${p.horaInicio}`));
+  }
+  linhas.push("");
 
   linhas.push("🚨 HUBS OFENSORES — OPERAÇÃO SUPERIOR A 1 HORA", "");
   if (ofensores.length === 0) {
@@ -108,7 +180,7 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor) {
   }
   linhas.push("");
 
-  const tiposComAlerta = [ofensores.length > 0, sprAlto.length > 0, sprBaixo.length > 0, comOrfaos.length > 0].filter(Boolean).length;
+  const tiposComAlerta = [pendentes.length > 0, ofensores.length > 0, sprAlto.length > 0, sprBaixo.length > 0, comOrfaos.length > 0].filter(Boolean).length;
   linhas.push(
     tiposComAlerta > 0
       ? `Status: Fechamento concluído com ${tiposComAlerta} tipo${tiposComAlerta > 1 ? "s" : ""} de alerta operacional identificado${tiposComAlerta > 1 ? "s" : ""}.`
@@ -117,10 +189,11 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor) {
   return linhas.join("\n");
 }
 
-function montarHora(rows, horaInicio, horaFim) {
+function montarHora(rows, horaInicio, horaFim, naoFinalizados) {
+  naoFinalizados = naoFinalizados || [];
   const linhas = [];
   linhas.push(`📢 INFORMATIVO OPERACIONAL | ${horaInicio.slice(0, 2)}h às ${horaFim.slice(0, 2)}h`, "");
-  if (rows.length === 0) {
+  if (rows.length === 0 && naoFinalizados.length === 0) {
     linhas.push("Nenhum hub agendado pra essa janela.");
   } else {
     rows
@@ -142,8 +215,17 @@ function montarHora(rows, horaInicio, horaFim) {
         segs.push(`Órf ${r.orfaos ?? 0}`);
         linhas.push(`✅ ${r.operacao} - ${segs.join(" | ")}`);
       });
+    naoFinalizados
+      .slice()
+      .sort((a, b) => horaValor(a.horaInicio) - horaValor(b.horaInicio))
+      .forEach((p) => linhas.push(`⏳ ${p.operacao} (${p.responsavelNome}) — ainda sem Raio-X`));
   }
-  linhas.push("", "Status: Todos os hubs foram finalizados sem intercorrências.");
+  linhas.push(
+    "",
+    naoFinalizados.length > 0
+      ? `Status: ${naoFinalizados.length} hub(s) dessa janela ainda sem Raio-X.`
+      : "Status: Todos os hubs foram finalizados sem intercorrências."
+  );
   return linhas.join("\n");
 }
 
@@ -167,7 +249,13 @@ async function enviarReportSeatalk(req, res) {
     return res.status(400).json({ error: "bad_request", message: "tipo ('fechamento' ou 'hora') e data são obrigatórios." });
   }
 
-  let todasDoDia = await supabaseService.listWhere(COLLECTION, [["data", "==", data]]);
+  // Bruta (sem filtro de equipe) fica reservada pra achar "não finalizados"
+  // — um Raio-X pode ter sido enviado por alguém de OUTRA equipe cobrindo
+  // um hub que é seu (ex.: suplência entre supervisores), e nesse caso
+  // `todasDoDia` (escopada por quem SUBMETEU) não incluiria essa linha,
+  // fazendo um hub já finalizado aparecer como pendente à toa.
+  const todasDoDiaBruta = await supabaseService.listWhere(COLLECTION, [["data", "==", data]]);
+  let todasDoDia = todasDoDiaBruta;
   let supervisor = null;
 
   if (supervisorEmail) {
@@ -179,22 +267,27 @@ async function enviarReportSeatalk(req, res) {
     // analistaId -> supervisorId, pra filtrar o raio-x (que só guarda
     // analistaId, não supervisorId) pela equipe de quem pediu.
     const supervisorPorAnalista = new Map(usuarios.map((u) => [u.id, u.supervisorId]));
-    todasDoDia = todasDoDia.filter((r) => supervisorPorAnalista.get(r.analistaId) === supervisor.id);
+    todasDoDia = todasDoDiaBruta.filter((r) => supervisorPorAnalista.get(r.analistaId) === supervisor.id);
   }
+
+  const esperadas = await operacoesEsperadas(data, supervisor?.id || null);
 
   let texto;
   if (tipo === "fechamento") {
-    texto = montarFechamento(todasDoDia, req.body.horaFechamento || "05h", supervisor?.name);
+    const naoFinalizados = separarNaoFinalizados(esperadas, todasDoDiaBruta);
+    texto = montarFechamento(todasDoDia, req.body.horaFechamento || "05h", supervisor?.name, naoFinalizados);
   } else {
     if (!horaInicio || !horaFim) {
       return res.status(400).json({ error: "bad_request", message: "horaInicio e horaFim são obrigatórios pra tipo='hora'." });
     }
     const doPeriodo = todasDoDia.filter((r) => horaValor(r.hora) >= horaValor(horaInicio) && horaValor(r.hora) < horaValor(horaFim));
-    texto = montarHora(doPeriodo, horaInicio, horaFim);
+    const esperadasDoPeriodo = esperadas.filter((e) => horaValor(e.horaInicio) >= horaValor(horaInicio) && horaValor(e.horaInicio) < horaValor(horaFim));
+    const naoFinalizados = separarNaoFinalizados(esperadasDoPeriodo, todasDoDiaBruta);
+    texto = montarHora(doPeriodo, horaInicio, horaFim, naoFinalizados);
   }
 
   await enviarParaSeatalk(texto);
   res.json({ enviado: true, tamanho: texto.length, preview: texto });
 }
 
-module.exports = { enviarReportSeatalk, montarFechamento, montarHora };
+module.exports = { enviarReportSeatalk, montarFechamento, montarHora, operacoesEsperadas, separarNaoFinalizados };
