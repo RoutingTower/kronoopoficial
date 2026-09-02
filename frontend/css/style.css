@@ -882,3 +882,9 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .quiz-play-opcao:disabled{opacity:0.5;cursor:default;}
 .quiz-play-resultado{font-size:20px;font-weight:700;margin-bottom:8px;}
 .quiz-play-pontos{color:var(--text-muted);font-size:14px;}
+/* Aviso de "conexão instável" — some fora do #quizPlayRoot (não é apagado
+   pelos re-renders de tela, ver qpRender em quiz-play.js) pra continuar
+   visível independente de qual tela do jogo está na frente. Só aparece
+   depois de algumas falhas seguidas de polling (ver qpMostrarStatusConexao),
+   não numa falha isolada — evita piscar à toa numa rede instável comum. */
+.quiz-play-status-instavel{display:none;position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--alert);color:var(--alert);font-size:12.5px;font-weight:600;padding:9px 16px;border-radius:100px;box-shadow:0 6px 20px rgba(20,20,20,0.18);z-index:20;}

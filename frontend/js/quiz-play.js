@@ -89,10 +89,34 @@ async function qpOnEntrar(){
 
 // ---------- Polling do estado ----------
 
+// 2s (era 1,2s) — cada participante bate nessa rota de forma independente,
+// então o intervalo entra direto na conta de quanto o servidor trabalha por
+// segundo com o quiz cheio de gente. Some com o cache de ~1s do backend
+// (ver bundleDaSessao, quizPlay.controller.js) — juntos, aguentam bem mais
+// gente ao mesmo tempo (incidente com 20+ participantes travando, 01/09/2026).
+const QP_POLL_MS = 2000;
+// Só avisa "conexão instável" depois de falhas SEGUIDAS — uma falha isolada
+// de rede é normal e não deveria assustar ninguém no meio do jogo.
+const QP_FALHAS_PARA_AVISAR = 3;
+let qpFalhasConsecutivas = 0;
+
+function qpMostrarStatusConexao(instavel){
+  let el = document.getElementById('qpStatusConexao');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'qpStatusConexao';
+    el.className = 'quiz-play-status-instavel';
+    el.textContent = '⚠ Conexão instável — tentando reconectar...';
+    document.body.appendChild(el);
+  }
+  el.style.display = instavel ? 'block' : 'none';
+}
+
 function qpIniciarPolling(){
   qpPararPolling();
+  qpFalhasConsecutivas = 0;
   qpPollEstado();
-  qpPollTimer = setInterval(qpPollEstado, 1200);
+  qpPollTimer = setInterval(qpPollEstado, QP_POLL_MS);
 }
 
 async function qpPollEstado(){
@@ -103,9 +127,18 @@ async function qpPollEstado(){
       qpTelaEntrar('Esse quiz não existe mais — peça um PIN novo ao apresentador.');
       return;
     }
+    if(!res.ok) throw new Error('status '+res.status);
     const dados = await res.json();
+    qpFalhasConsecutivas = 0;
+    qpMostrarStatusConexao(false);
     qpRenderEstado(dados);
-  }catch(e){ /* falha de rede pontual — tenta de novo no próximo tick, sem trocar de tela */ }
+  }catch(e){
+    // Falha de rede/servidor — tenta de novo no próximo tick, sem trocar de
+    // tela. Só acende o aviso depois de algumas seguidas (ver constante
+    // acima), pra não piscar à toa numa oscilação isolada de rede.
+    qpFalhasConsecutivas++;
+    if(qpFalhasConsecutivas >= QP_FALHAS_PARA_AVISAR) qpMostrarStatusConexao(true);
+  }
 }
 
 function qpRenderEstado(dados){

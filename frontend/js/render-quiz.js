@@ -15,9 +15,15 @@ let _quizListaCarregando = false;
 let _quizPollTimer = null;
 let _quizPollId = null;
 // Guarda o id do quiz que já disparou a comemoração de ranking final, pra
-// não repetir a cada tick de polling (1.5s) enquanto o host fica parado
-// nessa tela — ver dispararComemoracaoQuizFinal, ui.js.
+// não repetir a cada tick de polling enquanto o host fica parado nessa
+// tela — ver dispararComemoracaoQuizFinal, ui.js.
 let _quizConfeteFinalPara = null;
+// Aviso de "conexão instável" na tela de apresentação — só depois de
+// falhas SEGUIDAS de polling (não numa falha isolada), pra quem está indo
+// ao vivo com o quiz projetado saber que é problema de conexão, não que
+// travou do nada (ver incidente com 20+ participantes, 01/09/2026).
+let _quizFalhasConsecutivas = 0;
+const QUIZ_FALHAS_PARA_AVISAR = 3;
 
 // 4 cores fixas pras opções, igual Kahoot (vermelho/azul/dourado/verde) —
 // reaproveita as variáveis de tema já existentes, então funciona nos dois temas.
@@ -163,9 +169,17 @@ function quizGarantirPolling(id){
   if(_quizPollTimer && _quizPollId===id) return;
   quizPararPolling();
   _quizPollId = id;
+  _quizFalhasConsecutivas = 0;
   const tick = async ()=>{
-    try{ uiState.quizApresentarDados = await apiGetQuiz(id); }
-    catch(e){ /* falha de rede pontual — mantém o último estado bom até o próximo tick */ }
+    try{
+      uiState.quizApresentarDados = await apiGetQuiz(id);
+      _quizFalhasConsecutivas = 0;
+    }catch(e){
+      // Falha de rede/servidor — mantém o último estado bom até o próximo
+      // tick, só avisa na tela depois de algumas seguidas (ver
+      // QUIZ_FALHAS_PARA_AVISAR) pra não piscar à toa numa oscilação isolada.
+      _quizFalhasConsecutivas++;
+    }
     const d = uiState.quizApresentarDados;
     const éRankingFinal = d && d.status==='ranking' && d.perguntaAtualIndex>=d.perguntas.length-1;
     if(éRankingFinal && _quizConfeteFinalPara!==id){
@@ -176,7 +190,10 @@ function quizGarantirPolling(id){
     else quizPararPolling();
   };
   tick();
-  _quizPollTimer = setInterval(tick, 1500);
+  // 2s (era 1,5s) — folga extra de carga no servidor, some com o cache do
+  // backend (bundleDaSessao, quizPlay.controller.js) pra aguentar quiz com
+  // muita gente ao mesmo tempo.
+  _quizPollTimer = setInterval(tick, 2000);
 }
 
 function quizPararPolling(){
@@ -251,11 +268,15 @@ function quizApresentarHtml(){
     : dados.status==='ranking' ? (dados.perguntaAtualIndex>=totalPerguntas-1 ? 'Encerrar quiz' : 'Próxima pergunta')
     : null;
 
+  const avisoConexao = _quizFalhasConsecutivas>=QUIZ_FALHAS_PARA_AVISAR
+    ? `<div class="login-error" style="display:block;">⚠ Conexão instável com o servidor — tentando reconectar... (o que está na tela pode estar desatualizado)</div>` : '';
+
   return `
   <div class="section-title">${escapeHtml(dados.titulo)}
     <span class="spacer" style="flex:1;"></span>
     <button class="btn btn-sm" id="btnQuizSairApresentacao">✕ Sair da apresentação</button>
   </div>
+  ${avisoConexao}
   ${corpo}
   ${labelAvancar ? `<button class="btn btn-brand" id="btnQuizAvancar" style="margin-top:18px;">${labelAvancar} →</button>` : ''}`;
 }

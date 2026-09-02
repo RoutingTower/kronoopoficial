@@ -21,6 +21,52 @@ async function perguntasDaSessao(sessaoId) {
   return (await supabaseService.listWhere(PERGUNTAS, [["quizSessaoId", "==", sessaoId]])).sort((a, b) => a.ordem - b.ordem);
 }
 
+// GET /estado é a rota "N vezes por segundo" de verdade — TODO participante
+// conectado bate aqui a cada ~2s, cada um disparando 2-3 consultas (sessão +
+// perguntas + participantes + respostas). Sem isso, o trabalho do servidor
+// cresce junto com o número de gente no quiz — 20 participantes já foi o
+// suficiente pra travar (visto em produção, quiz do Thiago Nascimento,
+// 01/09/2026); com esse cache, 20 ou 150 participantes fazem o servidor
+// consultar o banco a MESMA quantidade de vezes (uma vez por segundo, por
+// quiz, não uma vez por participante). Guarda só a parte COMPARTILHADA da
+// resposta (igual pra todo mundo) — os campos por participante (jaRespondi,
+// minhaResposta, minhaPosicao) continuam calculados na hora, em cima do
+// bundle cacheado, sem bater no banco de novo.
+const CACHE_TTL_MS = 1000;
+const bundleCache = new Map(); // pin -> { expiraEm, promise }
+
+// Guarda a PROMISE em voo, não só o resultado pronto — com N participantes
+// pollando quase ao mesmo tempo (o cenário exato que sobrecarregou o
+// servidor), se guardássemos só o resultado final, todo mundo que chegasse
+// ANTES da primeira consulta terminar veria "cache vazio" e cada um
+// dispararia sua própria consulta igual — o cache não protegeria nada bem
+// na hora que mais importa. Guardando a promise, quem chega depois do
+// primeiro (mesmo ainda em voo) recebe a MESMA promise em vez de iniciar
+// outra consulta.
+function bundleDaSessao(pin) {
+  const cache = bundleCache.get(pin);
+  if (cache && cache.expiraEm > Date.now()) return cache.promise;
+
+  const promise = (async () => {
+    const sessao = await getSessaoPorPin(pin);
+    if (!sessao) {
+      bundleCache.delete(pin);
+      return null;
+    }
+    const perguntas = await perguntasDaSessao(sessao.id);
+    const participantes = await supabaseService.listWhere(PARTICIPANTES, [["quizSessaoId", "==", sessao.id]]);
+    const perguntaAtual = perguntas[sessao.perguntaAtualIndex] || null;
+    let respostasAtuais = [];
+    if (perguntaAtual && (sessao.status === "pergunta" || sessao.status === "revelacao")) {
+      respostasAtuais = await supabaseService.listWhere(RESPOSTAS, [["quizPerguntaId", "==", perguntaAtual.id]]);
+    }
+    return { sessao, perguntas, participantes, perguntaAtual, respostasAtuais };
+  })();
+
+  bundleCache.set(pin, { expiraEm: Date.now() + CACHE_TTL_MS, promise });
+  return promise;
+}
+
 async function entrar(req, res) {
   const { nome } = req.body;
   if (!nome || !nome.trim()) {
@@ -41,10 +87,9 @@ async function entrar(req, res) {
 }
 
 async function estado(req, res) {
-  const sessao = await getSessaoPorPin(req.params.pin);
-  if (!sessao) return res.status(404).json({ error: "not_found", message: "PIN não encontrado." });
-  const perguntas = await perguntasDaSessao(sessao.id);
-  const participantes = await supabaseService.listWhere(PARTICIPANTES, [["quizSessaoId", "==", sessao.id]]);
+  const bundle = await bundleDaSessao(req.params.pin);
+  if (!bundle) return res.status(404).json({ error: "not_found", message: "PIN não encontrado." });
+  const { sessao, perguntas, participantes, perguntaAtual, respostasAtuais } = bundle;
   const { participanteId } = req.query;
 
   const out = {
@@ -55,10 +100,7 @@ async function estado(req, res) {
     totalParticipantes: participantes.length,
   };
 
-  const perguntaAtual = perguntas[sessao.perguntaAtualIndex] || null;
-
   if (sessao.status === "pergunta" && perguntaAtual) {
-    const respostas = await supabaseService.listWhere(RESPOSTAS, [["quizPerguntaId", "==", perguntaAtual.id]]);
     out.pergunta = {
       id: perguntaAtual.id,
       enunciado: perguntaAtual.enunciado,
@@ -66,28 +108,26 @@ async function estado(req, res) {
       tempoSegundos: perguntaAtual.tempoSegundos,
     };
     out.perguntaIniciadaEm = sessao.perguntaIniciadaEm;
-    out.respondidosCount = respostas.length;
+    out.respondidosCount = respostasAtuais.length;
     if (participanteId) {
-      const minha = respostas.find((r) => r.participanteId === participanteId);
+      const minha = respostasAtuais.find((r) => r.participanteId === participanteId);
       out.jaRespondi = !!minha;
     }
   } else if (sessao.status === "revelacao" && perguntaAtual) {
-    const respostas = await supabaseService.listWhere(RESPOSTAS, [["quizPerguntaId", "==", perguntaAtual.id]]);
     const distribuicao = [0, 0, 0, 0];
-    respostas.forEach((r) => { if (distribuicao[r.opcaoIndex] !== undefined) distribuicao[r.opcaoIndex]++; });
+    respostasAtuais.forEach((r) => { if (distribuicao[r.opcaoIndex] !== undefined) distribuicao[r.opcaoIndex]++; });
     out.pergunta = { enunciado: perguntaAtual.enunciado, opcoes: perguntaAtual.opcoes };
     out.corretaIndex = perguntaAtual.corretaIndex;
     out.distribuicao = distribuicao;
     if (participanteId) {
-      const minha = respostas.find((r) => r.participanteId === participanteId);
+      const minha = respostasAtuais.find((r) => r.participanteId === participanteId);
       out.minhaResposta = minha ? { opcaoIndex: minha.opcaoIndex, correta: minha.correta, pontosGanhos: minha.pontosGanhos } : null;
     }
   } else if (sessao.status === "ranking") {
-    const ranking = participantes.sort((a, b) => b.pontuacao - a.pontuacao).slice(0, 10).map((p) => ({ nome: p.nome, pontuacao: p.pontuacao }));
-    out.ranking = ranking;
+    const ordenados = participantes.slice().sort((a, b) => b.pontuacao - a.pontuacao);
+    out.ranking = ordenados.slice(0, 10).map((p) => ({ nome: p.nome, pontuacao: p.pontuacao }));
     out.final = sessao.perguntaAtualIndex >= perguntas.length - 1;
     if (participanteId) {
-      const ordenados = participantes.sort((a, b) => b.pontuacao - a.pontuacao);
       const posicao = ordenados.findIndex((p) => p.id === participanteId);
       const eu = ordenados[posicao];
       if (eu) out.minhaPosicao = { posicao: posicao + 1, pontuacao: eu.pontuacao };
@@ -151,4 +191,4 @@ async function responder(req, res) {
   res.status(201).json({ correta: resposta.correta, pontosGanhos: resposta.pontosGanhos, pontuacaoTotal });
 }
 
-module.exports = { entrar, estado, responder };
+module.exports = { entrar, estado, responder, bundleDaSessao };
