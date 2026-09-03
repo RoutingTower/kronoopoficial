@@ -62,12 +62,29 @@ function validarTituloEPerguntas(titulo, perguntas) {
   return null;
 }
 
+// Fecha (status:'encerrado') todo quiz do próprio host que ficou aberto —
+// chamado sempre que ele cria um quiz novo (aqui e em "Reaproveitar
+// perguntas", que também passa por createQuiz). Sem isso, criar um quiz
+// novo sem lembrar de encerrar o anterior deixava quem já tinha entrado no
+// antigo preso pra sempre: a tela do jogador só sai do "aguardando"/
+// "ranking" quando o status muda pra 'encerrado' (ver qpPollEstado,
+// quiz-play.js — 404 ou status:'encerrado' são as duas únicas saídas). Só
+// afeta sessões do PRÓPRIO caller (criadoPor), nunca de outro host.
+async function encerrarQuizzesAbertosDoHost(callerId) {
+  const abertos = (await supabaseService.listWhere(SESSOES, [["criadoPor", "==", callerId]])).filter((s) => s.status !== "encerrado");
+  for (const s of abertos) {
+    await supabaseService.update(SESSOES, s.id, { status: "encerrado" });
+  }
+}
+
 async function createQuiz(req, res) {
   const caller = await getCaller(req);
   if (!caller) return res.status(403).json({ error: "forbidden" });
   const { titulo, perguntas } = req.body;
   const erro = validarTituloEPerguntas(titulo, perguntas);
   if (erro) return res.status(400).json({ error: "bad_request", message: erro });
+
+  await encerrarQuizzesAbertosDoHost(caller.id);
 
   const pin = await pinUnico();
   const sessao = await supabaseService.create(SESSOES, {
@@ -219,4 +236,4 @@ async function deleteQuiz(req, res) {
   res.status(204).send();
 }
 
-module.exports = { listQuizzes, createQuiz, getQuiz, updateQuiz, avancarQuiz, deleteQuiz };
+module.exports = { listQuizzes, createQuiz, getQuiz, updateQuiz, avancarQuiz, deleteQuiz, encerrarQuizzesAbertosDoHost };
