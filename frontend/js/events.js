@@ -3321,13 +3321,23 @@ function bindMainEvents(){
   });
   const btnQuizAvancar = document.getElementById('btnQuizAvancar');
   if(btnQuizAvancar) btnQuizAvancar.addEventListener('click', async ()=>{
+    // Texto muda na hora do clique (mesmo padrão de cfgRefreshData acima) —
+    // sem isso, a troca de estado (lobby->pergunta->revelação->ranking...)
+    // dependia só do PATCH terminar pra qualquer coisa mudar na tela, e
+    // qualquer lentidão de rede parecia um travamento (host clica e nada
+    // muda visivelmente até a resposta chegar). Não precisa restaurar o
+    // texto original no sucesso — renderMain() já troca pro rótulo do
+    // PRÓXIMO estado.
+    const label = btnQuizAvancar.textContent;
     btnQuizAvancar.disabled = true;
+    btnQuizAvancar.textContent = 'Avançando...';
     try{
       uiState.quizApresentarDados = await apiAvancarQuiz(uiState.quizApresentandoId);
       renderMain();
     }catch(e){
       alert('Não foi possível avançar: '+e.message);
       btnQuizAvancar.disabled = false;
+      btnQuizAvancar.textContent = label;
     }
   });
 }
