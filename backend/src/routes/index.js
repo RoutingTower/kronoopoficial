@@ -25,6 +25,7 @@ const quizRoutes = require("./quiz.routes");
 const quizPlayRoutes = require("./quizPlay.routes");
 const operacaoLinksRoutes = require("./operacaoLinks.routes");
 const seatalkReportRoutes = require("./seatalkReport.routes");
+const passagemBastaoRoutes = require("./passagemBastao.routes");
 
 const router = Router();
 
@@ -50,6 +51,11 @@ router.use("/quiz-play", quizPlayRoutes);
 // de roteirização (gatilho de hora em hora à parte), não um usuário logado
 // no Kronos — token fixo próprio (ver seatalkReport.controller.js).
 router.use("/reports/seatalk", seatalkReportRoutes);
+
+// Também fora do requireAuth: varredura manual/retroativa de passagem de
+// bastão (ver passagemBastao.controller.js) — chamada sob demanda (não por
+// um Apps Script agendado), token fixo próprio.
+router.use("/passagem-bastao", passagemBastaoRoutes);
 
 // Tudo abaixo exige um Supabase ID token válido — ver middleware/auth.js.
 router.use(requireAuth);

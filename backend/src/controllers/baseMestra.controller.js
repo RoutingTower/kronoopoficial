@@ -1,6 +1,7 @@
 const supabaseService = require("../services/supabaseService");
 const { getCaller, supervisorIdDoAnalista } = require("../services/authz");
 const { notificar } = require("../services/notificar");
+const { encontrarPassagensDeBastao, montarMensagens, diaAnterior } = require("../services/passagemBastao");
 
 const COLLECTION = "baseMestra";
 
@@ -41,6 +42,21 @@ async function createBaseMestra(req, res) {
     dias: Array.isArray(dias) ? dias : [],
   });
   await notificar(analistaId, "agenda", `Nova operação adicionada à sua agenda: ${operacao} (${horaInicio}–${horaFim}).`);
+
+  // Passagem de bastão: essa entrada nova pode ser a continuação de um hub
+  // que outro titular estava fechando ontem (reimportação mensal cria lote
+  // novo, não edita o que já existe — ver help-text de "Operações Fixas").
+  // Varre só o dia anterior ao início desta entrada, e filtra pro par que
+  // bate com ELA especificamente (pode haver outras trocas no mesmo dia,
+  // de operações diferentes, que não são da conta desta chamada).
+  const pares = await encontrarPassagensDeBastao(diaAnterior(dataInicio));
+  const parDesta = pares.find((p) => p.operacao === operacao && p.novoAnalistaId === analistaId);
+  if (parDesta) {
+    const msgs = montarMensagens(parDesta);
+    await notificar(parDesta.antigoAnalistaId, "agenda", msgs.paraAntigo);
+    await notificar(parDesta.novoAnalistaId, "agenda", msgs.paraNovo);
+  }
+
   res.status(201).json(entry);
 }
 

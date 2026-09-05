@@ -47,4 +47,9 @@ module.exports = {
   // POST nele, nunca expõe essa URL pro frontend.
   seatalkReportToken: process.env.SEATALK_REPORT_TOKEN || "",
   seatalkWebhookUrl: process.env.SEATALK_REPORT_WEBHOOK_URL || "",
+  // Varredura manual/retroativa de passagem de bastão (ver
+  // backend/src/controllers/passagemBastao.controller.js) — chamada sob
+  // demanda pra pré-visualizar ou disparar os avisos de troca de titular
+  // de hubs já cadastrados antes da checagem automática existir.
+  passagemBastaoToken: process.env.PASSAGEM_BASTAO_TOKEN || "",
 };
