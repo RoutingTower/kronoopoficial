@@ -253,3 +253,39 @@ setInterval(()=>{
     }
   });
 }, 30000);
+
+// Particularidade abre SOZINHA quando falta pouco pra uma COBERTURA começar
+// — pedido explícito: quem vai cobrir um hub precisa ler o aviso antes de
+// entrar na operação, não só ter o ícone disponível esperando ser clicado.
+// Só considera cobertura de VERDADE (isCobertura && !isOff — a mesma
+// convenção de buildHourCardsHtml, render-analista.js: isOff é a visão do
+// TITULAR vendo que está de folga, quem realmente cobre vê isOff:false) e
+// só a do próprio analista logado (não dispara olhando a agenda de outra
+// pessoa). Janela de -5 a +10 min (não só "<=10"): cobre o caso de ter
+// ficado mais 30s sem abrir a aba bem na hora exata, sem persistir depois
+// que a operação já engatou de vez. Nunca interrompe outro modal já
+// aberto (nem um outro particularidade auto-aberto, evita reabrir em cima
+// de si mesma) — tenta de novo no próximo tick, 30s depois.
+function checarParticularidadeAutoAbertura(){
+  if(!session || session.role!=='analista') return;
+  if(document.getElementById('modalBg')?.style.display === 'flex') return;
+  const hoje = hojeAgendaISO();
+  const pendente = filtrarSlotsAgenda(session.userId, hoje).find(it=>{
+    if(!it.isCobertura || it.isOff) return false;
+    const minutos = (slotTimestamp(hoje, it.horaInicio) - Date.now()) / 60000;
+    if(minutos > 10 || minutos < -5) return false;
+    const jaCiente = DB.particularidadeCiente.some(c=>c.analistaId===session.userId && c.operacao===it.operacao && c.data===hoje);
+    return !jaCiente;
+  });
+  if(!pendente) return;
+  abrirModalParticularidade({
+    operacao: pendente.operacao,
+    supervisorId: userById(session.userId)?.supervisorId,
+    isCobertura: true,
+    coberturaAnalistaId: session.userId,
+    coberturaData: hoje,
+    jaCiente: false,
+    semFechar: true,
+  });
+}
+setInterval(checarParticularidadeAutoAbertura, 30000);

@@ -157,6 +157,106 @@ function wireFormularioForm(prefix, editingFormulario){
   };
 }
 
+// "Ver Particularidade" — nota compartilhada por Operação+Supervisor (uma
+// só, upsert), pensada pra passagem de bastão entre turnos. Função global
+// (fora de bindMainEvents) porque também é chamada sozinha, sem clique de
+// ninguém — ver checarParticularidadeAutoAbertura, main.js: 10 minutos antes
+// de uma COBERTURA começar, se ainda não tem "ciente" registrado, abre este
+// mesmo modal automaticamente, só que travado (semFechar=true) — nem o "X"
+// aparece, só fecha clicando "Estou ciente". Fora isso (clique manual no
+// ícone, ou cobertura já confirmada), semFechar fica false e o "X" some
+// (ver modalLocked, ui.js/main.js, que só bloqueia clique fora, não o X).
+function abrirModalParticularidade({ operacao, supervisorId, isCobertura, coberturaAnalistaId, coberturaData, jaCiente, semFechar }){
+  const souEuCobrindo = isCobertura && session.userId === coberturaAnalistaId;
+  const cienteRegistro = isCobertura ? DB.particularidadeCiente.find(c=>c.analistaId===coberturaAnalistaId && c.operacao===operacao && c.data===coberturaData) : null;
+  const existente = DB.particularidades.find(p=>p.supervisorId===supervisorId && p.operacao===operacao);
+  // Só o titular fixo dessa operação (o card não é cobertura) ou o
+  // supervisor podem editar — quem só está cobrindo o hub (suplente)
+  // vê a nota, mas não mexe nela (ver upsertParticularidade, backend).
+  const podeEditar = session.role==='supervisor' || (!isCobertura && session.userId===coberturaAnalistaId);
+  modalLocked = true;
+  openModalLarge(`
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+      <h3 style="margin:0;">⚙️ Particularidades — ${escapeHtml(operacao)}</h3>
+      ${semFechar ? '' : `<button id="btnFecharParticularidade" title="Fechar" style="background:none;border:none;color:var(--text-muted);font-size:24px;line-height:1;cursor:pointer;padding:0;">×</button>`}
+    </div>
+    ${semFechar ? `<div class="help-text" style="margin-top:6px;color:var(--alert);">⏰ Sua cobertura desse hub começa em breve — confirme que leu antes de continuar.</div>` : ''}
+    <div class="help-text" style="margin-top:6px;">
+      ${existente ? `Última atualização: ${new Date(existente.atualizadoEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})} por ${escapeHtml(existente.atualizadoPor)}` : 'Nenhuma atualização registrada ainda — seja o primeiro a preencher.'}
+    </div>
+    ${isCobertura ? `<div class="help-text" style="margin-top:6px;${jaCiente?'color:var(--done);':'color:var(--alert);'}">
+      ${jaCiente ? `✓ Ciência confirmada em ${new Date(cienteRegistro.ts).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})} por ${escapeHtml(userById(coberturaAnalistaId)?.name||'—')}` : '⚠ Cobertura ainda sem confirmação de ciência.'}
+    </div>` : ''}
+    <div class="field" style="margin-top:14px;">
+      <label>Particularidades da operação</label>
+      ${podeEditar ? `<div class="rte-toolbar">
+        <button type="button" class="rte-btn" data-rte-cmd="bold" title="Negrito"><b>B</b></button>
+        <button type="button" class="rte-btn" data-rte-cmd="italic" title="Itálico"><i>I</i></button>
+        <button type="button" class="rte-btn" data-rte-cmd="underline" title="Sublinhado"><u>S</u></button>
+        <span class="rte-sep"></span>
+        <button type="button" class="rte-btn" data-rte-cmd="justifyLeft" title="Alinhar à esquerda">≡«</button>
+        <button type="button" class="rte-btn" data-rte-cmd="justifyCenter" title="Centralizar">≡</button>
+        <button type="button" class="rte-btn" data-rte-cmd="justifyRight" title="Alinhar à direita">»≡</button>
+      </div>` : ''}
+      <div id="particularidadeTexto" class="rte-editable" contenteditable="${podeEditar?'true':'false'}" data-placeholder="Ex.: acessos, contatos, procedimentos específicos, cuidados na passagem de turno...">${existente?.texto||''}</div>
+      ${podeEditar ? '' : '<div class="help-text" style="margin-top:4px;">Só o analista titular dessa operação ou o supervisor podem editar.</div>'}
+    </div>
+    <div style="display:flex;justify-content:${(souEuCobrindo && !jaCiente) ? 'space-between' : 'flex-end'};align-items:center;margin-top:14px;gap:8px;">
+      ${(souEuCobrindo && !jaCiente) ? `<button class="btn btn-brand" id="btnCienteParticularidade">✓ Estou ciente</button>` : ''}
+      ${podeEditar ? `<button class="btn${(souEuCobrindo && !jaCiente) ? '' : ' btn-brand'}" id="btnSalvarParticularidade">Salvar</button>` : ''}
+    </div>`);
+  const btnFechar = document.getElementById('btnFecharParticularidade');
+  if(btnFechar) btnFechar.onclick = closeModal;
+  const editorParticularidade = document.getElementById('particularidadeTexto');
+  // mousedown+preventDefault (não click) pra não perder a seleção de
+  // texto no editor antes do execCommand rodar — clicar num botão tira
+  // o foco do contenteditable por padrão.
+  document.querySelectorAll('.rte-btn').forEach(rteBtn=>{
+    rteBtn.addEventListener('mousedown', e=>{
+      e.preventDefault();
+      document.execCommand(rteBtn.dataset.rteCmd, false, null);
+      editorParticularidade.focus();
+    });
+  });
+  // Colar de fontes externas (Word/Google Docs/e-mail) traz cor/fonte
+  // junto do negrito/alinhamento — mantém só o que a barrinha também
+  // produz (limparHtmlColado, utils.js) e já deixa URL solta como link.
+  if(editorParticularidade) editorParticularidade.addEventListener('paste', e=>{
+    e.preventDefault();
+    const cd = e.clipboardData || window.clipboardData;
+    const html = cd.getData('text/html');
+    const limpo = html ? limparHtmlColado(html) : escapeHtml(cd.getData('text/plain')).replace(/\n/g, '<br>');
+    document.execCommand('insertHTML', false, limpo);
+    linkify(editorParticularidade);
+  });
+  const btnSalvarParticularidade = document.getElementById('btnSalvarParticularidade');
+  if(btnSalvarParticularidade) btnSalvarParticularidade.onclick = async ()=>{
+    linkify(editorParticularidade);
+    const texto = editorParticularidade.innerHTML;
+    btnSalvarParticularidade.disabled = true;
+    try{
+      const salvo = await apiSalvarParticularidade({ supervisorId, operacao, texto });
+      const idx = DB.particularidades.findIndex(p=>p.id===salvo.id);
+      if(idx>=0) DB.particularidades[idx] = salvo; else DB.particularidades.push(salvo);
+      // Auto-aberta (semFechar) exige o "Estou ciente" pra fechar de
+      // verdade — Salvar aqui só grava o texto, sem fechar o modal, senão
+      // dava pra escapar da confirmação escrevendo qualquer coisa.
+      if(!semFechar){ closeModal(); renderMain(); }
+      else btnSalvarParticularidade.disabled = false;
+    }catch(e){ alert('Não foi possível salvar: '+e.message); btnSalvarParticularidade.disabled = false; }
+  };
+  const btnCiente = document.getElementById('btnCienteParticularidade');
+  if(btnCiente) btnCiente.onclick = async ()=>{
+    btnCiente.disabled = true;
+    try{
+      const novo = await apiMarcarCiente({ analistaId: coberturaAnalistaId, operacao, data: coberturaData });
+      DB.particularidadeCiente.push(novo);
+      closeModal();
+      renderMain();
+    }catch(e){ alert('Não foi possível confirmar: '+e.message); btnCiente.disabled = false; }
+  };
+}
+
 function bindMainEvents(){
   const main = document.getElementById('mainArea');
 
@@ -903,96 +1003,14 @@ function bindMainEvents(){
   // clicando fora ou (se um dia existir) apertando Esc.
   main.querySelectorAll('[data-particularidade-op]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      const operacao = btn.dataset.particularidadeOp;
-      const supervisorId = btn.dataset.particularidadeSup;
-      const isCobertura = btn.dataset.particularidadeCobertura === '1';
-      const coberturaAnalistaId = btn.dataset.particularidadeAnalista;
-      const coberturaData = btn.dataset.particularidadeData;
-      const jaCiente = btn.dataset.ciente === '1';
-      const souEuCobrindo = isCobertura && session.userId === coberturaAnalistaId;
-      const cienteRegistro = isCobertura ? DB.particularidadeCiente.find(c=>c.analistaId===coberturaAnalistaId && c.operacao===operacao && c.data===coberturaData) : null;
-      const existente = DB.particularidades.find(p=>p.supervisorId===supervisorId && p.operacao===operacao);
-      // Só o titular fixo dessa operação (o card não é cobertura) ou o
-      // supervisor podem editar — quem só está cobrindo o hub (suplente)
-      // vê a nota, mas não mexe nela (ver upsertParticularidade, backend).
-      const podeEditar = session.role==='supervisor' || (!isCobertura && session.userId===coberturaAnalistaId);
-      modalLocked = true;
-      openModalLarge(`
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
-          <h3 style="margin:0;">⚙️ Particularidades — ${escapeHtml(operacao)}</h3>
-          <button id="btnFecharParticularidade" title="Fechar" style="background:none;border:none;color:var(--text-muted);font-size:24px;line-height:1;cursor:pointer;padding:0;">×</button>
-        </div>
-        <div class="help-text" style="margin-top:6px;">
-          ${existente ? `Última atualização: ${new Date(existente.atualizadoEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})} por ${escapeHtml(existente.atualizadoPor)}` : 'Nenhuma atualização registrada ainda — seja o primeiro a preencher.'}
-        </div>
-        ${isCobertura ? `<div class="help-text" style="margin-top:6px;${jaCiente?'color:var(--done);':'color:var(--alert);'}">
-          ${jaCiente ? `✓ Ciência confirmada em ${new Date(cienteRegistro.ts).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})} por ${escapeHtml(userById(coberturaAnalistaId)?.name||'—')}` : '⚠ Cobertura ainda sem confirmação de ciência.'}
-        </div>` : ''}
-        <div class="field" style="margin-top:14px;">
-          <label>Particularidades da operação</label>
-          ${podeEditar ? `<div class="rte-toolbar">
-            <button type="button" class="rte-btn" data-rte-cmd="bold" title="Negrito"><b>B</b></button>
-            <button type="button" class="rte-btn" data-rte-cmd="italic" title="Itálico"><i>I</i></button>
-            <button type="button" class="rte-btn" data-rte-cmd="underline" title="Sublinhado"><u>S</u></button>
-            <span class="rte-sep"></span>
-            <button type="button" class="rte-btn" data-rte-cmd="justifyLeft" title="Alinhar à esquerda">≡«</button>
-            <button type="button" class="rte-btn" data-rte-cmd="justifyCenter" title="Centralizar">≡</button>
-            <button type="button" class="rte-btn" data-rte-cmd="justifyRight" title="Alinhar à direita">»≡</button>
-          </div>` : ''}
-          <div id="particularidadeTexto" class="rte-editable" contenteditable="${podeEditar?'true':'false'}" data-placeholder="Ex.: acessos, contatos, procedimentos específicos, cuidados na passagem de turno...">${existente?.texto||''}</div>
-          ${podeEditar ? '' : '<div class="help-text" style="margin-top:4px;">Só o analista titular dessa operação ou o supervisor podem editar.</div>'}
-        </div>
-        <div style="display:flex;justify-content:${(souEuCobrindo && !jaCiente) ? 'space-between' : 'flex-end'};align-items:center;margin-top:14px;gap:8px;">
-          ${(souEuCobrindo && !jaCiente) ? `<button class="btn" id="btnCienteParticularidade">✓ Estou ciente</button>` : ''}
-          ${podeEditar ? `<button class="btn btn-brand" id="btnSalvarParticularidade">Salvar</button>` : ''}
-        </div>`);
-      document.getElementById('btnFecharParticularidade').onclick = closeModal;
-      const editorParticularidade = document.getElementById('particularidadeTexto');
-      // mousedown+preventDefault (não click) pra não perder a seleção de
-      // texto no editor antes do execCommand rodar — clicar num botão tira
-      // o foco do contenteditable por padrão.
-      document.querySelectorAll('.rte-btn').forEach(rteBtn=>{
-        rteBtn.addEventListener('mousedown', e=>{
-          e.preventDefault();
-          document.execCommand(rteBtn.dataset.rteCmd, false, null);
-          editorParticularidade.focus();
-        });
+      abrirModalParticularidade({
+        operacao: btn.dataset.particularidadeOp,
+        supervisorId: btn.dataset.particularidadeSup,
+        isCobertura: btn.dataset.particularidadeCobertura === '1',
+        coberturaAnalistaId: btn.dataset.particularidadeAnalista,
+        coberturaData: btn.dataset.particularidadeData,
+        jaCiente: btn.dataset.ciente === '1',
       });
-      // Colar de fontes externas (Word/Google Docs/e-mail) traz cor/fonte
-      // junto do negrito/alinhamento — mantém só o que a barrinha também
-      // produz (limparHtmlColado, utils.js) e já deixa URL solta como link.
-      editorParticularidade.addEventListener('paste', e=>{
-        e.preventDefault();
-        const cd = e.clipboardData || window.clipboardData;
-        const html = cd.getData('text/html');
-        const limpo = html ? limparHtmlColado(html) : escapeHtml(cd.getData('text/plain')).replace(/\n/g, '<br>');
-        document.execCommand('insertHTML', false, limpo);
-        linkify(editorParticularidade);
-      });
-      const btnSalvarParticularidade = document.getElementById('btnSalvarParticularidade');
-      if(btnSalvarParticularidade) btnSalvarParticularidade.onclick = async ()=>{
-        const btnSalvar = document.getElementById('btnSalvarParticularidade');
-        linkify(editorParticularidade);
-        const texto = editorParticularidade.innerHTML;
-        btnSalvar.disabled = true;
-        try{
-          const salvo = await apiSalvarParticularidade({ supervisorId, operacao, texto });
-          const idx = DB.particularidades.findIndex(p=>p.id===salvo.id);
-          if(idx>=0) DB.particularidades[idx] = salvo; else DB.particularidades.push(salvo);
-          closeModal();
-          renderMain();
-        }catch(e){ alert('Não foi possível salvar: '+e.message); btnSalvar.disabled = false; }
-      };
-      const btnCiente = document.getElementById('btnCienteParticularidade');
-      if(btnCiente) btnCiente.onclick = async ()=>{
-        btnCiente.disabled = true;
-        try{
-          const novo = await apiMarcarCiente({ analistaId: coberturaAnalistaId, operacao, data: coberturaData });
-          DB.particularidadeCiente.push(novo);
-          closeModal();
-          renderMain();
-        }catch(e){ alert('Não foi possível confirmar: '+e.message); btnCiente.disabled = false; }
-      };
     });
   });
 
