@@ -19,7 +19,7 @@ const COLLECTION = "raioX";
 // mesmo critério de "acima do SLA" que já aparece nos cards.
 const SLA_SEGUNDOS = 3600;
 const LIMITE_SPR_ALTO = 120;
-const LIMITE_SPR_BAIXO = 60;
+const LIMITE_SPR_BAIXO = 90;
 const LIMITE_ORFAOS = 40;
 
 // Mesma convenção de virada de madrugada do resto do app (hourSortValue,
