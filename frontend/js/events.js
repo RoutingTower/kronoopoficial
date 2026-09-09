@@ -863,6 +863,7 @@ function bindMainEvents(){
           // apareceria lá depois do próximo heartbeat de 10min.
           DB.raioXHistorico.push(novo);
           closeModal(); renderMain();
+          tocarSomRaioX();
           // Comemoração "dia fechado" — só na primeira vez que o dia vira
           // completo (não a cada re-render/reload). localStorage por
           // analista+data porque é só um efeito visual pontual, não precisa
@@ -3123,6 +3124,12 @@ function bindMainEvents(){
       cfgRefreshData.disabled = false;
       cfgRefreshData.textContent = label;
     }
+  });
+
+  const cfgSomRaiox = document.getElementById('cfgSomRaiox');
+  if(cfgSomRaiox) cfgSomRaiox.addEventListener('change', ()=>{
+    try{ localStorage.setItem(SOM_RAIOX_KEY, cfgSomRaiox.checked ? '1' : '0'); }catch(e){}
+    if(cfgSomRaiox.checked) tocarSomRaioX(); // feedback imediato ao ligar, sem precisar enviar um Raio-X de verdade só pra testar
   });
 
   // Trava a seleção em MAX_DELEGADOS_PROGRAMACAO (5) direto no clique — mais

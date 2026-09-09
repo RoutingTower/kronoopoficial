@@ -482,6 +482,13 @@ function renderConfiguracoes(){
     <div class="section-title">Atualizar dados</div>
     <button class="btn" id="cfgRefreshData">🔄 Atualizar dados agora</button>
   </div>
+  ${session.role==='analista' ? `<div class="card" style="max-width:420px;margin-top:16px;">
+    <div class="section-title">Preferências</div>
+    <label style="display:flex;align-items:center;gap:8px;font-weight:400;">
+      <input type="checkbox" id="cfgSomRaiox" ${somRaioxAtivo()?'checked':''}> 🔊 Som de confirmação ao enviar Raio-X
+    </label>
+    <div class="help-text" style="margin-top:6px;">Preferência deste navegador/aparelho — não sincroniza entre dispositivos.</div>
+  </div>` : ''}
   ${session.role==='supervisor' ? renderDelegacaoProgramacao(me) : ''}`;
 }
 

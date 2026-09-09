@@ -8,6 +8,95 @@ function icon(name, size){
   return `<i data-lucide="${name}" class="ico" style="width:${size||14}px;height:${size||14}px;"></i>`;
 }
 
+// Som de confirmação ao enviar Raio-X (Configurações > Preferências, só
+// analista) — preferência de dispositivo/navegador, não de conta: mesmo
+// espírito de kronoop-theme/kronoop-sidebar-collapsed (localStorage, não
+// backend), porque é só um efeito local, não faz sentido sincronizar entre
+// aparelhos. Ligado por padrão (ausência de chave = '1'), '0' desliga.
+const SOM_RAIOX_KEY = 'kronoop-som-raiox';
+function somRaioxAtivo(){
+  try{ return localStorage.getItem(SOM_RAIOX_KEY) !== '0'; }catch(e){ return true; }
+}
+// Fogos de artifício sintetizados via Web Audio API — sem voz nem arquivo
+// de áudio externo (evita licença/peso extra). Três camadas em sequência:
+// 1) "whoosh" de subida — ruído com o filtro passa-banda subindo de grave
+//    pra agudo, como o assobio do rojão subindo;
+// 2) estouro — rajada curta de ruído passa-baixa, seco e cheio;
+// 3) crepitar — vários tiquezinhos curtos de agudo espalhados ao acaso
+//    depois do estouro, como as faíscas caindo.
+function criarBufferRuido(ctx, dur){
+  const tamanho = Math.floor(ctx.sampleRate * dur);
+  const buffer = ctx.createBuffer(1, tamanho, ctx.sampleRate);
+  const dados = buffer.getChannelData(0);
+  for(let i=0;i<tamanho;i++) dados[i] = Math.random()*2-1;
+  return buffer;
+}
+function tocarSomRaioX(){
+  if(!somRaioxAtivo()) return;
+  try{
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if(!AudioCtx) return;
+    const ctx = new AudioCtx();
+    tocarFogoDeArtificio(ctx, ctx.currentTime);
+    // Fecha o contexto depois do efeito inteiro terminar — sem isso, cada
+    // envio de Raio-X deixaria um AudioContext aberto pra trás (o navegador
+    // limita quantos podem existir ao mesmo tempo).
+    setTimeout(()=>ctx.close().catch(()=>{}), 2100);
+  }catch(e){ /* Web Audio indisponível/bloqueada — silencioso, não é crítico pro envio */ }
+}
+function tocarFogoDeArtificio(ctx, t0){
+  // 1) Whoosh da subida.
+  const whooshDur = 0.6;
+  const whoosh = ctx.createBufferSource();
+  whoosh.buffer = criarBufferRuido(ctx, whooshDur);
+  const filtroWhoosh = ctx.createBiquadFilter();
+  filtroWhoosh.type = 'bandpass';
+  filtroWhoosh.Q.value = 6;
+  filtroWhoosh.frequency.setValueAtTime(350, t0);
+  filtroWhoosh.frequency.exponentialRampToValueAtTime(3200, t0 + whooshDur);
+  const ganhoWhoosh = ctx.createGain();
+  ganhoWhoosh.gain.setValueAtTime(0.0001, t0);
+  ganhoWhoosh.gain.exponentialRampToValueAtTime(0.5, t0 + whooshDur*0.6);
+  ganhoWhoosh.gain.exponentialRampToValueAtTime(0.001, t0 + whooshDur);
+  whoosh.connect(filtroWhoosh).connect(ganhoWhoosh).connect(ctx.destination);
+  whoosh.start(t0);
+  whoosh.stop(t0 + whooshDur);
+
+  // 2) Estouro, logo que o whoosh termina de subir.
+  const tEstouro = t0 + whooshDur;
+  const estouroDur = 0.4;
+  const estouro = ctx.createBufferSource();
+  estouro.buffer = criarBufferRuido(ctx, estouroDur);
+  const filtroEstouro = ctx.createBiquadFilter();
+  filtroEstouro.type = 'lowpass';
+  filtroEstouro.frequency.value = 1700;
+  const ganhoEstouro = ctx.createGain();
+  ganhoEstouro.gain.setValueAtTime(1, tEstouro);
+  ganhoEstouro.gain.exponentialRampToValueAtTime(0.001, tEstouro + estouroDur);
+  estouro.connect(filtroEstouro).connect(ganhoEstouro).connect(ctx.destination);
+  estouro.start(tEstouro);
+  estouro.stop(tEstouro + estouroDur);
+
+  // 3) Crepitar de faíscas, espalhado no ~1.3s seguinte ao estouro —
+  // é isso que estica o efeito todo pra perto de 2 segundos.
+  const N_FAISCAS = 10;
+  for(let i=0;i<N_FAISCAS;i++){
+    const tFaisca = tEstouro + 0.05 + Math.random()*1.3;
+    const faiscaDur = 0.02 + Math.random()*0.02;
+    const faisca = ctx.createBufferSource();
+    faisca.buffer = criarBufferRuido(ctx, faiscaDur);
+    const filtroFaisca = ctx.createBiquadFilter();
+    filtroFaisca.type = 'highpass';
+    filtroFaisca.frequency.value = 4000 + Math.random()*3000;
+    const ganhoFaisca = ctx.createGain();
+    ganhoFaisca.gain.setValueAtTime(0.15 + Math.random()*0.1, tFaisca);
+    ganhoFaisca.gain.exponentialRampToValueAtTime(0.001, tFaisca + faiscaDur);
+    faisca.connect(filtroFaisca).connect(ganhoFaisca).connect(ctx.destination);
+    faisca.start(tFaisca);
+    faisca.stop(tFaisca + faiscaDur);
+  }
+}
+
 // Serializa um Date pra 'YYYY-MM-DD' usando os componentes LOCAIS — nunca
 // .toISOString() aqui, porque ele converte pra UTC: num fuso atrás de UTC
 // (Brasil, UTC-3), isso adianta a data em 1 dia bem nas últimas horas da
