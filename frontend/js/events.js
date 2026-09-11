@@ -257,6 +257,40 @@ function abrirModalParticularidade({ operacao, supervisorId, isCobertura, cobert
   };
 }
 
+// Drag-and-drop genérico das grades de titular (proposta da Escala do Mês
+// e Grade vigente, ver renderEscalaGradeHtml em render-supervisor.js) —
+// mesmo esqueleto nativo (dragstart/dragover/dragenter/dragleave/drop) do
+// drag da Programação Integrada logo abaixo em bindMainEvents, só que
+// aqui o "payload" é só uma chave (data-escala-key) e quem decide o que
+// fazer com ela é o `onMove(key, destinoAnalistaId)` de cada chamador —
+// função à parte porque a Escala do Mês tem DUAS grades independentes na
+// mesma tela (proposta + vigente) e `dragType` evita que soltar um card
+// de uma acione o drop-zone da outra.
+function wireEscalaGradeDrag(main, dragType, onMove){
+  let key = null;
+  main.querySelectorAll(`[data-escala-drag="${dragType}"]`).forEach(card=>{
+    card.addEventListener('dragstart', (e)=>{
+      key = card.dataset.escalaKey;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', key);
+      card.classList.add('prog-arrastando');
+    });
+    card.addEventListener('dragend', ()=>{ card.classList.remove('prog-arrastando'); key = null; });
+  });
+  main.querySelectorAll(`[data-escala-drop="${dragType}"]`).forEach(zona=>{
+    zona.addEventListener('dragover', (e)=>{ if(key==null) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
+    zona.addEventListener('dragenter', (e)=>{ if(key==null) return; e.preventDefault(); zona.classList.add('prog-drop-alvo'); });
+    zona.addEventListener('dragleave', ()=> zona.classList.remove('prog-drop-alvo'));
+    zona.addEventListener('drop', (e)=>{
+      e.preventDefault();
+      zona.classList.remove('prog-drop-alvo');
+      if(key==null) return;
+      onMove(key, zona.dataset.escalaAnalista || '');
+      key = null;
+    });
+  });
+}
+
 function bindMainEvents(){
   const main = document.getElementById('mainArea');
 
@@ -1400,6 +1434,7 @@ function bindMainEvents(){
     uiState.escalaMensalDataInicio = null;
     uiState.escalaMensalDataFim = null;
     uiState.escalaMensalResultado = null;
+    uiState.escalaVigenteOverrides = {};
     renderMain();
   });
   const escalaMensalInicioInput = document.getElementById('escalaMensalInicioInput');
@@ -1425,12 +1460,53 @@ function bindMainEvents(){
       renderMain();
     });
   });
-  main.querySelectorAll('[data-escalamensal-idx]').forEach(sel=>{
-    sel.addEventListener('change', ()=>{
-      const idx = parseInt(sel.dataset.escalamensalIdx,10);
-      uiState.escalaMensalResultado.linhas[idx].analistaId = sel.value;
-      renderMain();
-    });
+  // Grade de arrastar (proposta da Escala do Mês e Grade vigente, ver
+  // renderEscalaGradeHtml/supGerarEscalaMensal, render-supervisor.js) —
+  // mesmo esqueleto de drag-and-drop nativo já usado na Programação
+  // Integrada logo acima (dragPayload/dragover/drop), só que aqui o
+  // "payload" é só a chave do card (idx da linha da proposta, ou o id da
+  // operação fixa já publicada), então dá pra reaproveitar uma função só
+  // pras duas grades em vez de duplicar os 4 listeners duas vezes.
+  wireEscalaGradeDrag(main, 'proposta', (key, destinoId)=>{
+    const idx = parseInt(key,10);
+    const linha = uiState.escalaMensalResultado?.linhas[idx];
+    if(!linha || linha.analistaId===destinoId) return;
+    linha.analistaId = destinoId;
+    renderMain();
+  });
+  wireEscalaGradeDrag(main, 'vigente', (key, destinoId)=>{
+    const b = DB.baseMestra.find(x=>x.id===key);
+    if(!b) return;
+    const overrides = uiState.escalaVigenteOverrides;
+    const atual = Object.prototype.hasOwnProperty.call(overrides, key) ? overrides[key] : b.analistaId;
+    if(atual===destinoId) return;
+    if(destinoId===b.analistaId) delete overrides[key];
+    else overrides[key] = destinoId;
+    renderMain();
+  });
+  const btnDescartarGradeVigente = document.getElementById('btnDescartarGradeVigente');
+  if(btnDescartarGradeVigente) btnDescartarGradeVigente.addEventListener('click', ()=>{
+    uiState.escalaVigenteOverrides = {};
+    renderMain();
+  });
+  const btnSalvarGradeVigente = document.getElementById('btnSalvarGradeVigente');
+  if(btnSalvarGradeVigente) btnSalvarGradeVigente.addEventListener('click', async ()=>{
+    const overrides = Object.entries(uiState.escalaVigenteOverrides);
+    if(overrides.length===0) return;
+    if(!confirm(`Trocar o titular de ${overrides.length} operação(ões) já publicada(s)?`)) return;
+    btnSalvarGradeVigente.disabled = true;
+    let ok=0, fail=0;
+    for(const [id, analistaId] of overrides){
+      try{
+        const patch = { analistaId, titular: userById(analistaId)?.name || '' };
+        const atualizado = await apiUpdateBaseMestra(id, patch);
+        DB.baseMestra = DB.baseMestra.map(x=>x.id===id ? atualizado : x);
+        ok++;
+      }catch(e){ console.error('KronoOP: falha ao salvar troca de titular na grade vigente.', e); fail++; }
+    }
+    uiState.escalaVigenteOverrides = {};
+    renderMain();
+    alert(`${ok} troca(s) salva(s) com sucesso.${fail?` ${fail} falharam.`:''}`);
   });
   const btnConfirmarEscalaMensal = document.getElementById('btnConfirmarEscalaMensal');
   if(btnConfirmarEscalaMensal) btnConfirmarEscalaMensal.addEventListener('click', async ()=>{

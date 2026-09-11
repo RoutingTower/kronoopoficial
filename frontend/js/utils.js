@@ -1020,15 +1020,20 @@ function ultimoDiaDoMesISO(mesStr){
 // janela de jornada da pessoa (horaInicio–horaFim, cruzando meia-noite do
 // mesmo jeito que hourSortValue já trata em outros lugares); (3) nunca
 // sobrepõe dois hubs no mesmo horário pra mesma pessoa. Entre os
-// elegíveis, prioriza quem tem menos hubs atribuídos nessa rodada e, em
-// seguida, quem ainda não pegou nenhum hub do mesmo UF — pra espalhar a
-// carteira de cada analista entre estados diferentes. A ordem dos hubs e
-// o desempate entre elegíveis são embaralhados a cada chamada, então
-// clicar em Gerar de novo tende a propor uma combinação diferente.
+// elegíveis, prioriza quem tem menos hubs atribuídos nessa rodada, depois
+// quem consegue manter pelo menos 1h de intervalo entre esse hub e os
+// outros que já pegou na rodada (regra mole — só desempate: se ninguém
+// elegível sobra com esse intervalo, cai pros elegíveis sem ele em vez de
+// deixar o hub descoberto) e, por fim, quem ainda não pegou nenhum hub do
+// mesmo UF — pra espalhar a carteira de cada analista entre estados
+// diferentes. A ordem dos hubs e o desempate entre elegíveis são
+// embaralhados a cada chamada, então clicar em Gerar de novo tende a
+// propor uma combinação diferente.
 // dias fica vazio ([]) nas entradas novas, igual ao resto da base hoje —
 // é o que deixa o Gerar Escala de Fim de Semana continuar enxergando
 // esses hubs como precisando de cobertura no domingo (bmRodaNoDia só
 // filtra por dias quando o campo não está vazio).
+const ESCALA_MENSAL_INTERVALO_MIN_HORAS = 1;
 function gerarEscalaMensal(analistaIds, idsEquipe){
   const equipe = new Set(idsEquipe);
   const hoje = todayISO();
@@ -1073,6 +1078,16 @@ function gerarEscalaMensal(analistaIds, idsEquipe){
       return rangesOverlap(s,e,xs,xe);
     });
   }
+  // Só chamada pra quem já passou em elegivel() (logo, sem sobreposição) —
+  // aqui é só medir a folga até o hub mais próximo que a pessoa já tem.
+  function temIntervaloFolgado(a, h){
+    const [s,e] = janela(h.horaInicio, h.horaFim);
+    return a.assigned.every(x=>{
+      const [xs,xe] = janela(x.horaInicio, x.horaFim);
+      const folga = e<=xs ? xs-e : s-xe;
+      return folga >= ESCALA_MENSAL_INTERVALO_MIN_HORAS;
+    });
+  }
   function embaralhar(arr){
     const out = [...arr];
     for(let i=out.length-1;i>0;i--){
@@ -1087,18 +1102,37 @@ function gerarEscalaMensal(analistaIds, idsEquipe){
     const uf = ufDaOperacao(h.operacao);
     const elegiveis = embaralhar(analistas.filter(a=>elegivel(a,h)));
     if(elegiveis.length===0){ naoCobertos.push(h); return { ...h, uf, analistaId:'' }; }
-    elegiveis.sort((a,b)=>{
+    // Restringe aos que sobram com 1h de folga antes de decidir por carga/UF
+    // — só quando isso não zera as opções (senão o hub ficaria descoberto à
+    // toa por causa de uma regra que é preferência, não obrigação).
+    const comFolga = elegiveis.filter(a=>temIntervaloFolgado(a,h));
+    const candidatos = comFolga.length>0 ? comFolga : elegiveis;
+    candidatos.sort((a,b)=>{
       if(a.assigned.length !== b.assigned.length) return a.assigned.length - b.assigned.length;
       const repeteA = a.ufs.has(uf) ? 1 : 0, repeteB = b.ufs.has(uf) ? 1 : 0;
       return repeteA - repeteB;
     });
-    const escolhido = elegiveis[0];
+    const escolhido = candidatos[0];
     escolhido.assigned.push(h);
     escolhido.ufs.add(uf);
     return { ...h, uf, analistaId: escolhido.id };
   });
 
   return { linhas, analistas, naoCobertos };
+}
+
+// Operações Fixas da equipe já publicadas cuja vigência (dataInicio→
+// dataFim) toca em algum dia do mês "YYYY-MM" informado — mesmo critério
+// de sobreposição usado no filtro de vigência de supBaseMestra
+// (render-supervisor.js), só que pro mês inteiro em vez de um intervalo
+// arbitrário. Usado pela "Grade vigente" da tela Gerar Escala do Mês, pra
+// mostrar (e permitir arrastar) o que já está em vigor num mês já gerado,
+// inclusive o mês atual.
+function vigentesDoMes(idsEquipe, mes){
+  const equipe = new Set(idsEquipe);
+  const primeiroDiaMes = `${mes}-01`;
+  const ultimoDiaMes = ultimoDiaDoMesISO(mes);
+  return DB.baseMestra.filter(b=>equipe.has(b.analistaId) && b.dataInicio<=ultimoDiaMes && b.dataFim>=primeiroDiaMes);
 }
 
 

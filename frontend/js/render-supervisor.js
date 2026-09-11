@@ -117,17 +117,66 @@ function supCadastros(myAnalistas){
 // inteiras todo mês (ver btnExportarMestra, events.js).
 let baseMestraExportRows = [];
 
+// Grade arrastável de titulares — mesmo espírito visual da Programação
+// Integrada (renderProgramacaoIntegrada, render-analista.js: cards que se
+// arrastam entre "donos"), só que aqui as colunas são analistas (não
+// horas) e cada card é um hub inteiro, não o horário de um dia específico.
+// Serve tanto pra proposta da Escala do Mês (ainda não publicada) quanto
+// pra Grade vigente (já publicada, ver supGerarEscalaMensal abaixo) — o
+// que diferencia as duas é só `dragType` (namespace dos data-attributes,
+// pra não misturar o drag de uma grade com a drop-zone da outra quando as
+// duas aparecem juntas na tela) e `semTitularColuna` (só faz sentido
+// "sem titular" antes de publicar — depois de publicado todo hub já tem
+// dono). Um titular fora de `colunasAtivas` (ex.: desativado, mas ainda
+// dono de um hub já publicado) ganha uma coluna extra somente-leitura —
+// dá pra arrastar o card PRA FORA dela, mas não pra dentro.
+function renderEscalaGradeHtml(items, colunasAtivas, opts){
+  const colunaIds = new Set(colunasAtivas.map(a=>a.id));
+  const grupos = new Map();
+  if(opts.semTitularColuna) grupos.set('', { nome:'Sem titular', inativo:false, itens:[] });
+  colunasAtivas.forEach(a=>grupos.set(a.id, { nome:a.name, inativo:false, itens:[] }));
+  items.forEach(it=>{
+    const id = it.analistaId || '';
+    if(!grupos.has(id)) grupos.set(id, { nome: id ? (userById(id)?.name||'Ex-titular') : 'Sem titular', inativo: !!id, itens:[] });
+    grupos.get(id).itens.push(it);
+  });
+  grupos.forEach(g=>g.itens.sort((a,b)=>a.operacao.localeCompare(b.operacao,'pt-BR')));
+  const extras = [...grupos.keys()].filter(id=>id && !colunaIds.has(id));
+  const ordem = [...(grupos.has('') ? [''] : []), ...colunasAtivas.map(a=>a.id), ...extras];
+  return `<div class="escala-grade">
+    ${ordem.map(id=>{
+      const g = grupos.get(id);
+      const dropAttrs = !g.inativo ? ` data-escala-drop="${opts.dragType}" data-escala-analista="${id}"` : '';
+      return `<div class="escala-coluna${g.inativo?' escala-coluna-inativa':''}"${dropAttrs}>
+        <div class="escala-coluna-head"><span class="nm">${escapeHtml(g.nome)}</span><span class="escala-coluna-count">${g.itens.length}</span></div>
+        <div class="escala-coluna-body">
+          ${g.itens.map(it=>`<div class="escala-card${it.pendente?' escala-card-pendente':''}" draggable="true" data-escala-drag="${opts.dragType}" data-escala-key="${escapeHtml(String(it.key))}" title="${escapeHtml(it.operacao)}${it.ciclo?' · '+escapeHtml(it.ciclo):''}">
+            <span class="escala-card-op">${escapeHtml(it.operacao)}</span>
+            ${it.ciclo ? `<span class="escala-card-ciclo">${escapeHtml(it.ciclo)}</span>` : ''}
+            <span class="escala-card-horario mono">${it.horaInicio}–${it.horaFim}</span>
+            <span class="escala-card-uf mono">${it.uf||'—'}</span>
+          </div>`).join('') || '<div class="escala-coluna-vazia">—</div>'}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
 // Redistribui a carteira do mês inteiro pra equipe de uma vez (ver
 // gerarEscalaMensal, utils.js): pega os hubs vigentes hoje e propõe um
 // novo titular pra cada um, respeitando jornada, nunca repetindo hub que
-// a pessoa já teve, e variando UF entre a carteira de cada analista. A
-// proposta fica editável (dropdown por linha) antes de publicar — mesmo
-// espírito do Gerar Escala de Fim de Semana, só que pro mês inteiro e
-// criando operação fixa (Base Mestra) em vez de cobertura avulsa.
+// a pessoa já teve, tentando manter 1h de intervalo entre as operações de
+// cada pessoa (quando dá) e variando UF entre a carteira de cada
+// analista. A proposta fica editável arrastando os cards entre as colunas
+// antes de publicar — mesmo espírito do Gerar Escala de Fim de Semana, só
+// que pro mês inteiro e criando operação fixa (Base Mestra) em vez de
+// cobertura avulsa. Abaixo da proposta, a Grade vigente (ver
+// renderEscalaGradeHtml) deixa reatribuir na hora quem já é titular de um
+// hub publicado — inclusive no mês atual, sem precisar gerar nada novo.
 function supGerarEscalaMensal(myAnalistas){
-  // Ordem alfabética só pro resumo e pro dropdown "Novo titular" — a lista
-  // de candidatos que a geração em si usa (candidatoIds, events.js) é outra
-  // variável, não mexe na lógica de distribuição.
+  // Ordem alfabética das colunas nas duas grades (proposta e vigente) — a
+  // lista de candidatos que a geração em si usa (candidatoIds, events.js)
+  // é outra variável, não mexe na lógica de distribuição.
   const analistasAtivos = myAnalistas.filter(a=>a.active).sort((a,b)=>a.name.localeCompare(b.name, 'pt-BR'));
   if(!uiState.escalaMensalMes) uiState.escalaMensalMes = addMonthsISO(todayISO(), 1).slice(0,7);
   const mes = uiState.escalaMensalMes;
@@ -140,38 +189,14 @@ function supGerarEscalaMensal(myAnalistas){
       <div class="help-text" style="color:var(--danger,#e05252);">⚠️ Nenhuma operação fixa vigente encontrada pra sua equipe. Cadastre as operações em Operações Fixas antes de gerar a escala do mês.</div>
     </div>`;
   } else if(res && res.mes===mes){
-    const porAnalista = new Map(analistasAtivos.map(a=>[a.id, 0]));
-    res.linhas.forEach(l=>{ if(l.analistaId) porAnalista.set(l.analistaId, (porAnalista.get(l.analistaId)||0)+1); });
-    const resumo = analistasAtivos.map(a=>{
-      const n = porAnalista.get(a.id)||0;
-      return `<span class="op-tag" style="${n===0?'color:var(--danger,#e05252);':''}">${escapeHtml(a.name)}: ${n} op(s)</span>`;
-    }).join(' ');
     const naoCobertos = res.linhas.filter(l=>!l.analistaId).length;
+    const itemsProposta = res.linhas.map((l,idx)=>({ key:idx, analistaId:l.analistaId, operacao:l.operacao, ciclo:l.ciclo, horaInicio:l.horaInicio, horaFim:l.horaFim, uf:l.uf }));
 
     resultsHtml = `<div class="card" style="margin-top:18px;margin-bottom:22px;">
       <div class="section-title">Proposta — ${mes}</div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">${resumo}</div>
-      ${naoCobertos>0 ? `<div class="help-text" style="color:var(--danger,#e05252);">⚠️ ${naoCobertos} operação(ões) não coube em ninguém entre os cadastros ativos (todo mundo já teve esse hub, ou não bate com a jornada de ninguém) — ajuste manualmente abaixo.</div>` : ''}
-      <div style="overflow-x:auto;">
-      <table><thead><tr><th>Operação</th><th>Ciclo</th><th>Horário</th><th>UF</th><th>Novo titular</th></tr></thead><tbody>
-      ${res.linhas
-        .map((l,idx)=>({l,idx,nome:l.analistaId ? (userById(l.analistaId)?.name||'') : ''}))
-        // Ordena as LINHAS pelo nome do titular já atribuído (não só as
-        // opções de cada dropdown) — sem titular vai pro fim, não some no
-        // meio da lista por "" comparar como menor que qualquer nome.
-        .sort((x,y)=> !x.nome && !y.nome ? 0 : !x.nome ? 1 : !y.nome ? -1 : x.nome.localeCompare(y.nome,'pt-BR'))
-        .map(({l,idx})=>`<tr ${!l.analistaId?'style="background:rgba(224,82,82,0.08);"':''}>
-        <td>${escapeHtml(l.operacao)}</td>
-        <td>${escapeHtml(l.ciclo||'')}</td>
-        <td class="mono">${l.horaInicio}–${l.horaFim}</td>
-        <td class="mono">${l.uf||'—'}</td>
-        <td><select data-escalamensal-idx="${idx}">
-          <option value="">— sem titular —</option>
-          ${analistasAtivos.map(a=>`<option value="${a.id}" ${l.analistaId===a.id?'selected':''}>${escapeHtml(a.name)}</option>`).join('')}
-        </select></td>
-      </tr>`).join('')}
-      </tbody></table>
-      </div>
+      <div class="help-text" style="margin-top:-6px;">Arraste um card pra outro analista pra trocar quem fica com aquele hub.</div>
+      ${naoCobertos>0 ? `<div class="help-text" style="color:var(--danger,#e05252);">⚠️ ${naoCobertos} operação(ões) não coube em ninguém entre os cadastros ativos (todo mundo já teve esse hub, ou não bate com a jornada de ninguém) — arraste da coluna "Sem titular" pra alguém manualmente.</div>` : ''}
+      ${renderEscalaGradeHtml(itemsProposta, analistasAtivos, {dragType:'proposta', semTitularColuna:true})}
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
         <button class="btn" data-gerar-escala-mensal="1">Gerar outra combinação</button>
         <button class="btn btn-brand" id="btnConfirmarEscalaMensal">Publicar (${res.linhas.filter(l=>l.analistaId).length} operação(ões))</button>
@@ -188,9 +213,35 @@ function supGerarEscalaMensal(myAnalistas){
   const vigInicio = uiState.escalaMensalDataInicio || primeiroDiaMes;
   const vigFim = uiState.escalaMensalDataFim || ultimoDiaMes;
 
+  // Grade vigente: o que já está PUBLICADO e vale em algum dia do mês
+  // escolhido acima (mesmo que esse mês já tenha passado da tela de
+  // "Gerar", incluindo o mês atual) — dá pra reatribuir titular na hora,
+  // arrastando, sem precisar abrir Operações Fixas linha por linha.
+  const idsEquipeTodos = myAnalistas.map(a=>a.id);
+  const vigentesMes = vigentesDoMes(idsEquipeTodos, mes);
+  if(!uiState.escalaVigenteOverrides) uiState.escalaVigenteOverrides = {};
+  let gradeVigenteHtml = '';
+  if(vigentesMes.length>0){
+    const overrides = uiState.escalaVigenteOverrides;
+    const itemsVigente = vigentesMes.map(b=>{
+      const pendente = Object.prototype.hasOwnProperty.call(overrides, b.id);
+      return { key:b.id, analistaId: pendente ? overrides[b.id] : b.analistaId, pendente, operacao:b.operacao, ciclo:b.ciclo, horaInicio:b.horaInicio, horaFim:b.horaFim, uf:ufDaOperacao(b.operacao) };
+    });
+    const pendentesNoMes = itemsVigente.filter(it=>it.pendente).length;
+    gradeVigenteHtml = `<div class="card" style="margin-bottom:22px;">
+      <div class="section-title">Grade vigente — ${mes}</div>
+      <div class="help-text" style="margin-top:-6px;">Titulares já publicados que valem em algum dia desse mês. Arraste um card pra outro analista pra trocar o titular dessa operação fixa — nada muda de verdade até clicar em Salvar.</div>
+      ${renderEscalaGradeHtml(itemsVigente, analistasAtivos, {dragType:'vigente', semTitularColuna:false})}
+      ${pendentesNoMes>0 ? `<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+        <button class="btn" id="btnDescartarGradeVigente">Descartar alterações</button>
+        <button class="btn btn-brand" id="btnSalvarGradeVigente">Salvar ${pendentesNoMes} alteração(ões)</button>
+      </div>` : ''}
+    </div>`;
+  }
+
   return `
   <div class="section-title">Gerar Escala do Mês</div>
-  <div class="help-text">Escolha o mês e clique em Gerar: o sistema redistribui os hubs vigentes entre os cadastros ativos da equipe (analistas desativados ficam de fora do sorteio), sem repetir com ninguém um hub que já teve (histórico completo), respeitando o horário de jornada de cada um e variando o estado (UF) da carteira de cada pessoa. A proposta fica editável antes de publicar — publicar cria uma operação fixa nova pra cada linha com titular, sem mexer no que já existe.</div>
+  <div class="help-text">Escolha o mês e clique em Gerar: o sistema redistribui os hubs vigentes entre os cadastros ativos da equipe (analistas desativados ficam de fora do sorteio), sem repetir com ninguém um hub que já teve (histórico completo), respeitando o horário de jornada de cada um, tentando manter 1h de intervalo entre as operações de cada pessoa (quando não der, ignora esse intervalo em vez de deixar o hub sem titular) e variando o estado (UF) da carteira de cada pessoa. A proposta fica editável (arraste os cards entre os analistas) antes de publicar — publicar cria uma operação fixa nova pra cada linha com titular, sem mexer no que já existe.</div>
   <div class="card" style="margin-bottom:22px;">
     <div class="grid-3">
       <div class="field" style="margin-bottom:0;"><label>Mês</label><input type="month" id="escalaMensalMesInput" value="${mes}"></div>
@@ -201,6 +252,7 @@ function supGerarEscalaMensal(myAnalistas){
       <button class="btn btn-brand" data-gerar-escala-mensal="1">Gerar escala</button>
     </div>
   </div>
+  ${gradeVigenteHtml}
   ${resultsHtml}`;
 }
 

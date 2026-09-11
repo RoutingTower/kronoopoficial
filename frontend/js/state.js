@@ -98,6 +98,12 @@ let uiState = {
   // de clicar em "Gerar escala" — null até o primeiro clique.
   escalaMensalMes: null,
   escalaMensalResultado: null,
+  // Trocas de titular ainda não salvas na Grade vigente (mesma tela, ver
+  // renderEscalaGradeHtml/supGerarEscalaMensal em render-supervisor.js) —
+  // chave é o id da operação fixa (base_mestra) já publicada, valor é o
+  // analistaId novo proposto por um arrastar-e-soltar. Só vira de verdade
+  // ao clicar em Salvar (events.js); Descartar ou trocar de mês zera isso.
+  escalaVigenteOverrides: {},
   // Formulários (Convocações) — supervisor: form de nova/editar aberto +
   // quais respostas estão expandidas na lista. Ver render-supervisor.js/
   // render-analista.js (formulariosScreen) e events.js.
