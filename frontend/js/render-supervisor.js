@@ -130,17 +130,25 @@ let baseMestraExportRows = [];
 // dono). Um titular fora de `colunasAtivas` (ex.: desativado, mas ainda
 // dono de um hub já publicado) ganha uma coluna extra somente-leitura —
 // dá pra arrastar o card PRA FORA dela, mas não pra dentro.
+function jornadaTxtDe(a){
+  return a?.jornada?.horaInicio && a?.jornada?.horaFim ? `${a.jornada.horaInicio}–${a.jornada.horaFim}` : '';
+}
 function renderEscalaGradeHtml(items, colunasAtivas, opts){
+  const rotuloVazio = opts.semTitularLabel || 'Sem titular';
   const colunaIds = new Set(colunasAtivas.map(a=>a.id));
   const grupos = new Map();
-  if(opts.semTitularColuna) grupos.set('', { nome:'Sem titular', inativo:false, itens:[] });
-  colunasAtivas.forEach(a=>grupos.set(a.id, { nome:a.name, inativo:false, itens:[] }));
+  if(opts.semTitularColuna) grupos.set('', { nome:rotuloVazio, jornada:'', inativo:false, itens:[] });
+  colunasAtivas.forEach(a=>grupos.set(a.id, { nome:a.name, jornada:jornadaTxtDe(a), inativo:false, itens:[] }));
   items.forEach(it=>{
     const id = it.analistaId || '';
-    if(!grupos.has(id)) grupos.set(id, { nome: id ? (userById(id)?.name||'Ex-titular') : 'Sem titular', inativo: !!id, itens:[] });
+    if(!grupos.has(id)) grupos.set(id, { nome: id ? (userById(id)?.name||'Ex-titular') : rotuloVazio, jornada: jornadaTxtDe(userById(id)), inativo: !!id, itens:[] });
     grupos.get(id).itens.push(it);
   });
-  grupos.forEach(g=>g.itens.sort((a,b)=>a.operacao.localeCompare(b.operacao,'pt-BR')));
+  // Ordena por horário (hourSortValue trata madrugada como continuação da
+  // noite, não como início do dia — mesmo critério da Programação
+  // Integrada) — desempate por sigla só quando duas operações começam
+  // exatamente na mesma hora.
+  grupos.forEach(g=>g.itens.sort((a,b)=>hourSortValue(a.horaInicio)-hourSortValue(b.horaInicio) || a.operacao.localeCompare(b.operacao,'pt-BR')));
   const extras = [...grupos.keys()].filter(id=>id && !colunaIds.has(id));
   const ordem = [...(grupos.has('') ? [''] : []), ...colunasAtivas.map(a=>a.id), ...extras];
   return `<div class="escala-grade">
@@ -148,10 +156,13 @@ function renderEscalaGradeHtml(items, colunasAtivas, opts){
       const g = grupos.get(id);
       const dropAttrs = !g.inativo ? ` data-escala-drop="${opts.dragType}" data-escala-analista="${id}"` : '';
       return `<div class="escala-coluna${g.inativo?' escala-coluna-inativa':''}"${dropAttrs}>
-        <div class="escala-coluna-head"><span class="nm">${escapeHtml(g.nome)}</span><span class="escala-coluna-count">${g.itens.length}</span></div>
+        <div class="escala-coluna-head">
+          <div class="escala-coluna-info"><span class="nm">${escapeHtml(g.nome)}</span>${g.jornada ? `<span class="escala-coluna-jornada mono">${g.jornada}</span>` : ''}</div>
+          <span class="escala-coluna-count">${g.itens.length}</span>
+        </div>
         <div class="escala-coluna-body">
           ${g.itens.map(it=>`<div class="escala-card${it.pendente?' escala-card-pendente':''}" draggable="true" data-escala-drag="${opts.dragType}" data-escala-key="${escapeHtml(String(it.key))}" title="${escapeHtml(it.operacao)}${it.ciclo?' · '+escapeHtml(it.ciclo):''}">
-            <span class="escala-card-op">${escapeHtml(it.operacao)}</span>
+            <span class="escala-card-op">${escapeHtml(it.operacao)}${it.badge?` <span title="${escapeHtml(it.badgeTitle||'')}">${it.badge}</span>`:''}</span>
             ${it.ciclo ? `<span class="escala-card-ciclo">${escapeHtml(it.ciclo)}</span>` : ''}
             <span class="escala-card-horario mono">${it.horaInicio}–${it.horaFim}</span>
             <span class="escala-card-uf mono">${it.uf||'—'}</span>
@@ -476,8 +487,10 @@ function supSuplencias(myAnalistas){
 // eles — diferente do antigo par sábado/domingo). O sistema propõe a
 // escala inteira de cada domingo (gerarEscalaFDS, ver utils.js): até 6
 // operações por pessoa, sem estourar 8h de turno, priorizando a carteira
-// própria de cada um. As propostas (até 4) ficam lado a lado (grid-2) —
-// dá pra ajustar (dropdown por linha) cada uma antes de confirmar, cada
+// própria de cada um e tentando manter 1h de intervalo entre as operações
+// de cada pessoa. As propostas (até 4) ficam lado a lado (grid-2), cada
+// uma como uma grade arrastável (mesma de renderEscalaGradeHtml, Escala
+// do Mês) — dá pra ajustar arrastando os cards antes de confirmar, cada
 // domingo com seu próprio botão de confirmação.
 // A grade de chips (escaladom-grid) é grande demais pra ficar sempre
 // aberta dentro do card — aqui só um botão-resumo por grupo, que abre a
@@ -505,47 +518,18 @@ function escalaDomPropostaHtml(dia, label, dataStr, res, myAnalistas){
       </div>
     </div>`;
   }
-  const porEscalado = new Map(res.escalados.map(id=>[id, 0]));
-  res.linhas.forEach(l=>{ if(l.escaladoId) porEscalado.set(l.escaladoId, (porEscalado.get(l.escaladoId)||0)+1); });
-  const resumo = res.escalados.map(id=>{
-    const n = porEscalado.get(id)||0;
-    return `<span class="op-tag" style="${n===0?'color:var(--danger,#e05252);':''}">${escapeHtml(userById(id)?.name||'—')}: ${n} op(s)</span>`;
-  }).join(' ');
   const naoCobertos = res.linhas.filter(l=>!l.escaladoId).length;
+  const colunasEscalados = res.escalados.map(id=>userById(id)).filter(Boolean);
+  const itemsDom = res.linhas.map((l,idx)=>({
+    key: idx, analistaId: l.escaladoId, operacao: l.operacao, ciclo: l.ciclo,
+    horaInicio: l.horaInicio, horaFim: l.horaFim, uf: ufDaOperacao(l.operacao),
+    badge: (l.analistaId && l.escaladoId && l.analistaId===l.escaladoId) ? '🏠' : '',
+    badgeTitle: 'Operação própria dessa pessoa',
+  }));
   return `<div class="card">
     <div class="section-title">${label} — ${dataStr}</div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">${resumo}</div>
-    ${naoCobertos>0 ? `<div class="help-text" style="color:var(--danger,#e05252);">⚠️ ${naoCobertos} operação(ões) não coube em ninguém (capacidade ou janela de 8h esgotada) — ajuste manualmente abaixo ou escale mais gente.</div>` : ''}
-    <div style="overflow-x:auto;">
-    <table><thead><tr><th>Horário</th><th>Operação</th><th>Ciclo</th><th>Quem cobre</th></tr></thead><tbody>
-    ${res.linhas
-      .map((l,idx)=>({l,idx,nome:l.escaladoId ? (userById(l.escaladoId)?.name||'') : ''}))
-      // Ordena as LINHAS por quem já foi escalado pra cobrir (não só as
-      // opções do dropdown), e dentro da mesma pessoa por horário — "não
-      // cobrir" vai pro fim. idx preservado do array original, então o
-      // dropdown de cada linha continua salvando no lugar certo
-      // (data-escaladom-idx). hourSortValue trata madrugada como
-      // continuação da noite (não como início do dia).
-      .sort((x,y)=>{
-        if(!x.nome && !y.nome) return hourSortValue(x.l.horaInicio)-hourSortValue(y.l.horaInicio);
-        if(!x.nome) return 1;
-        if(!y.nome) return -1;
-        return x.nome.localeCompare(y.nome,'pt-BR') || hourSortValue(x.l.horaInicio)-hourSortValue(y.l.horaInicio);
-      })
-      .map(({l,idx})=>{
-      const propria = l.analistaId && l.analistaId===l.escaladoId;
-      return `<tr ${!l.escaladoId?'style="background:rgba(224,82,82,0.08);"':''}>
-        <td class="mono">${l.horaInicio}–${l.horaFim}</td>
-        <td>${escapeHtml(l.operacao)}</td>
-        <td>${escapeHtml(l.ciclo||'')}</td>
-        <td><select data-escaladom-dia="${dia}" data-escaladom-idx="${idx}">
-          <option value="">— não cobrir —</option>
-          ${res.escalados.map(id=>`<option value="${id}" ${l.escaladoId===id?'selected':''}>${escapeHtml(userById(id)?.name||'—')}${id===l.analistaId?' (própria)':''}</option>`).join('')}
-        </select>${propria?' 🏠':''}</td>
-      </tr>`;
-    }).join('')}
-    </tbody></table>
-    </div>
+    ${naoCobertos>0 ? `<div class="help-text" style="color:var(--danger,#e05252);">⚠️ ${naoCobertos} operação(ões) não coube em ninguém (capacidade ou janela de 8h esgotada) — arraste da coluna "Não cobrir" pra alguém manualmente, ou escale mais gente.</div>` : ''}
+    ${renderEscalaGradeHtml(itemsDom, colunasEscalados, {dragType:`dom-${dia}`, semTitularColuna:true, semTitularLabel:'Não cobrir'})}
     <div style="display:flex;justify-content:flex-end;margin-top:14px;">
       <button class="btn btn-brand" data-confirmar-escaladom="${dia}">Confirmar ${label.toLowerCase()} (${res.linhas.filter(l=>l.escaladoId).length} cobertura(s))</button>
     </div>

@@ -937,14 +937,19 @@ const ESCALA_FDS_MAX_JORNADA_MS = 8*60*60*1000;
 // Prioridade 1: cada escalado recebe as operações que já são da carteira
 // dele (Base Mestra), se caírem nessa data — são as que ele já conhece.
 // Prioridade 2: o que sobra é distribuído priorizando, nessa ordem: (a)
-// quem tem menos operações até agora (pra fechar todo mundo perto do
-// limite, em vez de sobrecarregar os primeiros), (b) UF diferente das que
+// manter, quando der, pelo menos 1h de intervalo entre essa operação e as
+// outras que a pessoa já pegou no dia (preferência mole — só restringe os
+// candidatos elegíveis quando sobra pelo menos um com esse intervalo;
+// senão cai pra todos os elegíveis, sem deixar o hub descoberto à toa),
+// (b) quem tem menos operações até agora (pra fechar todo mundo perto do
+// limite, em vez de sobrecarregar os primeiros), (c) UF diferente das que
 // a pessoa já pegou (própria carteira + extras já atribuídos) — evita
-// empilhar hub do mesmo estado que ela já roteiriza — e por fim (c) o
+// empilhar hub do mesmo estado que ela já roteiriza — e por fim (d) o
 // encaixe de horário mais justo (menor crescimento da janela do turno)
 // como desempate final. Hubs que não couberem em ninguém (capacidade ou
 // janela de horário esgotada) voltam em naoCobertos, pro supervisor
 // resolver manualmente.
+const ESCALA_FDS_INTERVALO_MIN_MS = 60*60*1000;
 function gerarEscalaFDS(escaladoIds, dateStr, idsEquipe){
   const hubs = hubsParaData(dateStr, idsEquipe);
   const jaCoberto = new Set(
@@ -972,6 +977,14 @@ function gerarEscalaFDS(escaladoIds, dateStr, idsEquipe){
     e.maxEnd = e.maxEnd===null ? hub.endMs : Math.max(e.maxEnd, hub.endMs);
     e.ufs.add(ufDaOperacao(hub.operacao));
   }
+  // Só chamada pra quem já passou em cabe() (logo, sem sobreposição) — só
+  // mede a folga até a operação mais próxima que a pessoa já tem no dia.
+  function temIntervaloFolgado(e, hub){
+    return e.assigned.every(a=>{
+      const folga = hub.startMs>=a.endMs ? hub.startMs-a.endMs : a.startMs-hub.endMs;
+      return folga >= ESCALA_FDS_INTERVALO_MIN_MS;
+    });
+  }
 
   const restantes = [];
   pendentes.forEach(hub=>{
@@ -985,8 +998,13 @@ function gerarEscalaFDS(escaladoIds, dateStr, idsEquipe){
   restantes.forEach(hub=>{
     const elegiveis = escalados.filter(e=>cabe(e, hub));
     if(elegiveis.length===0){ naoCobertos.push(hub); return; }
+    // Restringe a quem sobra com 1h de folga antes de decidir por carga/UF/
+    // encaixe — só quando isso não zera as opções (senão o hub ficaria
+    // descoberto à toa por causa de uma regra que é preferência).
+    const comFolga = elegiveis.filter(e=>temIntervaloFolgado(e,hub));
+    const candidatos = comFolga.length>0 ? comFolga : elegiveis;
     const ufHub = ufDaOperacao(hub.operacao);
-    elegiveis.sort((a,b)=>{
+    candidatos.sort((a,b)=>{
       if(a.assigned.length !== b.assigned.length) return a.assigned.length - b.assigned.length;
       const repeteUfA = a.ufs.has(ufHub) ? 1 : 0, repeteUfB = b.ufs.has(ufHub) ? 1 : 0;
       if(repeteUfA !== repeteUfB) return repeteUfA - repeteUfB;
@@ -994,7 +1012,7 @@ function gerarEscalaFDS(escaladoIds, dateStr, idsEquipe){
       const spanB = b.minStart===null ? 0 : Math.max(b.maxEnd, hub.endMs) - Math.min(b.minStart, hub.startMs);
       return spanA - spanB;
     });
-    atribuir(elegiveis[0], hub);
+    atribuir(candidatos[0], hub);
   });
 
   escalados.forEach(e=> e.assigned.sort((a,b)=>a.startMs-b.startMs));

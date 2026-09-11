@@ -1396,11 +1396,17 @@ function bindMainEvents(){
     uiState.escalaDomResultados = resultados;
     renderMain();
   });
-  main.querySelectorAll('[data-escaladom-idx]').forEach(sel=>{
-    sel.addEventListener('change', ()=>{
-      const data = sel.dataset.escaladomDia; // data ISO do domingo
-      const idx = parseInt(sel.dataset.escaladomIdx,10);
-      uiState.escalaDomResultados[data].linhas[idx].escaladoId = sel.value;
+  // Cada domingo com proposta tem sua própria grade arrastável (mesmo
+  // wireEscalaGradeDrag da Escala do Mês, ver comentário lá em cima) — o
+  // dragType leva a data pra não misturar o drop de um domingo com o de
+  // outro quando duas propostas aparecem lado a lado (grid-2, ver
+  // escalaDomPropostaHtml/supGerarEscalaDomingo em render-supervisor.js).
+  Object.keys(uiState.escalaDomResultados).forEach(data=>{
+    wireEscalaGradeDrag(main, `dom-${data}`, (key, destinoId)=>{
+      const idx = parseInt(key,10);
+      const linha = uiState.escalaDomResultados[data]?.linhas[idx];
+      if(!linha || linha.escaladoId===destinoId) return;
+      linha.escaladoId = destinoId;
       renderMain();
     });
   });
