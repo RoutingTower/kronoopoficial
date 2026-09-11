@@ -69,6 +69,16 @@ async function listRespostas(req, res) {
 function validarPayload(f, payload) {
   if (f.tipo === "domingo_voluntariado") {
     if (!Array.isArray(payload.datas)) return "datas deve ser uma lista.";
+    // "Não quero trabalhar nenhum domingo" é um estado distinto de "datas
+    // vazio porque ainda não escolheu nada" — grava junto pra não perder
+    // essa informação, mas nunca convive com datas preenchidas. Sem teto
+    // de quantidade aqui de propósito: o analista pode topar TODOS os
+    // domingos do período — quem trava é o supervisor na hora de montar
+    // os grupos (Gerar Escala de Domingo, só no frontend — a lista de quem
+    // está em cada grupo nunca é persistida como resposta desse formulário).
+    if (payload.semDisponibilidade === true && payload.datas.length > 0) {
+      return "Não dá pra marcar 'não quero trabalhar' e escolher domingos ao mesmo tempo.";
+    }
     for (const d of payload.datas) {
       if (typeof d !== "string" || (f.periodoInicio && d < f.periodoInicio) || (f.periodoFim && d > f.periodoFim)) {
         return "Data fora do período do formulário.";

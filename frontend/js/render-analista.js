@@ -869,12 +869,29 @@ function analistaFormularioCardHtml(f){
     <div class="help-text">Fecha em ${new Date(f.fechamento).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}.</div>`;
 
   if(f.tipo==='domingo_voluntariado'){
+    // Sem teto aqui de propósito: o analista pode topar TODOS os domingos
+    // do período — quem trava é o supervisor na hora de montar os grupos
+    // (Gerar Escala de Domingo, render-supervisor.js/events.js), que nunca
+    // deixa a mesma pessoa entrar em mais grupos do que "domingos do mês
+    // - 1", garantindo pelo menos um domingo de folga de verdade.
     const domingos = sundaysInRange(f.periodoInicio, f.periodoFim);
     const minhasDatas = minha?.payload?.datas || [];
+    const naoQuer = minha?.payload?.semDisponibilidade === true;
+    // Resumo ao vivo: quantos já marcou e QUAIS datas — atualiza a cada
+    // clique porque essa função inteira é chamada de novo no renderMain()
+    // do handler (ver events.js).
+    const resumo = naoQuer
+      ? '<div class="formulario-vol-resumo">Marcado como indisponível pra todo o período.</div>'
+      : `<div class="formulario-vol-resumo">${minhasDatas.length} domingo(s) selecionado(s)${minhasDatas.length>0 ? ` — ${minhasDatas.slice().sort().map(fmtDataCurta).join(', ')}` : ''}</div>`;
     return `<div class="card">${cabecalho}
-      <div class="formulario-chip-grid">
+      <label class="formulario-chip-recusa${naoQuer?' checked':''}" data-formvol-recusa-fid="${f.id}">
+        <input type="checkbox" ${naoQuer?'checked':''} tabindex="-1">
+        🚫 Não quero trabalhar nenhum domingo desse período
+      </label>
+      <div class="formulario-chip-grid${naoQuer?' formulario-chip-grid-desabilitada':''}">
         ${domingos.map(d=>`<label class="formulario-chip ${minhasDatas.includes(d)?'checked':''}" data-formvol-fid="${f.id}" data-formvol-dia="${d}">${fmtDataCurta(d)}</label>`).join('')}
       </div>
+      ${resumo}
     </div>`;
   }
 

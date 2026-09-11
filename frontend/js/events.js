@@ -36,17 +36,28 @@ function bindMultiselect(main, toggleId, todosId, chkClass, filtro, key, openKey
 // re-renderizam as DUAS LISTAS (escalaDomRenderLists), nunca o modal
 // inteiro — re-montar tudo a cada tecla digitada perderia o foco/cursor do
 // campo de busca.
-// Mesmo modal serve os dois grupos (dia = 'A'|'B'): analista inativo nunca
-// aparece. Diferente do antigo par sábado/domingo, aqui um analista PODE
-// estar nos dois grupos de propósito (cobre todo domingo marcado, sem
-// folga cruzada forçada) — não precisa de aviso nem confirmação.
+// Um modal por domingo (chave = data ISO, não mais 'A'/'B' fixo — ver
+// uiState.escalaDomGrupos): analista inativo nunca aparece. Uma pessoa
+// PODE estar em vários grupos de propósito (domingos diferentes), só nunca
+// mais do que gruposEscalaDomLimite(domingosSel) — tentar passar disso
+// trava com um alerta em vez de deixar entrar.
 function escalaDomElegiveis(myAnalistas){
   return myAnalistas.filter(a=>a.active);
 }
-function escalaDomModalBody(dia){
-  const titulo = dia==='A' ? 'Grupo A' : 'Grupo B';
-  return `<h3>${titulo}</h3>
-    <div class="help-text" style="margin-top:-4px;margin-bottom:10px;">Só analistas ativos aparecem aqui. Um analista pode estar nos dois grupos (cobre todo domingo marcado, não só metade).</div>
+// Quantos OUTROS grupos (domingos diferentes de `data`) cada analista já
+// ocupa — base pro teto (gruposEscalaDomLimite) e pro aviso de "já no
+// máximo" na lista de Disponíveis.
+function escalaDomContagemOutrosGrupos(data, domingosSel){
+  const contagem = new Map();
+  domingosSel.forEach(d=>{
+    if(d===data) return;
+    (uiState.escalaDomGrupos[d]||[]).forEach(id=>contagem.set(id, (contagem.get(id)||0)+1));
+  });
+  return contagem;
+}
+function escalaDomModalBody(data, label){
+  return `<h3>${escapeHtml(label)}</h3>
+    <div class="help-text" style="margin-top:-4px;margin-bottom:10px;">Só analistas ativos aparecem aqui. 🙋 marca quem se voluntariou pra esse domingo no formulário. Uma pessoa pode estar em outros grupos (domingos diferentes), até o limite do mês.</div>
     <div class="field" style="margin-bottom:10px;"><input type="text" id="escalaDomBusca" placeholder="Buscar por nome..."></div>
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
       <button type="button" class="btn" id="btnEscalaDomModalTodos" style="padding:4px 10px;font-size:11.5px;">Selecionar todos</button>
@@ -67,37 +78,49 @@ function escalaDomModalBody(dia){
       <button class="btn btn-brand" id="btnFecharEscalaDomModal">Fechar</button>
     </div>`;
 }
-function escalaDomRenderLists(myAnalistas, dia){
-  const key = dia==='A' ? 'escalaDomGrupoA' : 'escalaDomGrupoB';
+function escalaDomRenderLists(myAnalistas, data, domingosSel){
+  const limite = gruposEscalaDomLimite(domingosSel);
   const elegiveis = escalaDomElegiveis(myAnalistas);
   const elegiveisIds = new Set(elegiveis.map(a=>a.id));
-  uiState[key] = uiState[key].filter(id=>elegiveisIds.has(id));
-  const sel = uiState[key];
+  uiState.escalaDomGrupos[data] = (uiState.escalaDomGrupos[data]||[]).filter(id=>elegiveisIds.has(id));
+  const sel = uiState.escalaDomGrupos[data];
   const busca = normalizarNome(document.getElementById('escalaDomBusca')?.value || '');
   const bate = a => !busca || normalizarNome(a.name).includes(busca);
+  const contagemOutros = escalaDomContagemOutrosGrupos(data, domingosSel);
+  const voluntarios = new Set(voluntariosDoDomingo(data));
   const disponiveis = elegiveis.filter(a=>!sel.includes(a.id) && bate(a));
   const escalados = elegiveis.filter(a=>sel.includes(a.id) && bate(a));
-  document.getElementById('escalaDomListaDisponiveis').innerHTML = disponiveis.map(a=>`<button type="button" class="escaladom-item" data-id="${a.id}">${escapeHtml(a.name)}</button>`).join('')
-    || '<div class="help-text" style="padding:8px;">Ninguém encontrado</div>';
-  document.getElementById('escalaDomListaEscalados').innerHTML = escalados.map(a=>`<button type="button" class="escaladom-item checked" data-id="${a.id}">${escapeHtml(a.name)}</button>`).join('')
+  document.getElementById('escalaDomListaDisponiveis').innerHTML = disponiveis.map(a=>{
+    const noTeto = (contagemOutros.get(a.id)||0) >= limite;
+    return `<button type="button" class="escaladom-item${noTeto?' escaladom-item-limite':''}" data-id="${a.id}" ${noTeto?`title="Já está no máximo de ${limite} domingo(s) esse mês"`:''}>${escapeHtml(a.name)}${voluntarios.has(a.id)?' 🙋':''}</button>`;
+  }).join('') || '<div class="help-text" style="padding:8px;">Ninguém encontrado</div>';
+  document.getElementById('escalaDomListaEscalados').innerHTML = escalados.map(a=>`<button type="button" class="escaladom-item checked" data-id="${a.id}">${escapeHtml(a.name)}${voluntarios.has(a.id)?' 🙋':''}</button>`).join('')
     || '<div class="help-text" style="padding:8px;">Ninguém ainda</div>';
   document.getElementById('escalaDomContador').textContent = `${sel.length} selecionado${sel.length===1?'':'s'}`;
   document.querySelectorAll('#escalaDomListaDisponiveis .escaladom-item').forEach(btn=>{
-    btn.onclick = ()=>{ if(!sel.includes(btn.dataset.id)) sel.push(btn.dataset.id); escalaDomRenderLists(myAnalistas, dia); };
+    btn.onclick = ()=>{
+      if((contagemOutros.get(btn.dataset.id)||0)>=limite){
+        alert(`${elegiveis.find(a=>a.id===btn.dataset.id)?.name||'Essa pessoa'} já está escalada em ${limite} domingo(s) esse mês — chegou ao limite máximo de domingos.`);
+        return;
+      }
+      if(!sel.includes(btn.dataset.id)) sel.push(btn.dataset.id);
+      escalaDomRenderLists(myAnalistas, data, domingosSel);
+    };
   });
   document.querySelectorAll('#escalaDomListaEscalados .escaladom-item').forEach(btn=>{
-    btn.onclick = ()=>{ uiState[key] = sel.filter(id=>id!==btn.dataset.id); escalaDomRenderLists(myAnalistas, dia); };
+    btn.onclick = ()=>{ uiState.escalaDomGrupos[data] = sel.filter(id=>id!==btn.dataset.id); escalaDomRenderLists(myAnalistas, data, domingosSel); };
   });
 }
-function wireEscalaDomModal(myAnalistas, dia){
-  const key = dia==='A' ? 'escalaDomGrupoA' : 'escalaDomGrupoB';
-  escalaDomRenderLists(myAnalistas, dia);
-  document.getElementById('escalaDomBusca').addEventListener('input', ()=> escalaDomRenderLists(myAnalistas, dia));
+function wireEscalaDomModal(myAnalistas, data, domingosSel){
+  escalaDomRenderLists(myAnalistas, data, domingosSel);
+  document.getElementById('escalaDomBusca').addEventListener('input', ()=> escalaDomRenderLists(myAnalistas, data, domingosSel));
   document.getElementById('btnEscalaDomModalTodos').onclick = ()=>{
-    uiState[key] = escalaDomElegiveis(myAnalistas).map(a=>a.id);
-    escalaDomRenderLists(myAnalistas, dia);
+    const limite = gruposEscalaDomLimite(domingosSel);
+    const contagemOutros = escalaDomContagemOutrosGrupos(data, domingosSel);
+    uiState.escalaDomGrupos[data] = escalaDomElegiveis(myAnalistas).map(a=>a.id).filter(id=>(contagemOutros.get(id)||0)<limite);
+    escalaDomRenderLists(myAnalistas, data, domingosSel);
   };
-  document.getElementById('btnEscalaDomModalLimpar').onclick = ()=>{ uiState[key] = []; escalaDomRenderLists(myAnalistas, dia); };
+  document.getElementById('btnEscalaDomModalLimpar').onclick = ()=>{ uiState.escalaDomGrupos[data] = []; escalaDomRenderLists(myAnalistas, data, domingosSel); };
   document.getElementById('btnFecharEscalaDomModal').onclick = ()=>{ closeModal(); renderMain(); };
 }
 
@@ -1325,10 +1348,21 @@ function bindMainEvents(){
 
   main.querySelectorAll('[data-abrir-escaladom]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      const dia = btn.dataset.abrirEscaladom;
+      const data = btn.dataset.abrirEscaladom;
+      const domingosSel = uiState.escalaDomDomingosSel;
+      const idx = domingosSel.indexOf(data);
       const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
-      openModalLarge(escalaDomModalBody(dia));
-      wireEscalaDomModal(myAnalistas, dia);
+      openModalLarge(escalaDomModalBody(data, `Grupo ${GRUPO_LETRAS[idx]||idx+1} — domingo ${formatarDataCurta(data)}`));
+      wireEscalaDomModal(myAnalistas, data, domingosSel);
+    });
+  });
+  // "✕" no nome, direto no card (sem abrir o modal) — remoção rápida de
+  // quem já está num grupo.
+  main.querySelectorAll('[data-remove-escaladom-nome]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const data = el.dataset.removeEscaladomNome, id = el.dataset.removeEscaladomId;
+      uiState.escalaDomGrupos[data] = (uiState.escalaDomGrupos[data]||[]).filter(x=>x!==id);
+      renderMain();
     });
   });
 
@@ -1336,44 +1370,34 @@ function bindMainEvents(){
   if(escalaDomMesInput) escalaDomMesInput.addEventListener('change', ()=>{
     uiState.escalaDomMes = escalaDomMesInput.value;
     // A seleção de domingos era do mês anterior — deixa em branco pra
-    // render recalcular os primeiros do mês novo (ver supGerarEscalaDomingo),
-    // em vez de arrastar datas que nem existem nele.
+    // render recalcular todos os domingos do mês novo (ver
+    // supGerarEscalaDomingo), em vez de arrastar datas que nem existem
+    // nele. Grupos também zeram — são o auto-preenchimento de voluntários
+    // de OUTRO período, não fazem sentido aqui.
     uiState.escalaDomDomingosSel = [];
+    uiState.escalaDomGrupos = {};
     uiState.escalaDomResultados = {};
     renderMain();
   });
 
+  // Muda a lista de domingos marcados → precisa re-renderizar a tela
+  // inteira (não só o contador): cada domingo marcado tem seu próprio
+  // grupo/picker agora (ver supGerarEscalaDomingo), então marcar ou
+  // desmarcar um domingo cria ou remove um picker na hora.
   main.querySelectorAll('.escaladom-domingo-chk').forEach(chk=>{
     chk.addEventListener('change', ()=>{
       const marcados = Array.from(main.querySelectorAll('.escaladom-domingo-chk:checked')).map(c=>c.value);
-      if(marcados.length>MAX_DOMINGOS_ESCALA){
-        chk.checked = false;
-        alert(`Máximo de ${MAX_DOMINGOS_ESCALA} domingos.`);
-        return;
-      }
       uiState.escalaDomDomingosSel = marcados;
       uiState.escalaDomResultados = {};
-      const countEl = document.getElementById('escalaDomDomingosCount');
-      if(countEl) countEl.textContent = marcados.length;
+      renderMain();
     });
-  });
-
-  // Trocar Grupo A↔B direto poupa reconstruir as duas listas do zero —
-  // troca quem cobre o 1º/3º domingo com quem cobre o 2º/4º. Zera os
-  // resultados já gerados, senão eles continuariam apontando pro grupo de
-  // ANTES da troca.
-  const btnInverterEscalaDom = document.getElementById('btnInverterEscalaDom');
-  if(btnInverterEscalaDom) btnInverterEscalaDom.addEventListener('click', ()=>{
-    [uiState.escalaDomGrupoA, uiState.escalaDomGrupoB] = [uiState.escalaDomGrupoB, uiState.escalaDomGrupoA];
-    uiState.escalaDomResultados = {};
-    renderMain();
   });
 
   const btnGerarEscalaDom = document.getElementById('btnGerarEscalaDom');
   if(btnGerarEscalaDom) btnGerarEscalaDom.addEventListener('click', ()=>{
     const domingos = uiState.escalaDomDomingosSel;
     if(domingos.length===0){ alert('Marque ao menos um domingo do mês.'); return; }
-    if(uiState.escalaDomGrupoA.length===0 && uiState.escalaDomGrupoB.length===0){ alert('Selecione ao menos um analista no Grupo A ou no Grupo B.'); return; }
+    if(domingos.every(data=>(uiState.escalaDomGrupos[data]||[]).length===0)){ alert('Selecione ao menos um analista em algum grupo.'); return; }
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
     const idsEquipe = myAnalistas.map(a=>a.id);
     function gerarLinhas(escaladoIds, dataStr){
@@ -1383,15 +1407,13 @@ function bindMainEvents(){
         ...naoCobertos.map(h=>({...h, escaladoId:''})),
       ].sort((a,b)=>a.startMs-b.startMs);
     }
-    // Revezamento A-B-A-B na ordem cronológica dos domingos marcados —
-    // domingo sem gente no grupo da vez fica sem proposta (nada pra
-    // ajustar/confirmar nele).
+    // Um grupo por domingo agora (não mais revezamento A-B) — domingo sem
+    // ninguém no grupo fica sem proposta (nada pra ajustar/confirmar nele).
     const resultados = {};
-    domingos.forEach((data, idx)=>{
-      const grupo = idx%2===0 ? 'A' : 'B';
-      const sel = grupo==='A' ? uiState.escalaDomGrupoA : uiState.escalaDomGrupoB;
+    domingos.forEach(data=>{
+      const sel = uiState.escalaDomGrupos[data]||[];
       if(sel.length===0) return;
-      resultados[data] = { data, grupo, escalados: sel, linhas: gerarLinhas(sel, data) };
+      resultados[data] = { data, escalados: sel, linhas: gerarLinhas(sel, data) };
     });
     uiState.escalaDomResultados = resultados;
     renderMain();
@@ -1771,11 +1793,26 @@ function bindMainEvents(){
     DB.formularioRespostas = [...DB.formularioRespostas.filter(r=>!(r.formularioId===resp.formularioId && r.analistaId===session.userId)), resp];
   };
   main.querySelectorAll('[data-formvol-fid]').forEach(el=>{
-    el.addEventListener('click', async ()=>{
+    el.addEventListener('click', async (e)=>{
+      e.preventDefault();
       const fid = el.dataset.formvolFid, dia = el.dataset.formvolDia;
       const atuais = minhaRespostaFormulario(fid, session.userId)?.payload?.datas || [];
       const novas = atuais.includes(dia) ? atuais.filter(d=>d!==dia) : [...atuais, dia];
-      try{ substituirMinhaResposta(await apiEnviarResposta(fid, {datas: novas})); renderMain(); }
+      // Marcar um domingo depois de ter dito "não quero nenhum" desfaz a
+      // recusa — os dois estados são mutuamente exclusivos.
+      try{ substituirMinhaResposta(await apiEnviarResposta(fid, {datas: novas, semDisponibilidade: false})); renderMain(); }
+      catch(e){ alert('Não foi possível salvar: '+e.message); }
+    });
+  });
+  // "Não quero trabalhar nenhum domingo" — checkbox único, mutuamente
+  // exclusivo com os chips de domingo (marcar ele zera qualquer domingo já
+  // escolhido; desmarcar só limpa a recusa, sem escolher nada no lugar).
+  main.querySelectorAll('[data-formvol-recusa-fid]').forEach(el=>{
+    el.addEventListener('click', async (e)=>{
+      e.preventDefault();
+      const fid = el.dataset.formvolRecusaFid;
+      const naoQuerAtual = minhaRespostaFormulario(fid, session.userId)?.payload?.semDisponibilidade === true;
+      try{ substituirMinhaResposta(await apiEnviarResposta(fid, {datas: [], semDisponibilidade: !naoQuerAtual})); renderMain(); }
       catch(e){ alert('Não foi possível salvar: '+e.message); }
     });
   });

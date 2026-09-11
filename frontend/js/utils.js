@@ -446,6 +446,22 @@ function formatarObservacaoLonga(texto){
   return blocos.map(b=>`<p style="margin:0 0 10px;">${escapeHtml(b)}</p>`).join('');
 }
 
+// Formulário "Voluntariado de domingo" (domingo_voluntariado): o analista
+// pode topar TODOS os domingos do período, sem teto — quem trava é o
+// supervisor na hora de montar os grupos (Gerar Escala de Domingo,
+// gruposEscalaDomLimite abaixo), nunca deixando a mesma pessoa entrar em
+// mais grupos do que "domingos do mês - 1". "Não quero trabalhar nenhum
+// domingo esse período" é um payload distinto (semDisponibilidade:true,
+// datas:[]) — sem essa flag, zero domingos marcados é indistinguível de
+// "ainda não respondeu" pro supervisor.
+//
+// Domingos do mês - 1: garante pelo menos 1 domingo de folga de verdade
+// pra quem for escalado no máximo possível de grupos — período de 4
+// domingos limita a 3 grupos por pessoa, de 5 domingos limita a 4.
+function gruposEscalaDomLimite(domingos){
+  return Math.max(0, domingos.length - 1);
+}
+
 function sundaysInRange(inicio, fim){
   const out=[]; let d=inicio;
   while(d<=fim){ if(isDomingo(d)) out.push(d); d=addDaysISO(d,1); }

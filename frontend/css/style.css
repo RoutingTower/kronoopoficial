@@ -668,7 +668,20 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .escaladom-item:hover{background:var(--panel-2);}
 .escaladom-item.checked{background:rgba(238,77,45,0.1);color:var(--brand);font-weight:600;}
 .escaladom-item.checked:hover{background:rgba(238,77,45,0.16);}
+.escaladom-item-limite{opacity:.45;}
+.escaladom-item-limite:hover{background:transparent;cursor:not-allowed;}
 @media (max-width:480px){ .escaladom-dual{flex-direction:column;} }
+
+/* Resumo de nomes do grupo (Gerar Escala de Domingo, ver
+   escalaDomAnalistaPicker em render-supervisor.js) — cada domingo marcado
+   tem seu próprio grupo, pré-preenchido com quem se voluntariou; "✕"
+   remove alguém direto, sem abrir o modal completo. */
+.escaladom-nomes-box{border:1px solid var(--border);border-radius:9px;background:var(--bg-2);padding:6px;max-height:180px;overflow-y:auto;margin-top:6px;}
+.escaladom-nome-tag{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;font-size:12.5px;border-radius:6px;background:var(--panel-2);margin-bottom:4px;}
+.escaladom-nome-tag:last-child{margin-bottom:0;}
+.escaladom-nome-tag .rm{cursor:pointer;color:var(--text-faint);font-weight:700;flex-shrink:0;}
+.escaladom-nome-tag .rm:hover{color:var(--danger,#e05252);}
+.escaladom-nomes-vazio{display:block;padding:10px;font-size:12px;color:var(--text-faint);text-align:center;}
 
 /* Formulários (Convocações) — render-supervisor.js/render-analista.js. */
 .spacer{flex:1;}
@@ -708,6 +721,14 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .formulario-chip.disabled{opacity:.4;cursor:not-allowed;}
 .formulario-chip .sub{font-size:10.5px;color:var(--text-faint);font-weight:400;}
 .formulario-chip.checked .sub{color:var(--brand);opacity:.8;}
+/* "Não quero trabalhar nenhum domingo" (voluntariado) — mesma pílula do
+   chip de dia, só que sozinha numa linha, com checkbox nativo visível (é a
+   recusa inteira do período, não um dia específico). */
+.formulario-chip-recusa{display:flex;align-items:center;gap:8px;padding:8px 13px;border:1px solid var(--border);border-radius:100px;background:var(--panel-2);font-size:12.5px;cursor:pointer;user-select:none;width:fit-content;margin-bottom:4px;transition:all .12s;}
+.formulario-chip-recusa:hover{border-color:var(--text-muted);}
+.formulario-chip-recusa.checked{background:rgba(224,82,82,.12);border-color:var(--danger,#e05252);color:var(--danger,#e05252);font-weight:600;}
+.formulario-chip-grid-desabilitada{opacity:.35;pointer-events:none;}
+.formulario-vol-resumo{margin-top:8px;font-size:12px;color:var(--text-muted);}
 
 /* Grade em blocos de semana do formulário "Escolha de folga" (ver
    gradeSemanalFolgaEscolha, utils.js) — calendário de verdade (7 colunas

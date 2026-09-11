@@ -85,14 +85,17 @@ let uiState = {
   // escala". Um dia sem ninguém selecionado fica com resultado null (não
   // gera proposta pra ele).
   // Gerar Escala de Domingo (ver supGerarEscalaDomingo, render-supervisor.js):
-  // até 4 domingos de um mês, revezando dois grupos fixos (A no 1º/3º
-  // domingo marcado, B no 2º/4º) — um analista pode estar nos dois grupos
-  // de propósito (cobre toda vez, sem folga cruzada entre eles).
+  // até 5 domingos de um mês, um grupo independente por domingo (rotulado
+  // A/B/C/D/E na ordem em que aparecem) — cada grupo já vem pré-preenchido
+  // com quem se voluntariou pra aquele domingo específico no formulário
+  // "Voluntariado de domingo" (Formulários), respeitando o teto de
+  // "domingos do mês - 1" por pessoa (gruposEscalaDomLimite, utils.js). O
+  // supervisor pode ajustar cada grupo à mão (adicionar quem não se
+  // voluntariou, remover alguém). escalaDomGrupos: data (ISO) -> [analistaId].
   escalaDomMes: null,
   escalaDomDomingosSel: [],
-  escalaDomGrupoA: [],
-  escalaDomGrupoB: [],
-  escalaDomResultados: {}, // data (ISO) -> {data, grupo, escalados, linhas}
+  escalaDomGrupos: {},
+  escalaDomResultados: {}, // data (ISO) -> {data, escalados, linhas}
   // Gerar Escala do Mês (ver gerarEscalaMensal em utils.js): mês-alvo
   // ("YYYY-MM", padrão o próximo) + o resultado (proposta editável) depois
   // de clicar em "Gerar escala" — null até o primeiro clique.

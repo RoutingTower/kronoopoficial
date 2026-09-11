@@ -497,29 +497,81 @@ function supSuplencias(myAnalistas){
 
 
 // Todo domingo, os hubs 7x7 continuam precisando de titular mesmo com o
-// time inteiro de folga — hoje isso é escolhido e distribuído manualmente.
-// Regra: dois grupos fixos (A e B) revezando os domingos marcados no mês —
-// A cobre o 1º e o 3º domingo marcado, B cobre o 2º e o 4º (⇄ Inverter
-// troca os dois de posição). Um analista pode estar nos dois grupos de
-// propósito (cobre todo domingo marcado, sem folga cruzada forçada entre
-// eles — diferente do antigo par sábado/domingo). O sistema propõe a
-// escala inteira de cada domingo (gerarEscalaFDS, ver utils.js): até 6
-// operações por pessoa, sem estourar 8h de turno, priorizando a carteira
-// própria de cada um e tentando manter 1h de intervalo entre as operações
-// de cada pessoa. As propostas (até 4) ficam lado a lado (grid-2), cada
-// uma como uma grade arrastável (mesma de renderEscalaGradeHtml, Escala
-// do Mês) — dá pra ajustar arrastando os cards antes de confirmar, cada
-// domingo com seu próprio botão de confirmação.
-// A grade de chips (escaladom-grid) é grande demais pra ficar sempre
-// aberta dentro do card — aqui só um botão-resumo por grupo, que abre a
-// seleção numa caixa (modal, ver wireEscalaDomModal em events.js).
-function escalaDomAnalistaPicker(dia, label, sel){
+// time inteiro de folga. Um grupo INDEPENDENTE por domingo marcado
+// (rotulado A/B/C/D/E na ordem em que aparecem — 4 domingos no mês vira
+// A-D, 5 domingos vira A-E), já pré-preenchido com quem se voluntariou pra
+// AQUELE domingo específico no formulário "Voluntariado de domingo" (ver
+// voluntariosDoDomingo/autoPreencherGruposEscalaDom abaixo) — o supervisor
+// só precisa complementar manualmente quem não se voluntariou (ou tirar
+// alguém), em vez de montar cada grupo do zero. Uma pessoa nunca entra em
+// mais grupos do que "domingos marcados - 1" (gruposEscalaDomLimite,
+// utils.js) — nem no auto-preenchimento, nem numa adição manual — pra
+// garantir pelo menos um domingo de folga de verdade mesmo pra quem topou
+// (ou foi escalado) no máximo possível. O sistema propõe a escala inteira
+// de cada domingo (gerarEscalaFDS, ver utils.js): até 6 operações por
+// pessoa, sem estourar 8h de turno, priorizando a carteira própria de cada
+// um e tentando manter 1h de intervalo entre as operações de cada pessoa.
+// As propostas ficam lado a lado (grid-2), cada uma como uma grade
+// arrastável (mesma de renderEscalaGradeHtml, Escala do Mês) — dá pra
+// ajustar arrastando os cards antes de confirmar, cada domingo com seu
+// próprio botão de confirmação.
+
+// Quem se voluntariou pra um domingo específico: junta as respostas de
+// TODOS os formulários "Voluntariado de domingo" da equipe cujo período
+// cobre essa data (normalmente só um por mês, mas soma se houver mais de
+// um por algum motivo) — ignora quem marcou "não quero trabalhar nenhum
+// domingo" (payload.semDisponibilidade). DB.formularios/formularioRespostas
+// já vêm filtrados pra equipe do supervisor (backend), sem filtro extra.
+function voluntariosDoDomingo(data){
+  const formIds = new Set(DB.formularios.filter(f=>f.tipo==='domingo_voluntariado' && f.periodoInicio<=data && f.periodoFim>=data).map(f=>f.id));
+  if(formIds.size===0) return [];
+  const ids = new Set();
+  DB.formularioRespostas.forEach(r=>{
+    if(formIds.has(r.formularioId) && !r.payload?.semDisponibilidade && (r.payload?.datas||[]).includes(data)) ids.add(r.analistaId);
+  });
+  return [...ids];
+}
+
+// Preenche uiState.escalaDomGrupos[data] com os voluntários de cada
+// domingo AINDA sem grupo definido (undefined — nunca preenchido nem
+// editado nessa sessão; array vazio [] conta como "já decidido", não
+// reaplica os voluntários por cima de uma limpeza manual). Processa os
+// domingos em ordem e vai contando quantos grupos cada pessoa já ocupou
+// pra nunca ultrapassar gruposEscalaDomLimite — se alguém se voluntariou
+// pra mais domingos do que o teto permite, só entra nos primeiros (o
+// supervisor vê e decide se quer trocar manualmente).
+function autoPreencherGruposEscalaDom(domingosSel){
+  const limite = gruposEscalaDomLimite(domingosSel);
+  const contagem = new Map();
+  domingosSel.forEach(data=>{
+    if(uiState.escalaDomGrupos[data] !== undefined){
+      uiState.escalaDomGrupos[data].forEach(id=>contagem.set(id, (contagem.get(id)||0)+1));
+      return;
+    }
+    const aceitos = [];
+    voluntariosDoDomingo(data).forEach(id=>{
+      const n = contagem.get(id)||0;
+      if(n>=limite) return;
+      aceitos.push(id);
+      contagem.set(id, n+1);
+    });
+    uiState.escalaDomGrupos[data] = aceitos;
+  });
+}
+
+// Botão-resumo (nomes + editar) — a grade de chips completa (escaladom-
+// dual) é grande demais pra ficar sempre aberta dentro do card, então só
+// abre numa caixa (modal, ver wireEscalaDomModal em events.js). Um "✕" por
+// nome tira alguém direto, sem precisar abrir o modal pra isso.
+function escalaDomAnalistaPicker(data, label, sel){
+  const nomes = sel.map(id=>({id, nome:userById(id)?.name})).filter(x=>x.nome).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
   return `<div class="field" style="margin-bottom:0;">
     <label>${label}</label>
-    <button type="button" class="btn" data-abrir-escaladom="${dia}" style="width:100%;display:flex;justify-content:space-between;align-items:center;">
-      <span>${sel.length===0 ? 'Selecionar analistas' : `${sel.length} analista(s) selecionado(s)`}</span>
-      <span>✎</span>
-    </button>
+    <div class="escaladom-nomes-box">
+      ${nomes.length===0 ? '<span class="escaladom-nomes-vazio">Nenhum voluntário — adicione manualmente</span>' : nomes.map(n=>`
+        <span class="escaladom-nome-tag">${escapeHtml(n.nome)}<span class="rm" data-remove-escaladom-nome="${data}" data-remove-escaladom-id="${n.id}" title="Remover">✕</span></span>`).join('')}
+    </div>
+    <button type="button" class="btn" data-abrir-escaladom="${data}" style="width:100%;margin-top:6px;">✎ ${sel.length===0?'Adicionar analistas':`Editar (${sel.length})`}</button>
   </div>`;
 }
 
@@ -554,44 +606,47 @@ function escalaDomPropostaHtml(dia, label, dataStr, res, myAnalistas){
   </div>`;
 }
 
-const MAX_DOMINGOS_ESCALA = 4;
+const GRUPO_LETRAS = 'ABCDE';
 function supGerarEscalaDomingo(myAnalistas){
   if(!uiState.escalaDomMes) uiState.escalaDomMes = todayISO().slice(0,7);
   const mes = uiState.escalaDomMes;
   const domingosDisponiveis = domingosDoMes(mes);
-  // Se o mês mudou e a seleção antiga não pertence mais a ele, cai pros
-  // primeiros 4 domingos do mês novo — sem isso ficaria vazio sozinho.
+  // Se o mês mudou e a seleção antiga não pertence mais a ele, marca todos
+  // os domingos do mês novo por padrão (raramente passa de 5) — sem isso
+  // ficaria vazio sozinho.
   if(uiState.escalaDomDomingosSel.length===0 || uiState.escalaDomDomingosSel.some(d=>!domingosDisponiveis.includes(d))){
-    uiState.escalaDomDomingosSel = domingosDisponiveis.slice(0, MAX_DOMINGOS_ESCALA);
+    uiState.escalaDomDomingosSel = domingosDisponiveis;
   }
   const domingosSel = uiState.escalaDomDomingosSel;
+  const limiteGrupos = gruposEscalaDomLimite(domingosSel);
+
+  autoPreencherGruposEscalaDom(domingosSel);
+
+  const pickersHtml = domingosSel.map((data,idx)=>
+    escalaDomAnalistaPicker(data, `Grupo ${GRUPO_LETRAS[idx]||idx+1} — domingo ${formatarDataCurta(data)}`, uiState.escalaDomGrupos[data]||[])
+  ).join('');
 
   const cards = domingosSel.map((data, idx)=>{
-    const grupo = idx%2===0 ? 'A' : 'B';
     const res = uiState.escalaDomResultados[data];
-    return escalaDomPropostaHtml(data, `Domingo ${formatarDataCurta(data)} — Grupo ${grupo}`, data, res, myAnalistas);
+    return escalaDomPropostaHtml(data, `Domingo ${formatarDataCurta(data)} — Grupo ${GRUPO_LETRAS[idx]||idx+1}`, data, res, myAnalistas);
   }).filter(Boolean);
   const resultsHtml = cards.length ? `<div class="grid-2" style="align-items:start;margin-bottom:22px;">${cards.join('')}</div>` : '';
 
   return `
   <div class="section-title">Gerar Escala de Domingo</div>
-  <div class="help-text">Marque até ${MAX_DOMINGOS_ESCALA} domingos do mês e dois grupos de analistas — o Grupo A cobre o 1º e o 3º domingo marcado, o Grupo B cobre o 2º e o 4º (⇄ Inverter troca os dois). Um analista pode estar nos dois grupos (cobre todo domingo marcado). O sistema monta a escala do dia inteiro pra cada um: até 6 operações por pessoa, priorizando a carteira própria (🏠), equilibrando o total entre todos e variando o estado (UF) dos hubs extras, sem passar de 8h de turno.</div>
+  <div class="help-text">Cada domingo marcado ganha seu próprio grupo (A, B, C...), já pré-preenchido com quem se voluntariou pra aquele domingo no formulário "Voluntariado de domingo" — complete manualmente quem faltar ou remova alguém, o "✎ Editar" abre a lista completa da equipe. Ninguém entra em mais de ${limiteGrupos} grupo(s) esse mês (domingos marcados − 1), pra garantir folga em pelo menos um domingo mesmo pra quem se disponibilizou (ou foi escalado) no máximo possível. O sistema monta a escala do dia inteiro pra cada um: até 6 operações por pessoa, priorizando a carteira própria (🏠), equilibrando o total entre todos e variando o estado (UF) dos hubs extras, sem passar de 8h de turno.</div>
   <div class="card" style="margin-bottom:22px;">
     <div class="field" style="max-width:220px;"><label>Mês</label><input type="month" id="escalaDomMesInput" value="${mes}"></div>
     <div class="field">
-      <label>Domingos do mês (<span id="escalaDomDomingosCount">${domingosSel.length}</span>/${MAX_DOMINGOS_ESCALA})</label>
+      <label>Domingos do mês (<span id="escalaDomDomingosCount">${domingosSel.length}</span>/${domingosDisponiveis.length})</label>
       <div style="display:flex;flex-wrap:wrap;gap:10px;">
         ${domingosDisponiveis.map(d=>`<label style="display:flex;align-items:center;gap:6px;font-weight:400;">
           <input type="checkbox" class="escaladom-domingo-chk" value="${d}" ${domingosSel.includes(d)?'checked':''}> ${formatarDataCurta(d)}
         </label>`).join('')}
       </div>
     </div>
-    <div class="grid-2">
-      ${escalaDomAnalistaPicker('A', 'Grupo A (1º / 3º domingo marcado)', uiState.escalaDomGrupoA)}
-      ${escalaDomAnalistaPicker('B', 'Grupo B (2º / 4º domingo marcado)', uiState.escalaDomGrupoB)}
-    </div>
+    <div class="grid-2">${pickersHtml}</div>
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
-      <button class="btn" id="btnInverterEscalaDom" title="Troca o Grupo A pelo Grupo B">⇄ Inverter Grupo A / B</button>
       <button class="btn btn-brand" id="btnGerarEscalaDom">Gerar escala</button>
     </div>
   </div>
