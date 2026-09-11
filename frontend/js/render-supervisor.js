@@ -117,60 +117,62 @@ function supCadastros(myAnalistas){
 // inteiras todo mês (ver btnExportarMestra, events.js).
 let baseMestraExportRows = [];
 
-// Grade arrastável de titulares — mesmo espírito visual da Programação
-// Integrada (renderProgramacaoIntegrada, render-analista.js: cards que se
-// arrastam entre "donos"), só que aqui as colunas são analistas (não
-// horas) e cada card é um hub inteiro, não o horário de um dia específico.
-// Serve tanto pra proposta da Escala do Mês (ainda não publicada) quanto
-// pra Grade vigente (já publicada, ver supGerarEscalaMensal abaixo) — o
-// que diferencia as duas é só `dragType` (namespace dos data-attributes,
-// pra não misturar o drag de uma grade com a drop-zone da outra quando as
-// duas aparecem juntas na tela) e `semTitularColuna` (só faz sentido
-// "sem titular" antes de publicar — depois de publicado todo hub já tem
-// dono). Um titular fora de `colunasAtivas` (ex.: desativado, mas ainda
-// dono de um hub já publicado) ganha uma coluna extra somente-leitura —
-// dá pra arrastar o card PRA FORA dela, mas não pra dentro.
+// Grade arrastável de titulares — MESMA grade da Programação Integrada
+// (renderProgramacaoIntegrada, render-analista.js: linhas por analista,
+// colunas por hora do turno — HOURS, state.js — cards no cruzamento e
+// arrastáveis entre linhas), só que aqui cada card é um hub inteiro (uma
+// linha de Base Mestra) em vez do horário de um dia específico. Serve
+// tanto pra proposta da Escala do Mês (ainda não publicada) quanto pra
+// Grade vigente (já publicada) e a Escala de Domingo (ver
+// supGerarEscalaMensal/escalaDomPropostaHtml abaixo) — o que diferencia
+// cada uma é só `dragType` (namespace dos data-attributes, pra não
+// misturar o drag de uma grade com a drop-zone de outra quando duas
+// aparecem juntas na tela) e `semTitularColuna` (só faz sentido "sem
+// titular"/"não cobrir" antes de publicar/confirmar). Um titular fora de
+// `linhasAtivas` (ex.: desativado, mas ainda dono de um hub já publicado)
+// ganha uma linha extra somente-leitura — dá pra arrastar o card PRA FORA
+// dela, mas não pra dentro. A linha inteira (rótulo + todas as células) é
+// zona de soltar, igual à Integrada — a operação não muda de horário ao
+// mover, só de dono.
 function jornadaTxtDe(a){
   return a?.jornada?.horaInicio && a?.jornada?.horaFim ? `${a.jornada.horaInicio}–${a.jornada.horaFim}` : '';
 }
-function renderEscalaGradeHtml(items, colunasAtivas, opts){
+function renderEscalaGradeHtml(items, linhasAtivas, opts){
   const rotuloVazio = opts.semTitularLabel || 'Sem titular';
-  const colunaIds = new Set(colunasAtivas.map(a=>a.id));
-  const grupos = new Map();
-  if(opts.semTitularColuna) grupos.set('', { nome:rotuloVazio, jornada:'', inativo:false, itens:[] });
-  colunasAtivas.forEach(a=>grupos.set(a.id, { nome:a.name, jornada:jornadaTxtDe(a), inativo:false, itens:[] }));
+  const idsAtivos = new Set(linhasAtivas.map(a=>a.id));
+  const porLinha = new Map();
+  if(opts.semTitularColuna) porLinha.set('', { nome:rotuloVazio, jornada:'', inativo:false, itens:[] });
+  linhasAtivas.forEach(a=>porLinha.set(a.id, { nome:a.name, jornada:jornadaTxtDe(a), inativo:false, itens:[] }));
   items.forEach(it=>{
     const id = it.analistaId || '';
-    if(!grupos.has(id)) grupos.set(id, { nome: id ? (userById(id)?.name||'Ex-titular') : rotuloVazio, jornada: jornadaTxtDe(userById(id)), inativo: !!id, itens:[] });
-    grupos.get(id).itens.push(it);
+    if(!porLinha.has(id)) porLinha.set(id, { nome: id ? (userById(id)?.name||'Ex-titular') : rotuloVazio, jornada: jornadaTxtDe(userById(id)), inativo: !!id, itens:[] });
+    porLinha.get(id).itens.push(it);
   });
-  // Ordena por horário (hourSortValue trata madrugada como continuação da
-  // noite, não como início do dia — mesmo critério da Programação
-  // Integrada) — desempate por sigla só quando duas operações começam
-  // exatamente na mesma hora.
-  grupos.forEach(g=>g.itens.sort((a,b)=>hourSortValue(a.horaInicio)-hourSortValue(b.horaInicio) || a.operacao.localeCompare(b.operacao,'pt-BR')));
-  const extras = [...grupos.keys()].filter(id=>id && !colunaIds.has(id));
-  const ordem = [...(grupos.has('') ? [''] : []), ...colunasAtivas.map(a=>a.id), ...extras];
-  return `<div class="escala-grade">
-    ${ordem.map(id=>{
-      const g = grupos.get(id);
-      const dropAttrs = !g.inativo ? ` data-escala-drop="${opts.dragType}" data-escala-analista="${id}"` : '';
-      return `<div class="escala-coluna${g.inativo?' escala-coluna-inativa':''}"${dropAttrs}>
-        <div class="escala-coluna-head">
-          <div class="escala-coluna-info"><span class="nm">${escapeHtml(g.nome)}</span>${g.jornada ? `<span class="escala-coluna-jornada mono">${g.jornada}</span>` : ''}</div>
-          <span class="escala-coluna-count">${g.itens.length}</span>
-        </div>
-        <div class="escala-coluna-body">
-          ${g.itens.map(it=>`<div class="escala-card${it.pendente?' escala-card-pendente':''}" draggable="true" data-escala-drag="${opts.dragType}" data-escala-key="${escapeHtml(String(it.key))}" title="${escapeHtml(it.operacao)}${it.ciclo?' · '+escapeHtml(it.ciclo):''}">
-            <span class="escala-card-op">${escapeHtml(it.operacao)}${it.badge?` <span title="${escapeHtml(it.badgeTitle||'')}">${it.badge}</span>`:''}</span>
-            ${it.ciclo ? `<span class="escala-card-ciclo">${escapeHtml(it.ciclo)}</span>` : ''}
-            <span class="escala-card-horario mono">${it.horaInicio}–${it.horaFim}</span>
-            <span class="escala-card-uf mono">${it.uf||'—'}</span>
-          </div>`).join('') || '<div class="escala-coluna-vazia">—</div>'}
-        </div>
-      </div>`;
-    }).join('')}
+  const extras = [...porLinha.keys()].filter(id=>id && !idsAtivos.has(id));
+  const ordem = [...(porLinha.has('') ? [''] : []), ...linhasAtivas.map(a=>a.id), ...extras];
+
+  const cardHtml = it => `<div class="escala-card${it.pendente?' escala-card-pendente':''}" draggable="true" data-escala-drag="${opts.dragType}" data-escala-key="${escapeHtml(String(it.key))}" title="${escapeHtml(it.operacao)}${it.ciclo?' · '+escapeHtml(it.ciclo):''} · ${it.horaInicio}–${it.horaFim}">
+    <span class="escala-card-op">${escapeHtml(it.operacao)}${it.badge?` <span title="${escapeHtml(it.badgeTitle||'')}">${it.badge}</span>`:''}</span>
+    <span class="escala-card-uf mono">${it.uf||'—'}</span>
   </div>`;
+
+  const headHtml = `<div class="prog-corner">Analista</div>` + HOURS.map(h=>`<div class="prog-tick mono">${h}</div>`).join('');
+  const rowsHtml = ordem.map(id=>{
+    const l = porLinha.get(id);
+    const dropAttrs = !l.inativo ? ` data-escala-drop="${opts.dragType}" data-escala-analista="${id}"` : '';
+    const qtd = l.itens.length;
+    const label = `<div class="prog-row-label"${dropAttrs}><div class="nm">${escapeHtml(l.nome)}</div><div class="prog-row-count">${qtd} operaç${qtd===1?'ão':'ões'}${l.jornada?` · <span class="mono">${l.jornada}</span>`:''}</div></div>`;
+    const analista = id ? userById(id) : null;
+    const cellsHtml = HOURS.map(hour=>{
+      const doHora = l.itens.filter(it=>it.horaInicio===hour);
+      const dentro = analista ? dentroDaJornada(analista, hour) : null;
+      const jornadaClasse = dentro===true ? ' prog-cell-dentro-jornada' : dentro===false ? ' prog-cell-fora-jornada' : '';
+      return `<div class="prog-cell${jornadaClasse}"${dropAttrs}>${doHora.map(cardHtml).join('')}</div>`;
+    }).join('');
+    return label + cellsHtml;
+  }).join('');
+
+  return `<div class="prog-card-outer"><div class="prog-grid escala-prog-grid">${headHtml}${rowsHtml}</div></div>`;
 }
 
 // Redistribui a carteira do mês inteiro pra equipe de uma vez (ver
@@ -178,14 +180,14 @@ function renderEscalaGradeHtml(items, colunasAtivas, opts){
 // novo titular pra cada um, respeitando jornada, nunca repetindo hub que
 // a pessoa já teve, tentando manter 1h de intervalo entre as operações de
 // cada pessoa (quando dá) e variando UF entre a carteira de cada
-// analista. A proposta fica editável arrastando os cards entre as colunas
+// analista. A proposta fica editável arrastando os cards entre as linhas
 // antes de publicar — mesmo espírito do Gerar Escala de Fim de Semana, só
 // que pro mês inteiro e criando operação fixa (Base Mestra) em vez de
 // cobertura avulsa. Abaixo da proposta, a Grade vigente (ver
 // renderEscalaGradeHtml) deixa reatribuir na hora quem já é titular de um
 // hub publicado — inclusive no mês atual, sem precisar gerar nada novo.
 function supGerarEscalaMensal(myAnalistas){
-  // Ordem alfabética das colunas nas duas grades (proposta e vigente) — a
+  // Ordem alfabética das linhas nas duas grades (proposta e vigente) — a
   // lista de candidatos que a geração em si usa (candidatoIds, events.js)
   // é outra variável, não mexe na lógica de distribuição.
   const analistasAtivos = myAnalistas.filter(a=>a.active).sort((a,b)=>a.name.localeCompare(b.name, 'pt-BR'));
@@ -206,7 +208,7 @@ function supGerarEscalaMensal(myAnalistas){
     resultsHtml = `<div class="card" style="margin-top:18px;margin-bottom:22px;">
       <div class="section-title">Proposta — ${mes}</div>
       <div class="help-text" style="margin-top:-6px;">Arraste um card pra outro analista pra trocar quem fica com aquele hub.</div>
-      ${naoCobertos>0 ? `<div class="help-text" style="color:var(--danger,#e05252);">⚠️ ${naoCobertos} operação(ões) não coube em ninguém entre os cadastros ativos (todo mundo já teve esse hub, ou não bate com a jornada de ninguém) — arraste da coluna "Sem titular" pra alguém manualmente.</div>` : ''}
+      ${naoCobertos>0 ? `<div class="help-text" style="color:var(--danger,#e05252);">⚠️ ${naoCobertos} operação(ões) não coube em ninguém entre os cadastros ativos (todo mundo já teve esse hub, ou não bate com a jornada de ninguém) — arraste da linha "Sem titular" pra alguém manualmente.</div>` : ''}
       ${renderEscalaGradeHtml(itemsProposta, analistasAtivos, {dragType:'proposta', semTitularColuna:true})}
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
         <button class="btn" data-gerar-escala-mensal="1">Gerar outra combinação</button>
@@ -528,7 +530,7 @@ function escalaDomPropostaHtml(dia, label, dataStr, res, myAnalistas){
   }));
   return `<div class="card">
     <div class="section-title">${label} — ${dataStr}</div>
-    ${naoCobertos>0 ? `<div class="help-text" style="color:var(--danger,#e05252);">⚠️ ${naoCobertos} operação(ões) não coube em ninguém (capacidade ou janela de 8h esgotada) — arraste da coluna "Não cobrir" pra alguém manualmente, ou escale mais gente.</div>` : ''}
+    ${naoCobertos>0 ? `<div class="help-text" style="color:var(--danger,#e05252);">⚠️ ${naoCobertos} operação(ões) não coube em ninguém (capacidade ou janela de 8h esgotada) — arraste da linha "Não cobrir" pra alguém manualmente, ou escale mais gente.</div>` : ''}
     ${renderEscalaGradeHtml(itemsDom, colunasEscalados, {dragType:`dom-${dia}`, semTitularColuna:true, semTitularLabel:'Não cobrir'})}
     <div style="display:flex;justify-content:flex-end;margin-top:14px;">
       <button class="btn btn-brand" data-confirmar-escaladom="${dia}">Confirmar ${label.toLowerCase()} (${res.linhas.filter(l=>l.escaladoId).length} cobertura(s))</button>

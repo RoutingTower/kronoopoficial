@@ -553,28 +553,18 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .prog-moves-fluxo{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-muted);}
 .prog-moves-aviso{color:var(--alert);display:flex;}
 
-/* Grade de titular da Escala do Mês (proposta + Grade vigente, ver
-   renderEscalaGradeHtml/supGerarEscalaMensal, render-supervisor.js) —
-   colunas por analista (em vez de por hora, como a Programação Integrada
-   acima) com cards de hub arrastáveis entre elas. Reaproveita as classes
-   .prog-arrastando/.prog-drop-alvo do drag da Programação Integrada pro
-   feedback visual de arrastar/soltar, só a "moldura" (coluna/card) é nova. */
-.escala-grade{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;}
-.escala-coluna{flex:0 0 190px;background:var(--bg-2);border:1px solid var(--border);border-radius:11px;display:flex;flex-direction:column;max-height:520px;transition:background-color .12s ease,outline-color .12s ease;}
-.escala-coluna-inativa{opacity:0.55;}
-.escala-coluna-head{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:9px 12px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg-2);border-radius:11px 11px 0 0;}
-.escala-coluna-info{min-width:0;display:flex;flex-direction:column;gap:1px;}
-.escala-coluna-head .nm{font-weight:600;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.escala-coluna-jornada{font-size:10px;color:var(--text-faint);}
-.escala-coluna-count{font-size:10.5px;color:var(--text-faint);background:var(--panel);border-radius:20px;padding:1px 7px;flex-shrink:0;}
-.escala-coluna-body{padding:8px;display:flex;flex-direction:column;gap:7px;overflow-y:auto;min-height:60px;}
-.escala-coluna-vazia{font-size:11px;color:var(--text-faint);text-align:center;padding:10px 0;}
-.escala-card{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--brand);border-radius:8px;padding:7px 9px;cursor:grab;display:flex;flex-direction:column;gap:1px;box-shadow:0 2px 6px rgba(20,20,20,0.05);}
-.escala-card:active{cursor:grabbing;}
-.escala-card-pendente{border-style:dashed;box-shadow:0 0 0 1px color-mix(in srgb, var(--brand) 35%, transparent);}
-.escala-card-op{font-weight:600;font-size:12px;}
-.escala-card-ciclo{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.02em;}
-.escala-card-horario,.escala-card-uf{font-size:10px;color:var(--text-muted);}
+/* Grade de titular da Escala do Mês (proposta + Grade vigente) e da Escala
+   de Domingo (ver renderEscalaGradeHtml, render-supervisor.js) — a MESMA
+   grade da Programação Integrada acima (linhas por analista, colunas por
+   hora), só que cada card é um hub inteiro (uma linha de Base Mestra) em
+   vez do horário de um dia específico. Reaproveita .prog-grid/.prog-cell/
+   .prog-row-label tal e qual (por isso não tem CSS de layout próprio aqui,
+   só o card) e .prog-arrastando/.prog-drop-alvo pro feedback de arrastar. */
+.prog-cell .escala-card{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--brand);border-radius:7px;padding:4px 7px;cursor:grab;display:flex;flex-direction:column;align-items:center;text-align:center;gap:1px;line-height:1.2;box-shadow:0 2px 6px rgba(20,20,20,0.05);}
+.prog-cell .escala-card:active{cursor:grabbing;}
+.prog-cell .escala-card-pendente{border-style:dashed;box-shadow:0 0 0 1px color-mix(in srgb, var(--brand) 35%, transparent);}
+.escala-card-op{font-weight:600;font-size:10.8px;}
+.escala-card-uf{font-size:9px;color:var(--text-muted);}
 .prog-moves-remover{width:20px;height:20px;padding:0;display:flex;align-items:center;justify-content:center;background:var(--bg-2);border:1px solid var(--border);border-radius:50%;color:var(--text-muted);cursor:pointer;}
 .prog-moves-remover:hover{color:var(--alert);border-color:var(--alert);}
 
