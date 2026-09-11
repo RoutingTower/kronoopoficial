@@ -2601,6 +2601,8 @@ function bindMainEvents(){
     });
   });
 
+  const btnExportarCobertura = document.getElementById('btnExportarCobertura');
+  if(btnExportarCobertura) btnExportarCobertura.addEventListener('click', exportarCobertura);
   const btnBaixarModeloSuplencia = document.getElementById('btnBaixarModeloSuplencia');
   if(btnBaixarModeloSuplencia) btnBaixarModeloSuplencia.addEventListener('click', ()=>{
     const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);

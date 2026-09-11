@@ -401,6 +401,19 @@ function supLinksSeatalk(){
 }
 
 
+// Mesmo padrão de exportarOcorrencias (mais abaixo, nesse arquivo): guarda
+// as linhas já FILTRADAS (respeitando os campos de filtro da tela, não a
+// tabela inteira) toda vez que a tela é montada, pro botão Exportar usar
+// exatamente o que está sendo mostrado.
+let coberturaExportRows = [];
+function exportarCobertura(){
+  const linhas = coberturaExportRows.map(s=>[
+    s.tipo==='ferias' ? 'Férias' : 'Folga', s.operacao, s.ciclo||'', getSPR(session.userId, s.operacao, s.ciclo) ?? '',
+    `${s.horaInicio}–${s.horaFim}`, s.folgandoNome, s.suplenteNome, s.data,
+  ]);
+  exportarRelatorioExcel(`cobertura_${todayISO()}.xlsx`, ['Tipo','Operação','Ciclo','SPR','Horário','Folgando','Suplente','Data'], linhas);
+}
+
 // Junta os dois jeitos de "outra pessoa cobrindo": suplência avulsa
 // (operação sem dono fixo, tabela solta) e ausência (folga/férias do
 // titular numa operação fixa da Base Mestra, criada aqui mesmo pelo
@@ -436,6 +449,8 @@ function supSuplencias(myAnalistas){
   );
   const suplentesUnicos = [...new Set(allRows.map(s=>s.suplenteNome))].filter(Boolean).sort();
 
+  coberturaExportRows = rows;
+
   const tipoBadge = tipo => tipo==='ferias'
     ? `<span style="color:var(--folga);font-weight:600;white-space:nowrap;">🏖️ Férias</span>`
     : `<span style="color:var(--folga);font-weight:600;white-space:nowrap;">🌙 Folga</span>`;
@@ -444,6 +459,7 @@ function supSuplencias(myAnalistas){
   <div class="section-title">Cobertura</div>
   <div class="csv-row">
     <span class="csv-label">Carga em massa de coberturas avulsas (Excel)</span>
+    <button class="btn" id="btnExportarCobertura">⬇ Exportar relatório</button>
     <button class="btn" id="btnBaixarModeloSuplencia">⭳ Baixar modelo Excel</button>
     <label class="btn" style="margin:0;">⭱ Importar Excel<input type="file" accept=".xlsx,.xls" id="fileImportSuplencia" style="display:none;"></label>
   </div>
