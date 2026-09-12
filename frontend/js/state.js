@@ -184,7 +184,7 @@ let _loadDBInFlight = null;
 async function loadDB(){
   if(_loadDBInFlight) return _loadDBInFlight;
   _loadDBInFlight = (async ()=>{
-    const [users, baseMestra, suplencias, sprs, raioX, raioXHistorico, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas, operacaoLinks] = await Promise.all([
+    const [users, baseMestra, suplencias, sprs, raioX, raioXHistorico, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas, operacaoLinks, operacaoTransferencias] = await Promise.all([
       apiRequest('GET', '/users'),
       apiRequest('GET', '/base-mestra'),
       apiRequest('GET', '/suplencias'),
@@ -237,8 +237,12 @@ async function loadDB(){
       // (cadastrada uma vez por hub, não muda), ver botão "SeaTalk" no
       // card do analista (render-analista.js).
       apiRequest('GET', '/operacao-links'),
+      // Envios pendentes de operação entre analistas (ver "Enviar" no
+      // card, render-analista.js) — coleção pequena e de giro rápido
+      // (some assim que é respondida), sem custo relevante de egress.
+      apiRequest('GET', '/operacao-transferencias'),
     ]);
-    DB = { users, baseMestra, suplencias, sprs, raioX, raioXHistorico, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas, operacaoLinks };
+    DB = { users, baseMestra, suplencias, sprs, raioX, raioXHistorico, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas, operacaoLinks, operacaoTransferencias };
     ultimoLoadDBEm = Date.now();
   })();
   try{ await _loadDBInFlight; }
@@ -349,6 +353,13 @@ const apiDeleteReuniao = (id) => apiRequest('DELETE', `/reunioes/${id}`);
 const apiCreateOperacaoLink = (data) => apiRequest('POST', '/operacao-links', data);
 const apiUpdateOperacaoLink = (id, patch) => apiRequest('PATCH', `/operacao-links/${id}`, patch);
 const apiDeleteOperacaoLink = (id) => apiRequest('DELETE', `/operacao-links/${id}`);
+
+// operacaoTransferencias — analista envia uma operação sua do dia pra
+// outro analista, que fica travado até aceitar/recusar (ver botão
+// "Enviar" no card, render-analista.js, e o modal bloqueante em main.js).
+const apiCreateTransferencia = (data) => apiRequest('POST', '/operacao-transferencias', data);
+const apiCancelarTransferencia = (id) => apiRequest('PATCH', `/operacao-transferencias/${id}/cancelar`, {});
+const apiResponderTransferencia = (id, aceito) => apiRequest('PATCH', `/operacao-transferencias/${id}/responder`, { aceito });
 
 // particularidades — uma nota por Operação+Supervisor (ver "Ver
 // Particularidade" no card, render-analista.js). Upsert: o backend acha o

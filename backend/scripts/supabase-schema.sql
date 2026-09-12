@@ -420,3 +420,37 @@ create table operacao_links (
   operacao  text not null unique,
   link      text not null
 );
+
+-- Analista envia uma operação SUA (titular ou cobertura) do dia pra outro
+-- analista ativo da equipe; quem recebe fica travado até aceitar/recusar
+-- (ver backend/src/controllers/operacaoTransferencias.controller.js e o
+-- modal bloqueante em frontend/js/render-analista.js). bm_id é
+-- polimórfico de propósito (sem FK): aponta pra base_mestra.id quando
+-- categoria é 'fixa'/'cobertura', ou suplencias.id quando é 'avulsa' —
+-- mesmo par (categoria, bm_id) já usado no drag-and-drop do supervisor
+-- (data-drag-categoria/data-drag-bmid, render-analista.js). titular_id é
+-- o dono ORIGINAL da operação (o próprio remetente, se categoria='fixa';
+-- quem está de folga/férias sendo coberto, se 'cobertura'/'avulsa') —
+-- necessário pra recriar a mesma ausência/suplência que o
+-- arrastar-e-soltar do supervisor já cria, só que disparado pelo aceite
+-- em vez de um "Salvar" do supervisor. Sem limite de agenda de propósito:
+-- aceitar não é bloqueado por conflito de horário (só avisado no
+-- frontend antes de confirmar) — ver conflitoAoMoverPara, utils.js.
+create table operacao_transferencias (
+  id                  uuid primary key default gen_random_uuid(),
+  origem_analista_id  uuid not null references users(id),
+  destino_analista_id uuid not null references users(id),
+  categoria           text not null check (categoria in ('fixa','cobertura','avulsa')),
+  bm_id               uuid not null,
+  titular_id          uuid references users(id),
+  operacao            text not null,
+  ciclo               text not null default '',
+  hora_inicio         text not null,
+  hora_fim            text not null,
+  data                date not null,
+  status              text not null default 'pendente' check (status in ('pendente','aceito','recusado','cancelado')),
+  criado_em           bigint not null,
+  respondido_em       bigint
+);
+create index idx_optransf_destino on operacao_transferencias(destino_analista_id, status);
+create index idx_optransf_origem on operacao_transferencias(origem_analista_id, status);

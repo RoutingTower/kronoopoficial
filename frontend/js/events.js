@@ -280,6 +280,97 @@ function abrirModalParticularidade({ operacao, supervisorId, isCobertura, cobert
   };
 }
 
+// "Enviar operação" — escolher quem recebe. Payload já vem pronto do botão
+// "Enviar" do card (data-enviar-*, ver buildHourCardsHtml, render-analista.js):
+// categoria/bmId/titularId identificam qual instância da agenda está sendo
+// enviada, exatamente como o arrastar-e-soltar do supervisor já identifica
+// (catOriginal/titularIdDrag, renderProgramacaoIntegrada) — só que aqui quem
+// decide é o próprio analista, não o supervisor. Candidatos: analistas
+// ativos da mesma equipe, exceto quem já está de folga/férias nesse dia
+// (candidatosEnvioOperacao, utils.js) — sem checar conflito de horário de
+// propósito, isso só vira aviso na hora do ACEITE (ver
+// abrirModalTransferenciaPendente), nunca impede o envio.
+function abrirModalEnviarOperacao(payload){
+  const candidatos = candidatosEnvioOperacao(payload.data);
+  openModal(`<h3>Enviar operação</h3>
+    <div class="help-text" style="margin-top:-4px;margin-bottom:14px;">${escapeHtml(payload.operacaonome)}${payload.ciclo?' · '+escapeHtml(payload.ciclo):''} · ${payload.horainicio}–${payload.horafim} · <span class="mono">${payload.data}</span><br>A pessoa escolhida precisa aceitar antes da operação passar pra ela — nada muda até lá.</div>
+    ${candidatos.length===0 ? '<div class="empty">Nenhum outro analista ativo disponível nesse dia.</div>' : `
+    <div class="escaladom-list" style="max-height:280px;">
+      ${candidatos.map(a=>`<button type="button" class="escaladom-item" data-enviar-destino="${a.id}">${escapeHtml(a.name)}</button>`).join('')}
+    </div>`}
+    <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+      <button class="btn" data-modal-cancel>Cancelar</button>
+    </div>`);
+  const cancelBtn = document.querySelector('[data-modal-cancel]');
+  if(cancelBtn) cancelBtn.onclick = closeModal;
+  document.querySelectorAll('[data-enviar-destino]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      btn.disabled = true;
+      try{
+        const nova = await apiCreateTransferencia({
+          destinoAnalistaId: btn.dataset.enviarDestino, categoria: payload.categoria, bmId: payload.bmid,
+          titularId: payload.titularid||null, operacao: payload.operacaonome, ciclo: payload.ciclo,
+          horaInicio: payload.horainicio, horaFim: payload.horafim, data: payload.data,
+        });
+        DB.operacaoTransferencias.push(nova);
+        closeModal();
+        renderMain();
+      }catch(e){ alert('Não foi possível enviar: '+e.message); btn.disabled = false; }
+    });
+  });
+}
+
+// Modal bloqueante de quem RECEBE (sem "X" — só Aceitar/Recusar resolvem),
+// auto-aberto por checarTransferenciaPendente (main.js) sempre que existir
+// um envio pendente endereçado a este analista. Nada muda de verdade até a
+// resposta: aceitar dispara a MESMA mutação de dado que o "Salvar" do
+// arrastar-e-soltar do supervisor já faz por categoria (ver
+// btnSalvarProgMoves, mais abaixo), só que executada no backend (analista
+// não tem permissão direta de escrever em ausencias/suplencias — só
+// supervisor, ver ausencias.controller.js) — por isso a resposta da API já
+// vem com o registro pronto (resultado), sem chamar apiCreateAusencia/
+// apiUpdateAusencia/apiUpdateSuplencia daqui. "Sem limite de agenda" é
+// intencional (pedido do usuário): um possível choque de horário só vira
+// um aviso não-bloqueante (confirm) antes do aceite, nunca impede.
+function abrirModalTransferenciaPendente(t){
+  const remetente = userById(t.origemAnalistaId)?.name || '—';
+  modalLocked = true;
+  openModal(`<h3>📨 Nova operação pra você</h3>
+    <div class="help-text" style="margin-top:-4px;margin-bottom:14px;"><b>${escapeHtml(remetente)}</b> quer te passar essa operação:</div>
+    <div class="card" style="margin-bottom:14px;">
+      <div class="flash-sigla">${escapeHtml(t.operacao)}</div>
+      <div class="flash-meta">${escapeHtml(t.ciclo||'')} · ${t.horaInicio}–${t.horaFim} · <span class="mono">${t.data}</span></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;">
+      <button class="btn btn-danger" id="btnRecusarTransferencia">Recusar</button>
+      <button class="btn btn-brand" id="btnAceitarTransferencia">Aceitar</button>
+    </div>`);
+  document.getElementById('btnRecusarTransferencia').onclick = async ()=>{
+    if(!confirm(`Recusar a operação ${t.operacao} de ${remetente}?`)) return;
+    try{
+      const { transferencia } = await apiResponderTransferencia(t.id, false);
+      DB.operacaoTransferencias = DB.operacaoTransferencias.map(x=>x.id===t.id ? transferencia : x);
+      closeModal();
+      renderMain();
+      checarTransferenciaPendente();
+    }catch(e){ alert('Não foi possível recusar: '+e.message); }
+  };
+  document.getElementById('btnAceitarTransferencia').onclick = async ()=>{
+    const motivo = conflitoAoMoverPara(session.userId, t.data, t.horaInicio, t.horaFim);
+    if(motivo && !confirm(`⚠️ Aviso: você ${motivo}. Aceitar mesmo assim pode deixar duas operações no mesmo horário. Aceitar?`)) return;
+    try{
+      const { transferencia, resultado } = await apiResponderTransferencia(t.id, true);
+      DB.operacaoTransferencias = DB.operacaoTransferencias.map(x=>x.id===t.id ? transferencia : x);
+      if(t.categoria==='fixa') DB.ausencias.push(resultado);
+      else if(t.categoria==='cobertura') DB.ausencias = DB.ausencias.map(a=>a.id===resultado.id ? resultado : a);
+      else DB.suplencias = DB.suplencias.map(s=>s.id===resultado.id ? resultado : s);
+      closeModal();
+      renderMain();
+      checarTransferenciaPendente();
+    }catch(e){ alert('Não foi possível aceitar: '+e.message); }
+  };
+}
+
 // Drag-and-drop genérico das grades de titular (proposta da Escala do Mês
 // e Grade vigente, ver renderEscalaGradeHtml em render-supervisor.js) —
 // mesmo esqueleto nativo (dragstart/dragover/dragenter/dragleave/drop) do
@@ -1069,6 +1160,31 @@ function bindMainEvents(){
         coberturaData: btn.dataset.particularidadeData,
         jaCiente: btn.dataset.ciente === '1',
       });
+    });
+  });
+
+  // "Enviar operação" — abre o modal de escolher quem recebe (ver
+  // buildHourCardsHtml, render-analista.js, e abrirModalEnviarOperacao
+  // acima). "Cancelar envio" desiste de um envio ainda pendente, sem
+  // esperar a outra pessoa responder.
+  main.querySelectorAll('[data-enviar-operacao]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      abrirModalEnviarOperacao({
+        categoria: btn.dataset.enviarCategoria, bmid: btn.dataset.enviarBmid, titularid: btn.dataset.enviarTitularid,
+        operacaonome: btn.dataset.enviarOperacaonome, ciclo: btn.dataset.enviarCiclo,
+        horainicio: btn.dataset.enviarHorainicio, horafim: btn.dataset.enviarHorafim, data: btn.dataset.enviarData,
+      });
+    });
+  });
+  main.querySelectorAll('[data-cancelar-transferencia]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(!confirm('Cancelar esse envio? A operação continua com você.')) return;
+      btn.disabled = true;
+      try{
+        const atualizada = await apiCancelarTransferencia(btn.dataset.cancelarTransferencia);
+        DB.operacaoTransferencias = DB.operacaoTransferencias.map(x=>x.id===atualizada.id ? atualizada : x);
+        renderMain();
+      }catch(e){ alert('Não foi possível cancelar: '+e.message); btn.disabled = false; }
     });
   });
 

@@ -289,3 +289,20 @@ function checarParticularidadeAutoAbertura(){
   });
 }
 setInterval(checarParticularidadeAutoAbertura, 30000);
+
+// "Enviar operação" (ver botão no card, render-analista.js): sempre que
+// existir um envio pendente ENDEREÇADO a este analista, abre o modal
+// bloqueante (abrirModalTransferenciaPendente, events.js) — mesma trava de
+// "nunca interrompe outro modal já aberto" do check acima, tenta de novo
+// no próximo tick. Pega o mais ANTIGO primeiro (criadoEm) — se a pessoa
+// tiver mais de um pendente, resolve um de cada vez (o próprio handler de
+// aceitar/recusar já rechama esta função na sequência, sem esperar os 30s).
+function checarTransferenciaPendente(){
+  if(!session || session.role!=='analista') return;
+  if(document.getElementById('modalBg')?.style.display === 'flex') return;
+  const pendentes = (DB.operacaoTransferencias||[]).filter(t=>t.status==='pendente' && t.destinoAnalistaId===session.userId);
+  if(pendentes.length===0) return;
+  const maisAntiga = pendentes.slice().sort((a,b)=>a.criadoEm-b.criadoEm)[0];
+  abrirModalTransferenciaPendente(maisAntiga);
+}
+setInterval(checarTransferenciaPendente, 30000);

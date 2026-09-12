@@ -87,6 +87,24 @@ function buildHourCardsHtml(items, rns, lembretes, ctx){
       // getOperacaoLink, utils.js) — sem cadastro, o botão simplesmente
       // não aparece.
       const linkSeatalk = !it.isOff ? getOperacaoLink(it.operacao) : null;
+      // "Enviar" pra outro analista — só na PRÓPRIA operação de verdade
+      // (nunca em quem tá de folga, it.isOff): titular rodando normal
+      // (fixa) ou cobrindo alguém (cobertura/avulsa). Mesmo par
+      // categoria+bmId+titularId do arrastar-e-soltar do supervisor (ver
+      // catOriginal/titularIdDrag em renderProgramacaoIntegrada, mais
+      // abaixo neste arquivo) — só que aqui é o próprio analista quem
+      // decide mandar, não o supervisor arrastando. Um envio já pendente
+      // pra essa mesma operação vira um botão de cancelar em vez de outro
+      // "Enviar" (evita mandar duas vezes pra pessoas diferentes).
+      let enviarBtnHtml = '';
+      if(souEu){
+        const catEnvio = categoriaOperacao(it)==='fixa' ? 'fixa' : (it.tipo==='cobertura' ? 'avulsa' : 'cobertura');
+        const titularIdEnvio = catEnvio==='fixa' ? analistaId : it.responsavelId;
+        const pendente = (DB.operacaoTransferencias||[]).find(t=>t.status==='pendente' && t.origemAnalistaId===analistaId && t.categoria===catEnvio && t.bmId===it.id && t.data===dateStr);
+        enviarBtnHtml = pendente
+          ? `<button class="btn btn-icon-only" data-cancelar-transferencia="${pendente.id}" title="Envio pendente pra ${escapeHtml(userById(pendente.destinoAnalistaId)?.name||'—')} — clique pra cancelar">${icon('forward',14)}<span class="badge-alerta-ciente" title="Aguardando resposta"></span></button>`
+          : `<button class="btn btn-icon-only" data-enviar-operacao="1" data-enviar-categoria="${catEnvio}" data-enviar-bmid="${it.id}" data-enviar-titularid="${titularIdEnvio}" data-enviar-operacaonome="${escapeHtml(it.operacao)}" data-enviar-ciclo="${escapeHtml(it.ciclo)}" data-enviar-horainicio="${it.horaInicio}" data-enviar-horafim="${it.horaFim}" data-enviar-data="${dateStr}" title="Enviar pra outro analista">${icon('forward',14)}</button>`;
+      }
       return `<div class="flash-card flash-card-${categoriaOperacao(it)}${status==='atraso'?' flash-card-atraso':''}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
           <span class="flash-sigla">${it.operacao}</span>${statusPill(status, true)}
@@ -98,6 +116,7 @@ function buildHourCardsHtml(items, rns, lembretes, ctx){
         ${mostrarExec ? renderExecucaoActions(it, dateStr, analistaId, spr, souEu) : ''}
         <div class="flash-actions" style="margin-top:8px;">
           <button class="btn btn-icon-only btn-particularidade" data-particularidade-op="${escapeHtml(it.operacao)}" data-particularidade-sup="${supervisorId||''}" data-particularidade-cobertura="${it.isCobertura?'1':'0'}" data-particularidade-analista="${analistaId}" data-particularidade-data="${dateStr}" data-ciente="${ciente?'1':'0'}" title="Ver Particularidade">${icon('settings',14)}${(it.isCobertura && !ciente) ? '<span class="badge-alerta-ciente" title="Ainda sem confirmação de ciência"></span>' : ''}</button>
+          ${enviarBtnHtml}
           ${linkSeatalk ? `<a class="btn btn-brand btn-icon-only" href="${escapeHtml(normalizeUrl(linkSeatalk))}" target="_blank" rel="noopener noreferrer" title="Abrir grupo do SeaTalk">${icon('message-circle',14)}</a>` : ''}
         </div>
       </div>`;

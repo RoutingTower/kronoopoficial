@@ -879,6 +879,22 @@ function conflitoAoMoverPara(analistaId, dataStr, horaInicio, horaFim){
   return null;
 }
 
+// Candidatos pra "Enviar operação" (analista mandando pra outro analista,
+// ver botão no card em render-analista.js): equipe ativa, excluindo quem
+// já está de folga/férias nesse dia (ausência própria registrada) — só
+// isso. De propósito SEM checar conflito de horário (jornada, operação
+// própria, outra cobertura) feito candidatosParaSlot faz — o pedido aqui é
+// deixar sem limite de agenda, o destinatário pode acabar com duas
+// operações no mesmo horário se aceitar (só recebe um aviso não-bloqueante
+// na hora do aceite, ver conflitoAoMoverPara/abrirModalTransferenciaPendente,
+// events.js).
+function candidatosEnvioOperacao(dataStr){
+  const eu = userById(session.userId);
+  return DB.users.filter(u=>u.role==='analista' && u.active && u.id!==session.userId && u.supervisorId===eu?.supervisorId)
+    .filter(a=>!DB.ausencias.some(x=>x.analistaId===a.id && x.data===dataStr))
+    .sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+}
+
 
 // UF embutida no nome do hub — sempre "LM Hub_UF_Cidade..." (92/92 hubs
 // reais seguem esse padrão). Usado só pra diversificar a escala de fim de

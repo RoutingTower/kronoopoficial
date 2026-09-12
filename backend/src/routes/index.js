@@ -24,6 +24,7 @@ const roteirizacaoStatusRoutes = require("./roteirizacaoStatus.routes");
 const quizRoutes = require("./quiz.routes");
 const quizPlayRoutes = require("./quizPlay.routes");
 const operacaoLinksRoutes = require("./operacaoLinks.routes");
+const operacaoTransferenciasRoutes = require("./operacaoTransferencias.routes");
 const seatalkReportRoutes = require("./seatalkReport.routes");
 const passagemBastaoRoutes = require("./passagemBastao.routes");
 
@@ -80,5 +81,6 @@ router.use("/formularios", formulariosRoutes);
 router.use("/formulario-respostas", formularioRespostasRoutes);
 router.use("/quiz", quizRoutes);
 router.use("/operacao-links", operacaoLinksRoutes);
+router.use("/operacao-transferencias", operacaoTransferenciasRoutes);
 
 module.exports = router;
