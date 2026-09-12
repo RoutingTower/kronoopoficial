@@ -888,6 +888,27 @@ function conflitoAoMoverPara(analistaId, dataStr, horaInicio, horaFim){
 // operações no mesmo horário se aceitar (só recebe um aviso não-bloqueante
 // na hora do aceite, ver conflitoAoMoverPara/abrirModalTransferenciaPendente,
 // events.js).
+// Card cuja titularidade/cobertura ATUAL veio de um "Enviar operação" já
+// ACEITO entre analistas (ver operacaoTransferencias no DB) — diferente da
+// atribuição original (Base Mestra/Cobertura cadastrada pelo supervisor).
+// De propósito SEM comparar `categoria`: uma transferência 'fixa' (o
+// remetente era titular de verdade) e uma 'cobertura' (o remetente já
+// estava cobrindo) resultam nos DOIS casos num item com isCobertura:true
+// pra quem recebeu (ver getDaySlots, mais abaixo) — quem recebeu não tem
+// como "ser fixa" nessa operação, então recalcular a categoria a partir do
+// item atual nunca bateria com a categoria ORIGINAL gravada na
+// transferência. bmId+data+destino já identifica a instância sozinho (id
+// da base_mestra pra fixa/cobertura, id da suplência avulsa pra avulsa —
+// espaços de UUID diferentes, sem risco de colisão). Usado só pra pintar
+// o card diferente (flash-card-transferida, style.css) e avisar tanto o
+// próprio analista quanto o supervisor na Programação — pedido depois de
+// perceber que uma troca direta entre analistas passava batido pro
+// supervisor sem nenhum sinal visual.
+function transferenciaAceitaDoItem(bmId, analistaId, dateStr){
+  if(!bmId) return false;
+  return (DB.operacaoTransferencias||[]).some(t=>t.status==='aceito' && t.destinoAnalistaId===analistaId && t.bmId===bmId && t.data===dateStr);
+}
+
 function candidatosEnvioOperacao(dataStr){
   const eu = userById(session.userId);
   return DB.users.filter(u=>u.role==='analista' && u.active && u.id!==session.userId && u.supervisorId===eu?.supervisorId)

@@ -96,16 +96,21 @@ function buildHourCardsHtml(items, rns, lembretes, ctx){
       // decide mandar, não o supervisor arrastando. Um envio já pendente
       // pra essa mesma operação vira um botão de cancelar em vez de outro
       // "Enviar" (evita mandar duas vezes pra pessoas diferentes).
+      // Categoria da titularidade ATUAL do item (não a original de
+      // cadastro) — usada só pro payload do botão "Enviar" (catEnvio).
+      // "Veio de transferência" (pra pintar o card) é outra checagem, sem
+      // categoria — ver transferenciaAceitaDoItem, utils.js.
+      const catAtual = it.isOff ? null : (categoriaOperacao(it)==='fixa' ? 'fixa' : (it.tipo==='cobertura' ? 'avulsa' : 'cobertura'));
+      const transferida = !it.isOff && transferenciaAceitaDoItem(it.id, analistaId, dateStr);
       let enviarBtnHtml = '';
       if(souEu){
-        const catEnvio = categoriaOperacao(it)==='fixa' ? 'fixa' : (it.tipo==='cobertura' ? 'avulsa' : 'cobertura');
-        const titularIdEnvio = catEnvio==='fixa' ? analistaId : it.responsavelId;
-        const pendente = (DB.operacaoTransferencias||[]).find(t=>t.status==='pendente' && t.origemAnalistaId===analistaId && t.categoria===catEnvio && t.bmId===it.id && t.data===dateStr);
+        const titularIdEnvio = catAtual==='fixa' ? analistaId : it.responsavelId;
+        const pendente = (DB.operacaoTransferencias||[]).find(t=>t.status==='pendente' && t.origemAnalistaId===analistaId && t.categoria===catAtual && t.bmId===it.id && t.data===dateStr);
         enviarBtnHtml = pendente
           ? `<button class="btn btn-icon-only" data-cancelar-transferencia="${pendente.id}" title="Envio pendente pra ${escapeHtml(userById(pendente.destinoAnalistaId)?.name||'—')} — clique pra cancelar">${icon('forward',14)}<span class="badge-alerta-ciente" title="Aguardando resposta"></span></button>`
-          : `<button class="btn btn-icon-only" data-enviar-operacao="1" data-enviar-categoria="${catEnvio}" data-enviar-bmid="${it.id}" data-enviar-titularid="${titularIdEnvio}" data-enviar-operacaonome="${escapeHtml(it.operacao)}" data-enviar-ciclo="${escapeHtml(it.ciclo)}" data-enviar-horainicio="${it.horaInicio}" data-enviar-horafim="${it.horaFim}" data-enviar-data="${dateStr}" title="Enviar pra outro analista">${icon('forward',14)}</button>`;
+          : `<button class="btn btn-icon-only" data-enviar-operacao="1" data-enviar-categoria="${catAtual}" data-enviar-bmid="${it.id}" data-enviar-titularid="${titularIdEnvio}" data-enviar-operacaonome="${escapeHtml(it.operacao)}" data-enviar-ciclo="${escapeHtml(it.ciclo)}" data-enviar-horainicio="${it.horaInicio}" data-enviar-horafim="${it.horaFim}" data-enviar-data="${dateStr}" title="Enviar pra outro analista">${icon('forward',14)}</button>`;
       }
-      return `<div class="flash-card flash-card-${categoriaOperacao(it)}${status==='atraso'?' flash-card-atraso':''}">
+      return `<div class="flash-card flash-card-${categoriaOperacao(it)}${status==='atraso'?' flash-card-atraso':''}${transferida?' flash-card-transferida':''}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
           <span class="flash-sigla">${it.operacao}</span>${statusPill(status, true)}
         </div>
@@ -113,6 +118,7 @@ function buildHourCardsHtml(items, rns, lembretes, ctx){
         <div class="flash-meta">${it.isSuplente ? 'Suplente' : 'Titular'}: ${it.responsavelNome}</div>
         ${it.isOff ? `<div class="flash-cover">${it.tipo==='ferias'?icon('palmtree',12)+' Férias':icon('moon',12)+' Folga'} do titular</div>`
           : it.isCobertura ? `<div class="flash-cover">${icon('repeat',12)} Cobrindo ${it.tipo==='ferias'?'férias':'folga'} de ${it.responsavelNome}</div>` : ''}
+        ${transferida ? `<span class="pill pill-suplente prog-alerta" title="Essa titularidade veio de um envio entre analistas já aceito">${icon('shuffle',10)} Transferida</span>` : ''}
         ${mostrarExec ? renderExecucaoActions(it, dateStr, analistaId, spr, souEu) : ''}
         <div class="flash-actions" style="margin-top:8px;">
           <button class="btn btn-icon-only btn-particularidade" data-particularidade-op="${escapeHtml(it.operacao)}" data-particularidade-sup="${supervisorId||''}" data-particularidade-cobertura="${it.isCobertura?'1':'0'}" data-particularidade-analista="${analistaId}" data-particularidade-data="${dateStr}" data-ciente="${ciente?'1':'0'}" title="Ver Particularidade">${icon('settings',14)}${(it.isCobertura && !ciente) ? '<span class="badge-alerta-ciente" title="Ainda sem confirmação de ciência"></span>' : ''}</button>
@@ -446,7 +452,15 @@ function renderProgramacaoIntegrada(lista, dateStr){
     // dispositivo (frágil).
     const moverBtnHtml = arrastavel && !it._pendente ? `<button class="prog-mover-btn" data-mover-categoria="${catOriginal}" data-mover-bmid="${it.id}" data-mover-titularid="${titularIdDrag}" data-mover-origemid="${analistaId}" data-mover-operacao="${escapeHtml(it.operacao)}" data-mover-ciclo="${escapeHtml(it.ciclo)}" data-mover-horainicio="${it.horaInicio}" data-mover-horafim="${it.horaFim}" data-mover-data="${dateStr}" title="Mover pra outro analista">${icon('move',11)}</button>` : '';
 
-    return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${dim?' prog-dim':''}${arrastavel?' prog-arrastavel':''}${it._pendente?' prog-card-pendente':''}" title="${escapeHtml(detalhe+resumoRaiox)}"${dragAttrs}>
+    // Card cuja titularidade ATUAL veio de um "Enviar operação" já aceito
+    // entre analistas (não de um cadastro do supervisor) — avisa o
+    // supervisor na Grade Integrada com um selo, além da cor da borda
+    // (flash-card-transferida, style.css). Ignora item pendente de um
+    // drag ainda não salvo (não é uma transferência de verdade).
+    const transferida = !it._pendente && transferenciaAceitaDoItem(it.id, analistaId, dateStr);
+    const transferidaHtml = transferida ? `<span class="pill pill-suplente prog-alerta" title="Essa titularidade veio de um envio entre analistas já aceito">${icon('shuffle',10)} Transferida</span>` : '';
+
+    return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${dim?' prog-dim':''}${arrastavel?' prog-arrastavel':''}${it._pendente?' prog-card-pendente':''}${transferida?' flash-card-transferida':''}" title="${escapeHtml(detalhe+resumoRaiox)}"${dragAttrs}>
       ${moverBtnHtml}
       <span class="flash-sigla">${iconStatus?icon(iconStatus,11)+' ':''}${escapeHtml(it.operacao)}</span>
       <span class="prog-ciclo">${escapeHtml(it.ciclo)}</span>
@@ -456,6 +470,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
       ${pendenteHtml}
       ${timerHtml}
       ${alertaHtml}
+      ${transferidaHtml}
     </div>`;
   };
 

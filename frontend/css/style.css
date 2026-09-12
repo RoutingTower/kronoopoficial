@@ -435,6 +435,14 @@ tr.row-suplente{background:rgba(124,77,255,0.05);}
 .flash-card-fixa{border-left-color:var(--done);}
 .flash-card-folga{border-left-color:var(--folga);}
 .flash-card-cobertura{border-left-color:var(--wait);}
+/* Titularidade veio de um "Enviar operação" já aceito entre analistas (ver
+   transferenciaAceitaDoItem, utils.js) — !important pelo mesmo motivo de
+   flash-card-atraso acima: a classe de categoria (fixa/cobertura) tem a
+   mesma especificidade e podia ganhar dependendo da ordem, então essa cor
+   precisa vencer sempre. Reaproveita --suplente (já é "cor de alguém
+   cobrindo" no resto do app, ver .pill-suplente) em vez de criar uma cor
+   nova só pra isso. */
+.flash-card-transferida{border-left-color:var(--suplente)!important;}
 /* overflow-wrap: nome de operação sem espaço (só "_") não tem onde quebrar
    sozinho — sem isso, um nome comprido força a coluna a crescer além dos
    220px que o cálculo em px da linha "agora" (renderFlashcardRow) assume,

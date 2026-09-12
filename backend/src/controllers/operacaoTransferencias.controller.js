@@ -105,6 +105,11 @@ async function createTransferencia(req, res) {
     respondidoEm: null,
   });
   await notificar(destinoAnalistaId, "agenda", `${caller.name} quer te passar a operação ${operacao} (${horaInicio}–${horaFim}) de ${data}. Responda na Programação.`);
+  // Supervisor sempre é avisado de toda a movimentação (pedido explícito —
+  // ele fica de fora da negociação em si, mas nunca sem saber que ela
+  // aconteceu), nas 4 transições possíveis: enviado, cancelado, recusado
+  // e aceito (ver os outros notificar(caller.supervisorId, ...) abaixo).
+  await notificar(caller.supervisorId, "agenda", `${caller.name} está enviando a operação ${operacao} (${data}) pra ${destino.name} — aguardando resposta.`);
   res.status(201).json(entry);
 }
 
@@ -121,6 +126,8 @@ async function cancelarTransferencia(req, res) {
     return res.status(409).json({ error: "conflict", message: "Esse envio já foi respondido." });
   }
   const updated = await supabaseService.update(COLLECTION, req.params.id, { status: "cancelado", respondidoEm: Date.now() });
+  const destino = await supabaseService.getById("users", existing.destinoAnalistaId);
+  await notificar(caller.supervisorId, "agenda", `${caller.name} cancelou o envio da operação ${existing.operacao} (${existing.data}) que tinha mandado pra ${destino?.name || "—"}.`);
   res.json(updated);
 }
 
@@ -139,9 +146,12 @@ async function responderTransferencia(req, res) {
     return res.status(400).json({ error: "bad_request", message: "aceito (true/false) é obrigatório." });
   }
 
+  const origem = await supabaseService.getById("users", existing.origemAnalistaId);
+
   if (!aceito) {
     const updated = await supabaseService.update(COLLECTION, req.params.id, { status: "recusado", respondidoEm: Date.now() });
     await notificar(existing.origemAnalistaId, "agenda", `${caller.name} recusou a operação ${existing.operacao} de ${existing.data}.`);
+    await notificar(caller.supervisorId, "agenda", `${caller.name} recusou a operação ${existing.operacao} (${existing.data}) que ${origem?.name || "alguém"} tinha enviado.`);
     return res.json({ transferencia: updated, resultado: null });
   }
 
@@ -180,6 +190,7 @@ async function responderTransferencia(req, res) {
 
   const updated = await supabaseService.update(COLLECTION, req.params.id, { status: "aceito", respondidoEm: Date.now() });
   await notificar(existing.origemAnalistaId, "agenda", `${destinoNome} aceitou a operação ${existing.operacao} de ${existing.data} — ela já é dele(a) agora.`);
+  await notificar(caller.supervisorId, "agenda", `${destinoNome} aceitou a operação ${existing.operacao} (${existing.data}) que ${origem?.name || "alguém"} tinha enviado — já mudou de titular/suplente.`);
   res.json({ transferencia: updated, resultado });
 }
 
