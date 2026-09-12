@@ -1,5 +1,6 @@
 const supabaseService = require("../services/supabaseService");
 const { getCaller, supervisorIdDoAnalista } = require("../services/authz");
+const { escolherRaioX } = require("../services/planilhaMatching");
 
 const COLLECTION = "raioX";
 const MIN_OBSERVACAO_LEN = 150;
@@ -91,13 +92,45 @@ async function createRaioX(req, res) {
         message: `observacao é obrigatória, com no mínimo ${MIN_OBSERVACAO_LEN} caracteres`,
       });
     }
-    const sprReal = Number(sprRoteirizado);
-    if (sprRoteirizado === undefined || sprRoteirizado === null || sprRoteirizado === "" || Number.isNaN(sprReal)) {
-      return res.status(400).json({ error: "bad_request", message: "sprRoteirizado é obrigatório e precisa ser um número" });
-    }
     observacaoFinal = observacao.trim();
-    sprRealFinal = sprReal;
     sprMetaFinal = sprMeta === undefined || sprMeta === null || sprMeta === "" ? null : Number(sprMeta);
+    // sprRoteirizado não é mais digitado pelo analista — vem da planilha
+    // Kronos x Fluxo (ver fluxoImport.controller.js), aplicado logo abaixo
+    // se já tiver chegado, ou mais tarde pelo próximo import. Se mesmo
+    // assim vier no corpo (compatibilidade), respeita o valor mandado.
+    if (sprRoteirizado === undefined || sprRoteirizado === null || sprRoteirizado === "") {
+      sprRealFinal = null;
+    } else {
+      const sprReal = Number(sprRoteirizado);
+      if (Number.isNaN(sprReal)) {
+        return res.status(400).json({ error: "bad_request", message: "sprRoteirizado precisa ser um número" });
+      }
+      sprRealFinal = sprReal;
+    }
+  }
+
+  // Kronos x Fluxo pode já ter chegado ANTES desta finalização — se
+  // sprRoteirizado e/ou orfaos ainda não vieram no corpo, procura uma
+  // linha do fluxo pra essa operação+ciclo+data ainda sem Raio-X vinculado
+  // (mesmo casamento por ciclo/horário de escolherRaioX, só que aqui os
+  // "candidatos" são linhas do fluxo, não Raio-X) e usa ela agora — sem
+  // isso, um dado que chegou cedo demais nunca seria aproveitado (o
+  // próximo import só sabe ATUALIZAR um Raio-X que já existe).
+  let fluxoEncontrado = null;
+  if (!semRoteirizacao && (sprRealFinal === null || orfaosFinal === null)) {
+    const candidatosFluxo = (await supabaseService.listWhere("fluxoOperacional", [
+      ["dataExpedicao", "==", data],
+      ["operacao", "==", operacao],
+    ])).filter((f) => !f.raioXId);
+    fluxoEncontrado = candidatosFluxo.length
+      ? escolherRaioX(candidatosFluxo.map((f) => ({ ...f, hora: f.horaInicio })), ciclo, hora)
+      : null;
+    if (fluxoEncontrado) {
+      if (sprRealFinal === null) sprRealFinal = fluxoEncontrado.sprFinal ?? null;
+      if (orfaosFinal === null && (orfaos === undefined || orfaos === null || orfaos === "")) {
+        orfaosFinal = fluxoEncontrado.orfaosIniciais ?? null;
+      }
+    }
   }
 
   // Evita duplicar quando o analista reenvia o mesmo Raio-X (ex.: achou que
@@ -135,6 +168,12 @@ async function createRaioX(req, res) {
     duracaoOrigem: null,
     ts: Date.now(),
   });
+  // Vincula a linha do fluxo que já foi consumida acima — sem isso ela
+  // ficaria "solta" (sem raioXId) e um import futuro podia tentar casar
+  // ela de novo com outro Raio-X por engano.
+  if (fluxoEncontrado) {
+    await supabaseService.update("fluxoOperacional", fluxoEncontrado.id, { raioXId: entry.id });
+  }
   res.status(201).json(entry);
 }
 

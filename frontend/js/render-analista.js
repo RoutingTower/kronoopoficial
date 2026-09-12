@@ -29,7 +29,11 @@ function renderExecucaoActions(it, dateStr, analistaId, sprMeta, souEu){
     // Órfãos é independente de semRoteirizacao (pode ter órfão registrado
     // mesmo sem roteirização) — nulo é "não informado", não mostra nada.
     const orfaosHtml = raiox.orfaos!=null ? ` · Órfãos ${raiox.orfaos}` : '';
-    return `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}${raiox.semRoteirizacao ? ' · Sem roteirização' : raiox.sprRoteirizado!=null ? ` · SPR lançado ${escapeHtml(String(raiox.sprRoteirizado))}` : ''}${orfaosHtml}${duracaoHtml}</div>${acoesRaioX}`;
+    // SPR/Órfãos agora vêm da planilha Kronos x Fluxo (fluxoImport.controller.js),
+    // não de digitação manual — null aqui é um estado temporário real
+    // ("ainda não chegou"), não "não informado pra sempre".
+    const sprHtml = raiox.semRoteirizacao ? ' · Sem roteirização' : raiox.sprRoteirizado!=null ? ` · SPR ${escapeHtml(String(raiox.sprRoteirizado))}` : ' · SPR: aguardando planilha';
+    return `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}${sprHtml}${orfaosHtml}${duracaoHtml}</div>${acoesRaioX}`;
   }
   if(!souEu) return ''; // sem raio-x ainda: enviar só faz sentido pra quem executa
   // Ainda sem Raio-X — a planilha de roteirização pode já ter registrado o

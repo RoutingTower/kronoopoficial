@@ -1,0 +1,184 @@
+// Import da planilha "Kronos x Fluxo" (Apps Script externo, não versionado
+// neste repo) — mesmo esquema de auth/formato de resposta do import da
+// planilha de roteirização (planilhaImport.controller.js), reaproveitando
+// o casamento por data+operação+ciclo/horário (planilhaMatching.js), só que
+// pra outro conjunto de campos: sprRoteirizado e orfaos do Raio-X deixam de
+// ser digitados pelo analista e passam a vir daqui (spr_final,
+// orfaos_iniciais).
+//
+// Cada linha é salva por inteiro em fluxo_operacional (fonte persistida,
+// não um rascunho descartável — também serve de base pra métricas de
+// rotas/volume por hub mais adiante) e, se já existir um Raio-X casando
+// com ela, atualiza sprRoteirizado/orfaos na hora — SEMPRE sobrescrevendo
+// (decisão do usuário: a planilha é fonte da verdade, mesmo retroativa a
+// um valor já digitado à mão antes desta feature existir). Se o Raio-X
+// ainda não existir, fica só em fluxo_operacional; é createRaioX (ver
+// raioX.controller.js) quem consome uma linha "solta" dessas na hora da
+// finalização, se ela já tiver chegado antes.
+const supabaseService = require("../services/supabaseService");
+const { planilhaImportToken } = require("../config/env");
+const {
+  paraDataISO,
+  paraHoraMinuto,
+  dataOperacionalDoSheet,
+  escolherRaioX,
+} = require("../services/planilhaMatching");
+
+function numOuNull(valor) {
+  if (valor === undefined || valor === null || valor === "") return null;
+  const n = Number(valor);
+  return Number.isFinite(n) ? n : null;
+}
+
+function resumir(lista, limite = 20) {
+  return { total: lista.length, amostra: lista.slice(0, limite) };
+}
+
+// Mesmo helper de concorrência limitada do import de roteirização — o
+// gargalo é a viagem de rede pro Supabase, não o tamanho do que a planilha
+// manda.
+async function executarEmParalelo(itens, concorrencia, fn) {
+  const fila = [...itens];
+  const erros = [];
+  async function trabalhador() {
+    while (fila.length) {
+      const item = fila.shift();
+      try {
+        await fn(item);
+      } catch (e) {
+        erros.push({ item, mensagem: e.message });
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concorrencia, itens.length) }, trabalhador));
+  return erros;
+}
+
+async function importarFluxo(req, res) {
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+  if (!planilhaImportToken || token !== planilhaImportToken) {
+    return res.status(403).json({ error: "forbidden", message: "Token inválido." });
+  }
+
+  const linhas = Array.isArray(req.body.linhas) ? req.body.linhas : [];
+
+  const [todosRaioX, todosUsuarios, todoFluxo] = await Promise.all([
+    supabaseService.listAll("raioX"),
+    supabaseService.listAll("users"),
+    supabaseService.listAll("fluxoOperacional"),
+  ]);
+
+  const raioXPorDataOperacao = new Map();
+  for (const r of todosRaioX) {
+    const chave = `${r.data}|${r.operacao}`;
+    if (!raioXPorDataOperacao.has(chave)) raioXPorDataOperacao.set(chave, []);
+    raioXPorDataOperacao.get(chave).push(r);
+  }
+  const idPorEmail = new Map(todosUsuarios.filter((u) => u.email).map((u) => [u.email.toLowerCase(), u.id]));
+  // Chave de upsert do fluxo — a planilha pode reenviar a mesma linha
+  // corrigida, então isso evita duplicar em vez de sempre criar.
+  const fluxoPorChave = new Map();
+  for (const f of todoFluxo) {
+    fluxoPorChave.set(`${f.dataExpedicao}|${f.operacao}|${f.ciclo || ""}|${f.horaInicio || ""}`, f);
+  }
+
+  let semDadosSuficientes = 0;
+  const invalidos = [];
+  const naoEncontrados = []; // sem Raio-X pra casar ainda — fica só em fluxo_operacional
+  const ambiguos = [];
+  const paraUpsertFluxo = [];
+  const paraAtualizarRaioX = [];
+
+  for (const linha of linhas) {
+    // "hub_nome" é quem bate com `operacao` no resto do Kronos (padrão
+    // "LM Hub_UF_Cidade") — "hub" é um código curto interno (ex.: LPA-03),
+    // guardado só como referência, nunca usado pra casar.
+    const operacao = String(linha.hub_nome || "").trim();
+    const hubCodigo = String(linha.hub || "").trim();
+    const ciclo = String(linha.ciclo || "").trim();
+    const inicioTxt = String(linha.inicio || "").trim();
+    const fimTxt = String(linha.fim || "").trim();
+    const dataTxt = String(linha.data_expedicao || "").trim();
+    const email = String(linha.analista || "").trim().toLowerCase();
+
+    if (!operacao || !dataTxt || !inicioTxt) {
+      semDadosSuficientes++;
+      continue;
+    }
+    const dataISO = paraDataISO(dataTxt);
+    if (!dataISO) {
+      invalidos.push({ data: dataTxt, operacao, ciclo });
+      continue;
+    }
+    const dataOperacional = dataOperacionalDoSheet(dataISO, inicioTxt);
+    const analistaId = idPorEmail.get(email) || null;
+    const horaInicio = paraHoraMinuto(inicioTxt);
+
+    const chaveFluxo = `${dataOperacional}|${operacao}|${ciclo}|${horaInicio || ""}`;
+    const dadosFluxo = {
+      dataExpedicao: dataOperacional,
+      hubCodigo,
+      operacao,
+      analistaId,
+      ciclo: ciclo || null,
+      horaInicio,
+      horaFim: fimTxt ? paraHoraMinuto(fimTxt) : null,
+      pedRoteirizados: numOuNull(linha.ped_roteirizados),
+      rotasFinal: numOuNull(linha.rotas_final),
+      sprFinal: numOuNull(linha.spr_final),
+      orfaosIniciais: numOuNull(linha.orfaos_iniciais),
+      orfaosClustersOfensores: String(linha.orfaos_clusters_ofensores || "").trim(),
+      atualizadoEm: Date.now(),
+    };
+    paraUpsertFluxo.push({ existente: fluxoPorChave.get(chaveFluxo) || null, dados: dadosFluxo, chaveFluxo });
+
+    // Tenta casar com um Raio-X JÁ existente pra aplicar sprRoteirizado/
+    // orfaos agora — mesmo casamento (ciclo exato, senão horário mais
+    // próximo) do import de roteirização.
+    const candidatosRaioX = raioXPorDataOperacao.get(`${dataOperacional}|${operacao}`) || [];
+    const escolhido = candidatosRaioX.length ? escolherRaioX(candidatosRaioX, ciclo, inicioTxt) : null;
+    if (escolhido) {
+      paraAtualizarRaioX.push({
+        id: escolhido.id,
+        chaveFluxo,
+        patch: { sprRoteirizado: dadosFluxo.sprFinal, orfaos: dadosFluxo.orfaosIniciais },
+      });
+    } else if (candidatosRaioX.length > 1) {
+      ambiguos.push({ data: dataOperacional, operacao, ciclo, qtd: candidatosRaioX.length });
+    } else {
+      naoEncontrados.push({ data: dataOperacional, operacao, ciclo });
+    }
+  }
+
+  const CONCORRENCIA = 20;
+  // Atualiza os Raio-X primeiro (sempre sobrescrevendo, mesmo que já
+  // tivesse um valor digitado à mão antes desta feature existir — decisão
+  // do usuário) e guarda o id pra linkar a linha do fluxo em seguida.
+  const raioXIdPorChave = new Map();
+  const errosRaioX = await executarEmParalelo(paraAtualizarRaioX, CONCORRENCIA, async (item) => {
+    await supabaseService.update("raioX", item.id, item.patch);
+    raioXIdPorChave.set(item.chaveFluxo, item.id);
+  });
+  const errosFluxo = await executarEmParalelo(paraUpsertFluxo, CONCORRENCIA, async (item) => {
+    const dados = { ...item.dados };
+    const raioXId = raioXIdPorChave.get(item.chaveFluxo);
+    if (raioXId) dados.raioXId = raioXId;
+    if (item.existente) await supabaseService.update("fluxoOperacional", item.existente.id, dados);
+    else await supabaseService.create("fluxoOperacional", { ...dados, criadoEm: Date.now() });
+  });
+
+  res.json({
+    recebidas: linhas.length,
+    atualizadosRaioX: paraAtualizarRaioX.length - errosRaioX.length,
+    salvosFluxo: paraUpsertFluxo.length - errosFluxo.length,
+    semDadosSuficientes,
+    naoEncontrados: resumir(naoEncontrados),
+    ambiguos: resumir(ambiguos),
+    invalidos: resumir(invalidos),
+    errosAtualizacao: resumir(errosRaioX),
+    errosFluxo: resumir(errosFluxo),
+  });
+}
+
+module.exports = { importarFluxo };

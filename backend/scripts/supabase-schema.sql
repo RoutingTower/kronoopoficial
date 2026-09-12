@@ -184,6 +184,45 @@ create table raio_x (
 create index idx_raiox_analista on raio_x(analista_id);
 create index idx_raiox_data on raio_x(data);
 
+-- SPR deixou de ser digitado pelo analista — vem da planilha "Kronos x
+-- Fluxo" (ver fluxo_operacional/fluxoImport.controller.js abaixo), que pode
+-- levar um tempo pra chegar depois da finalização. Enquanto isso, o valor
+-- fica null ("aguardando planilha"), não um número inventado.
+alter table raio_x alter column spr_roteirizado drop not null;
+
+-- Cada linha da planilha "Kronos x Fluxo" (Apps Script externo, não
+-- versionado neste repo) — guardada por inteiro, não é um rascunho
+-- descartável: além de alimentar sprRoteirizado/orfaos do Raio-X (ver
+-- fluxoImport.controller.js), é a base pra métricas de rotas/volume por
+-- hub que ainda vão ser exibidas (fase seguinte, fora deste plano).
+-- `operacao` vem da coluna "hub_nome" da planilha (padrão "LM Hub_UF_
+-- Cidade", o mesmo já usado em base_mestra/raio_x) — a coluna "hub" da
+-- planilha é um código curto interno (ex.: "LPA-03"), diferente e só
+-- guardado em hub_codigo como referência, nunca usado pra casar dado.
+-- raio_x_id fica null até essa linha casar com um Raio-X (na hora do
+-- import, ou depois, na hora em que o próprio Raio-X é criado — ver
+-- createRaioX, raioX.controller.js).
+create table fluxo_operacional (
+  id                        uuid primary key default gen_random_uuid(),
+  data_expedicao            date not null,
+  hub_codigo                text not null default '',
+  operacao                  text not null,
+  analista_id               uuid references users(id),
+  ciclo                     text,
+  hora_inicio               text,
+  hora_fim                  text,
+  ped_roteirizados          integer,
+  rotas_final               integer,
+  spr_final                 numeric,
+  orfaos_iniciais           integer,
+  orfaos_clusters_ofensores text not null default '',
+  raio_x_id                 uuid references raio_x(id),
+  criado_em                 bigint not null,
+  atualizado_em             bigint not null
+);
+create unique index idx_fluxo_chave on fluxo_operacional(data_expedicao, operacao, ciclo, hora_inicio);
+create index idx_fluxo_raiox on fluxo_operacional(raio_x_id);
+
 -- "Iniciado segundo a planilha, ainda sem Raio-X enviado" — a planilha de
 -- roteirização (ver planilhaImport.controller.js) sabe o horário de início
 -- real de uma operação muito antes do analista abrir o Kronos e mandar o

@@ -913,7 +913,7 @@ function bindMainEvents(){
       modalLocked = true;
       openModal(`
         <h3>Enviar Raio-X — ${op} (${hora})</h3>
-        <div class="help-text">Avalie com estrelas, informe o SPR lançado e descreva o que aconteceu. A observação precisa de no mínimo ${RAIOX_MIN_OBS_LEN} caracteres para fechar — tudo isso é obrigatório, a não ser que marque "Sem roteirização" abaixo. O tempo de execução vem da planilha de roteirização, não precisa informar aqui.</div>
+        <div class="help-text">Avalie com estrelas e descreva o que aconteceu. A observação precisa de no mínimo ${RAIOX_MIN_OBS_LEN} caracteres para fechar — obrigatório, a não ser que marque "Sem roteirização" abaixo. SPR e Órfãos vêm automaticamente da planilha Kronos x Fluxo, não precisa informar aqui${sprMeta!=null ? ` (SPR REF cadastrado: ${sprMeta})` : ''}.</div>
         <div class="field">
           <label>Avaliação</label>
           <div id="raioxStars" class="star-picker" style="display:flex;gap:6px;font-size:28px;line-height:1;">
@@ -922,17 +922,6 @@ function bindMainEvents(){
         </div>
         <div class="field">
           <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" id="raioxSemRot"> Sem roteirização nesse horário</label>
-        </div>
-        <div class="field">
-          <label>SPR lançado (obrigatório)${sprMeta!=null ? ` — SPR REF: ${sprMeta}` : ' (sem SPR REF cadastrado pra essa operação/ciclo)'}</label>
-          <input type="number" id="raioxSprReal" step="any" placeholder="Ex.: 108">
-        </div>
-        <div class="field">
-          <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" id="raioxSemOrfaos"> Sem órfãos</label>
-        </div>
-        <div class="field">
-          <label>Órfãos (opcional)</label>
-          <input type="number" id="raioxOrfaos" step="1" min="0" placeholder="Quantidade de pedidos órfãos">
         </div>
         <div class="field">
           <label>Observação (Raio-X da operação)</label>
@@ -948,22 +937,10 @@ function bindMainEvents(){
       const starsEl = document.getElementById('raioxStars');
       const semRotEl = document.getElementById('raioxSemRot');
       const obsEl = document.getElementById('raioxObs');
-      const sprRealEl = document.getElementById('raioxSprReal');
-      const semOrfaosEl = document.getElementById('raioxSemOrfaos');
-      const orfaosEl = document.getElementById('raioxOrfaos');
       const counterEl = document.getElementById('raioxCounter');
       const confirmBtn = document.getElementById('confirmFinalizar');
       function updateState(){
         const semRot = semRotEl.checked;
-        sprRealEl.disabled = semRot;
-        sprRealEl.style.opacity = semRot ? '0.4' : '1';
-        // Órfãos não se aplica sem roteirização (nada foi roteirizado pra
-        // sobrar órfão), e "Sem órfãos" marcado já fixa o valor em 0 — nos
-        // dois casos o campo numérico fica travado.
-        const semOrfaos = semOrfaosEl.checked;
-        orfaosEl.disabled = semRot || semOrfaos;
-        orfaosEl.style.opacity = (semRot || semOrfaos) ? '0.4' : '1';
-        if(semOrfaos) orfaosEl.value = '0';
         const len = obsEl.value.trim().length;
         if(semRot){
           counterEl.textContent = 'Observação opcional (sem roteirização nesse horário)';
@@ -972,8 +949,7 @@ function bindMainEvents(){
         } else {
           counterEl.textContent = `${len} / ${RAIOX_MIN_OBS_LEN} caracteres mínimos`;
           counterEl.style.color = len>=RAIOX_MIN_OBS_LEN ? 'var(--done)' : 'var(--text-faint)';
-          const sprValido = sprRealEl.value.trim()!=='' && !Number.isNaN(Number(sprRealEl.value));
-          confirmBtn.disabled = !(estrelas>=1 && len>=RAIOX_MIN_OBS_LEN && sprValido);
+          confirmBtn.disabled = !(estrelas>=1 && len>=RAIOX_MIN_OBS_LEN);
         }
       }
       starsEl.querySelectorAll('[data-star]').forEach(s=>{
@@ -989,19 +965,17 @@ function bindMainEvents(){
       });
       semRotEl.addEventListener('change', updateState);
       obsEl.addEventListener('input', updateState);
-      sprRealEl.addEventListener('input', updateState);
-      semOrfaosEl.addEventListener('change', updateState);
       confirmBtn.onclick = async ()=>{
         const semRot = semRotEl.checked;
         const observacao = obsEl.value.trim();
-        const sprReal = Number(sprRealEl.value);
         if(estrelas<1) return;
-        if(!semRot && (observacao.length<RAIOX_MIN_OBS_LEN || sprRealEl.value.trim()==='' || Number.isNaN(sprReal))) return;
-        // Nulo = "não informado" (registro antigo ou ninguém preencheu ainda);
-        // 0 é uma resposta de verdade ("Sem órfãos" marcado), não o padrão.
-        const orfaos = semRot ? null : (semOrfaosEl.checked ? 0 : (orfaosEl.value.trim()==='' ? null : Number(orfaosEl.value)));
+        if(!semRot && observacao.length<RAIOX_MIN_OBS_LEN) return;
+        // sprRoteirizado/orfaos não são mais mandados daqui — o backend
+        // preenche a partir da planilha Kronos x Fluxo (na hora, se já
+        // tiver chegado, ou depois, quando o próximo import bater) — ver
+        // createRaioX, raioX.controller.js.
         const entrada = {analistaId:session.userId, operacao:op, hora, data, estrelas, observacao,
-          sprRoteirizado: semRot ? 0 : sprReal, sprMeta: semRot ? null : sprMeta, ciclo, semRoteirizacao:semRot, orfaos};
+          sprMeta: semRot ? null : sprMeta, ciclo, semRoteirizacao:semRot};
         confirmBtn.disabled = true;
         try{
           const novo = await apiCreateRaioX(entrada);
@@ -1055,21 +1029,11 @@ function bindMainEvents(){
           <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" id="raioxEditSemRot" ${r.semRoteirizacao?'checked':''}> Sem roteirização nesse horário</label>
         </div>
         <div class="field">
-          <label>SPR lançado</label>
-          <input type="number" id="raioxEditSprReal" step="any" value="${r.semRoteirizacao ? '' : escapeHtml(String(r.sprRoteirizado ?? ''))}">
-        </div>
-        <div class="field">
-          <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" id="raioxEditSemOrfaos" ${r.orfaos===0?'checked':''}> Sem órfãos</label>
-        </div>
-        <div class="field">
-          <label>Órfãos (opcional)</label>
-          <input type="number" id="raioxEditOrfaos" step="1" min="0" value="${r.orfaos!=null && r.orfaos>0 ? r.orfaos : ''}">
-        </div>
-        <div class="field">
           <label>Observação (Raio-X da operação)</label>
           <textarea id="raioxEditObs" rows="5" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;">${escapeHtml(r.semRoteirizacao ? '' : (r.observacao||''))}</textarea>
           <div id="raioxEditCounter" style="font-size:11.5px;color:var(--text-faint);margin-top:4px;"></div>
         </div>
+        <div class="help-text">SPR e Órfãos vêm da planilha Kronos x Fluxo — pra corrigir um valor errado, é a planilha que precisa ser reimportada, não dá mais pra editar aqui.</div>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
           <button class="btn" data-modal-cancel>Cancelar</button>
           <button class="btn btn-brand" id="confirmEditarRaiox">Salvar alterações</button>
@@ -1079,19 +1043,10 @@ function bindMainEvents(){
       const starsEl = document.getElementById('raioxEditStars');
       const semRotEl = document.getElementById('raioxEditSemRot');
       const obsEl = document.getElementById('raioxEditObs');
-      const sprRealEl = document.getElementById('raioxEditSprReal');
-      const semOrfaosEl = document.getElementById('raioxEditSemOrfaos');
-      const orfaosEl = document.getElementById('raioxEditOrfaos');
       const counterEl = document.getElementById('raioxEditCounter');
       const confirmBtn = document.getElementById('confirmEditarRaiox');
       function updateState(){
         const semRot = semRotEl.checked;
-        sprRealEl.disabled = semRot;
-        sprRealEl.style.opacity = semRot ? '0.4' : '1';
-        const semOrfaos = semOrfaosEl.checked;
-        orfaosEl.disabled = semRot || semOrfaos;
-        orfaosEl.style.opacity = (semRot || semOrfaos) ? '0.4' : '1';
-        if(semOrfaos) orfaosEl.value = '0';
         const len = obsEl.value.trim().length;
         counterEl.textContent = semRot ? 'Observação opcional (sem roteirização nesse horário)' : `${len} / ${RAIOX_MIN_OBS_LEN} caracteres mínimos`;
         counterEl.style.color = (semRot || len>=RAIOX_MIN_OBS_LEN) ? 'var(--done)' : 'var(--text-faint)';
@@ -1108,16 +1063,16 @@ function bindMainEvents(){
       });
       semRotEl.addEventListener('change', updateState);
       obsEl.addEventListener('input', updateState);
-      semOrfaosEl.addEventListener('change', updateState);
       updateState();
       confirmBtn.onclick = async ()=>{
         const semRot = semRotEl.checked;
         const observacao = obsEl.value.trim();
-        const sprReal = Number(sprRealEl.value);
         if(estrelas<1) return;
-        if(!semRot && (observacao.length<RAIOX_MIN_OBS_LEN || sprRealEl.value.trim()==='' || Number.isNaN(sprReal))) return;
-        const orfaos = semRot ? null : (semOrfaosEl.checked ? 0 : (orfaosEl.value.trim()==='' ? null : Number(orfaosEl.value)));
-        const patch = {estrelas, observacao, semRoteirizacao:semRot, sprRoteirizado: semRot ? 0 : sprReal, sprMeta: semRot ? null : r.sprMeta, orfaos};
+        if(!semRot && observacao.length<RAIOX_MIN_OBS_LEN) return;
+        // sprRoteirizado/orfaos não são mais editáveis aqui — quem corrige
+        // isso agora é um reimport da planilha Kronos x Fluxo (ver
+        // fluxoImport.controller.js, que sempre sobrescreve o valor atual).
+        const patch = {estrelas, observacao, semRoteirizacao:semRot, sprMeta: semRot ? null : r.sprMeta};
         confirmBtn.disabled = true;
         try{
           const atualizado = await apiUpdateRaioX(r.id, patch);
