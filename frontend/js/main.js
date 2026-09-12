@@ -81,7 +81,7 @@ initLogin();
 // .login-countdown, style.css) — atualiza sozinha, sem depender de sessão
 // (roda mesmo com ninguém logado, é a tela de login). Trocar a cada nova
 // campanha (8.8, 9.9, 10.10...) é só mudar essa data.
-const DATA_EVENTO_CAMPANHA = new Date('2026-09-09T00:00:00');
+const DATA_EVENTO_CAMPANHA = new Date('2026-11-11T00:00:00');
 function atualizarContagemEvento(){
   const el = document.getElementById('loginCountdownNum');
   if(!el) return;
