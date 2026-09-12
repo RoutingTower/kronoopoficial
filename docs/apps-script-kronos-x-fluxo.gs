@@ -9,14 +9,15 @@
  * 2. Cole este arquivo inteiro (substitui o Code.gs padrão, ou adicione
  *    como um arquivo novo — tanto faz).
  * 3. Configure as Propriedades do Script (⚙️ Configurações do projeto >
- *    Propriedades do script > Adicionar propriedade):
+ *    Propriedades do script > Adicionar propriedade do script):
  *      BACKEND_URL             = https://kronoopoficial.onrender.com/api/fluxo-import
  *      PLANILHA_IMPORT_TOKEN   = <o mesmo valor que já está configurado
  *                                 no Render como PLANILHA_IMPORT_TOKEN —
- *                                 pegue com quem administra o backend,
- *                                 NUNCA cole o token direto no código>
- *    (Guardar o token nas Propriedades do Script em vez de no código evita
- *    expor ele se alguém compartilhar a planilha ou o link do projeto.)
+ *                                 dashboard.render.com > kronoop-backend >
+ *                                 Environment>
+ *    Não esqueça de clicar em "Salvar propriedades do script" no final.
+ *    (Guardar o token aqui em vez de escrito no código evita expor ele se
+ *    alguém compartilhar/copiar esta planilha.)
  * 4. Rode a função `criarGatilhoHorario` uma vez (menu Executar, ou
  *    selecione ela no dropdown de funções e clique ▶). Isso autoriza o
  *    script (vai pedir permissão — é o próprio dono da planilha
