@@ -1,0 +1,76 @@
+name: SeaTalk - Suporte Noturno
+
+# Pergunta hora em hora, das 21h às 04h (horário de Brasília, UTC-3 fixo),
+# quem está disponível para suporte, com uma mensagem de superação
+# diferente a cada disparo. GitHub Actions roda em UTC: 21h-04h BRT
+# corresponde a 00h-07h UTC (minuto 1, pra evitar concorrência com outros
+# jobs agendados no minuto 0).
+on:
+  schedule:
+    - cron: "1 0-7 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Montar e enviar mensagem
+        env:
+          SEATALK_WEBHOOK_URL: ${{ secrets.SEATALK_SUPORTE_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SEATALK_WEBHOOK_URL:-}" ]; then
+            echo "::error::Secret SEATALK_SUPORTE_WEBHOOK_URL não configurado (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+
+          UTC_HOUR=$(date -u +%-H)
+          DAY_OF_YEAR=$(date -u +%-j)
+          LOCAL_HOUR=$(( (UTC_HOUR - 3 + 24) % 24 ))
+
+          MENSAGENS=(
+            "Mais uma hora vencida, faltam menos pra bater o turno. Bora com tudo!"
+            "Quem segura a peteca agora ganha o crédito depois. Coragem!"
+            "De madrugada é quando os fortes aparecem."
+            "Um passo de cada vez — o suporte de agora evita o perrengue de amanhã."
+            "Cansaço é temporário, o trabalho bem feito fica."
+            "Ninguém disse que ia ser fácil, só disse que ia valer a pena."
+            "O turno da madrugada separa quem só reclama de quem resolve."
+            "Respira fundo, foca no próximo hub, o resto se resolve."
+            "Toda operação difícil também passa."
+            "Hoje é mais um dia que vai provar do que você é capaz."
+            "Força não é não cansar, é continuar mesmo cansado."
+            "Cada hora de suporte é um problema a menos amanhã."
+            "O sol vai nascer e vocês vão estar de pé — isso já é vitória."
+            "Trabalho em equipe é isso: alguém sempre aparece quando precisa."
+            "Menos uma hora pro fim do turno, bora fechar com chave de ouro."
+            "Quem chega até aqui já mostrou que aguenta o tranco."
+            "A madrugada é curta pra quem tá ocupado ajudando alguém."
+            "Não é sobre não cair, é sobre continuar levantando."
+            "Vocês são a base que segura a operação de pé. Valeu por isso."
+            "Mais um round vencido. Segue o jogo!"
+          )
+
+          INDEX=$(( (DAY_OF_YEAR + UTC_HOUR) % ${#MENSAGENS[@]} ))
+          MSG="${MENSAGENS[$INDEX]}"
+
+          TEXTO=$(printf '📢 SUPORTE NOTURNO | %sh\n\nQuem tá disponível pra dar suporte agora? Levanta a mão aqui no tópico! 🙋‍♂️🙋‍♀️\n\n💪 %s' "$LOCAL_HOUR" "$MSG")
+
+          jq -n --arg content "$TEXTO" '{tag:"text", text:{content:$content}}' > payload.json
+
+          echo "--- payload ---"
+          cat payload.json
+          echo "---------------"
+
+          HTTP_STATUS=$(curl -sS -o response.json -w "%{http_code}" -X POST "$SEATALK_WEBHOOK_URL" \
+            -H "Content-Type: application/json; charset=utf-8" \
+            --data-binary @payload.json)
+
+          echo "HTTP status: $HTTP_STATUS"
+          cat response.json
+
+          if [ "$HTTP_STATUS" != "200" ] || grep -q '"code":[^0]' response.json; then
+            echo "::error::Falha ao enviar mensagem pro SeaTalk."
+            exit 1
+          fi
