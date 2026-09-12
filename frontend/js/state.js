@@ -240,7 +240,14 @@ async function loadDB(){
       // Envios pendentes de operação entre analistas (ver "Enviar" no
       // card, render-analista.js) — coleção pequena e de giro rápido
       // (some assim que é respondida), sem custo relevante de egress.
-      apiRequest('GET', '/operacao-transferencias'),
+      // .catch(): a tabela é nova (operacao_transferencias) e só existe
+      // depois que alguém colar o SQL no Supabase (ver
+      // supabase-schema.sql) — sem essa rede de segurança, o login inteiro
+      // quebrava pra TODO MUNDO enquanto a migração não roda, porque um
+      // Promise.all rejeita tudo se UMA promise falhar (foi exatamente o
+      // que aconteceu em produção). Cai pra [] e só loga, nunca derruba o
+      // app inteiro por causa de uma feature nova e pequena.
+      apiRequest('GET', '/operacao-transferencias').catch(e=>{ console.error('KronoOP: falha ao buscar operacao-transferencias (tabela nova, confira se o SQL já rodou no Supabase).', e); return []; }),
     ]);
     DB = { users, baseMestra, suplencias, sprs, raioX, raioXHistorico, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas, operacaoLinks, operacaoTransferencias };
     ultimoLoadDBEm = Date.now();
