@@ -701,7 +701,12 @@ function plantaoBannerFor(analistaId, dateStr){
 function passagemBastaoBannerFor(analistaId, dateStr){
   const amanha = addDaysISO(dateStr, 1);
   if(!isFolgaDSR(analistaId, amanha)) return '';
-  return `<div class="banner">🔄 Você folga amanhã (<b>${formatarDataCurta(amanha)}</b>) — faça a <b>passagem de bastão</b> das suas operações de hoje antes de sair, combinando com quem cobre.</div>`;
+  return `<div class="banner" style="align-items:flex-start;"><div>🔄 Você folga amanhã (<b>${formatarDataCurta(amanha)}</b>)? Antes de encerrar o turno, realize a <b>passagem de bastão</b> das suas operações de hoje seguindo os passos:
+    <ol style="margin:6px 0 0 18px;padding:0;">
+      <li>Alinhe com o analista que cobrirá a sua rotina;</li>
+      <li>Avise no grupo do HUB (dentro do tópico correspondente), marcando obrigatoriamente o analista que irá roteirizar e o <b>Supervisor/Responsável pelo turno</b>.</li>
+    </ol>
+  </div></div>`;
 }
 
 
