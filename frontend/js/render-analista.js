@@ -415,7 +415,11 @@ function renderProgramacaoIntegrada(lista, dateStr){
     // verdade: nulo é "não informado", não mostra nada (não é "zero").
     const sprLabel = rx && !rx.semRoteirizacao && rx.sprRoteirizado!=null ? `SPR ${rx.sprRoteirizado}` : '';
     const orfaosLabel = rx && rx.orfaos!=null ? `Órf ${rx.orfaos}` : '';
-    const sprOrfaosLabel = [sprLabel, orfaosLabel].filter(Boolean).join(' · ');
+    // Pedidos/Rotas (Kronos x Fluxo) também aparecem aqui, abreviados — mesmo
+    // critério de opcional-só-se-tiver-chegado dos outros dois.
+    const pedidosLabel = rx && rx.pedRoteirizados!=null ? `Ped ${rx.pedRoteirizados.toLocaleString('pt-BR')}` : '';
+    const rotasLabel = rx && rx.rotasFinal!=null ? `Rot ${rx.rotasFinal.toLocaleString('pt-BR')}` : '';
+    const sprOrfaosLabel = [sprLabel, orfaosLabel, pedidosLabel, rotasLabel].filter(Boolean).join(' · ');
 
     // Passar o mouse no card dá acesso ao texto do Raio-X (observação) sem
     // precisar abrir Editar — hoje esse texto só aparece ali, e o card
