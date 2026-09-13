@@ -29,6 +29,7 @@ const {
   dataOperacionalDoSheet,
   escolherRaioX,
   dataDiasAtras,
+  diaAdjacente,
 } = require("../services/planilhaMatching");
 
 function numOuNull(valor) {
@@ -151,8 +152,32 @@ async function importarFluxo(req, res) {
     // Tenta casar com um Raio-X JÁ existente pra aplicar sprRoteirizado/
     // orfaos/horário real/duração agora — mesmo casamento (ciclo exato,
     // senão horário mais próximo) do import de roteirização.
-    const candidatosRaioX = raioXPorDataOperacao.get(`${dataOperacional}|${operacao}`) || [];
-    const escolhido = candidatosRaioX.length ? escolherRaioX(candidatosRaioX, ciclo, inicioTxt) : null;
+    let candidatosRaioX = raioXPorDataOperacao.get(`${dataOperacional}|${operacao}`) || [];
+    let escolhido = candidatosRaioX.length ? escolherRaioX(candidatosRaioX, ciclo, inicioTxt) : null;
+    // ROFI_3.0 às vezes registra data_expedicao 1 dia à frente do dia real
+    // do turno pra essa MESMA operação, só quando o SPR/Pedidos/Rotas
+    // fecham depois do horário real já ter casado certo (achado real em
+    // produção, confirmado comparando hora_inicio_real — ver diaAdjacente
+    // em planilhaMatching.js). Só tenta o dia vizinho quando o dia exato
+    // não tem CANDIDATO NENHUM, e só aceita um candidato cujo
+    // horaInicioReal JÁ GRAVADO bate EXATO com o horário desta linha —
+    // critério bem mais estreito que escolherRaioX (que aceita ciclo exato
+    // sozinho, sem olhar hora — recorrência diária faria isso casar com
+    // QUALQUER dia vizinho do mesmo ciclo, não só o certo). Sem
+    // horaInicioReal ainda gravado no candidato, não arrisca — fica sem
+    // casar mesmo, mais seguro que corromper o dia errado.
+    if (!escolhido && candidatosRaioX.length === 0 && horaInicio) {
+      for (const deltaDias of [-1, 1]) {
+        const dataVizinha = diaAdjacente(dataOperacional, deltaDias);
+        const candidatosVizinho = (raioXPorDataOperacao.get(`${dataVizinha}|${operacao}`) || []).filter(
+          (r) => (!ciclo || r.ciclo === ciclo) && r.horaInicioReal === horaInicio
+        );
+        if (candidatosVizinho.length === 1) {
+          escolhido = candidatosVizinho[0];
+          break;
+        }
+      }
+    }
     if (escolhido) {
       const patch = {
         sprRoteirizado: dadosFluxo.sprFinal,

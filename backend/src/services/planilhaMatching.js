@@ -138,6 +138,21 @@ function dataDiasAtras(dias) {
   return d.toISOString().slice(0, 10);
 }
 
+// dataISO +/- N dias — usado pelo fallback de casamento da Kronos x Fluxo
+// (ver fluxoImport.controller.js/raioX.controller.js): a planilha-fonte
+// (ROFI_3.0) às vezes registra `data_expedicao` da MESMA operação com 1 dia
+// de diferença entre a chegada do horário real (bate com o dia certo do
+// turno) e a chegada do SPR/Pedidos/Rotas já fechados (chega com a data um
+// dia à frente) — achado real em produção, confirmado comparando
+// hora_inicio_real. Sem esse ajuste, a segunda chegada nunca encontra o
+// Raio-X certo e fica "solta" pra sempre.
+function diaAdjacente(dataISO, deltaDias) {
+  const [y, m, d] = dataISO.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + deltaDias);
+  return dt.toISOString().slice(0, 10);
+}
+
 module.exports = {
   paraDataISO,
   paraSegundosDoDia,
@@ -149,4 +164,5 @@ module.exports = {
   TOLERANCIA_HORARIO_SEG,
   escolherRaioX,
   dataDiasAtras,
+  diaAdjacente,
 };
