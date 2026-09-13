@@ -239,6 +239,45 @@ async function enviarParaSeatalk(texto, webhookUrl) {
   }
 }
 
+// Achado real em produção: o report de fechamento unificado (4188
+// caracteres) voltou "enviado:true" (SeaTalk respondeu 2xx pro POST) mas
+// nunca apareceu no grupo, enquanto o hora a hora (872 caracteres) no MESMO
+// webhook, na MESMA execução, chegou normalmente — assinatura de um limite
+// de tamanho de mensagem do lado do SeaTalk que descarta silenciosamente
+// depois de aceitar a chamada, sem devolver erro. LIMITE_CARACTERES_MENSAGEM
+// é uma margem conservadora (não documentada pelo SeaTalk); divide por
+// linha inteira pra nunca cortar uma seção no meio.
+const LIMITE_CARACTERES_MENSAGEM = 1500;
+function dividirEmPartes(texto, limite = LIMITE_CARACTERES_MENSAGEM) {
+  const linhas = texto.split("\n");
+  const partes = [];
+  let atual = "";
+  for (const linha of linhas) {
+    const candidato = atual ? `${atual}\n${linha}` : linha;
+    if (candidato.length > limite && atual) {
+      partes.push(atual);
+      atual = linha;
+    } else {
+      atual = candidato;
+    }
+  }
+  if (atual) partes.push(atual);
+  return partes;
+}
+
+// Manda em várias mensagens sequenciais quando o texto passa do limite —
+// substitui toda chamada direta a enviarParaSeatalk nos reports (que podem
+// crescer bastante, ex.: fechamento com o turno inteiro) por esta função.
+// Quando cabe numa mensagem só, o comportamento é idêntico a antes (1 parte,
+// sem prefixo de contagem).
+async function enviarParaSeatalkEmPartes(texto, webhookUrl) {
+  const partes = dividirEmPartes(texto);
+  for (let i = 0; i < partes.length; i++) {
+    const prefixo = partes.length > 1 ? `(${i + 1}/${partes.length})\n` : "";
+    await enviarParaSeatalk(prefixo + partes[i], webhookUrl);
+  }
+}
+
 function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, rowsUltimosDias, rowsOntem, dataHoje, dataOntem) {
   naoFinalizados = naoFinalizados || [];
   rowsUltimosDias = rowsUltimosDias || [];
@@ -839,7 +878,7 @@ async function enviarReportSeatalk(req, res) {
     if (!textoAlerta) {
       return res.json({ enviado: false, motivo: "nenhum hub em prioridade máxima nessa janela" });
     }
-    await enviarParaSeatalk(textoAlerta);
+    await enviarParaSeatalkEmPartes(textoAlerta);
     return res.json({ enviado: true, tamanho: textoAlerta.length, preview: textoAlerta });
   } else {
     const esperadas = await operacoesEsperadas(data, supervisor?.id || null);
@@ -893,7 +932,7 @@ async function enviarReportSeatalk(req, res) {
     }
   }
 
-  await enviarParaSeatalk(texto);
+  await enviarParaSeatalkEmPartes(texto);
   res.json({ enviado: true, tamanho: texto.length, preview: texto });
 }
 
