@@ -29,11 +29,14 @@ function renderExecucaoActions(it, dateStr, analistaId, sprMeta, souEu){
     // Órfãos é independente de semRoteirizacao (pode ter órfão registrado
     // mesmo sem roteirização) — nulo é "não informado", não mostra nada.
     const orfaosHtml = raiox.orfaos!=null ? ` · Órfãos ${raiox.orfaos}` : '';
-    // SPR/Órfãos agora vêm da planilha Kronos x Fluxo (fluxoImport.controller.js),
-    // não de digitação manual — null aqui é um estado temporário real
-    // ("ainda não chegou"), não "não informado pra sempre".
+    // SPR/Órfãos/Pedidos/Rotas agora vêm da planilha Kronos x Fluxo
+    // (fluxoImport.controller.js), não de digitação manual — null aqui é um
+    // estado temporário real ("ainda não chegou"), não "não informado pra
+    // sempre" (só órfãos já tinha esse segundo significado antes).
     const sprHtml = raiox.semRoteirizacao ? ' · Sem roteirização' : raiox.sprRoteirizado!=null ? ` · SPR ${escapeHtml(String(raiox.sprRoteirizado))}` : ' · SPR: aguardando planilha';
-    return `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}${sprHtml}${orfaosHtml}${duracaoHtml}</div>${acoesRaioX}`;
+    const pedidosHtml = raiox.pedRoteirizados!=null ? ` · Pedidos ${raiox.pedRoteirizados.toLocaleString('pt-BR')}` : '';
+    const rotasHtml = raiox.rotasFinal!=null ? ` · Rotas ${raiox.rotasFinal.toLocaleString('pt-BR')}` : '';
+    return `<div class="flash-meta" style="margin-top:6px;">Raio-X: ${starDisplay(raiox.estrelas)}${sprHtml}${orfaosHtml}${pedidosHtml}${rotasHtml}${duracaoHtml}</div>${acoesRaioX}`;
   }
   if(!souEu) return ''; // sem raio-x ainda: enviar só faz sentido pra quem executa
   // Ainda sem Raio-X — a planilha de roteirização pode já ter registrado o
@@ -423,7 +426,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
     // overflow do CSS). O nativo não sofre disso, e quebra linha sozinho.
     const obsTexto = rx && rx.observacao ? rx.observacao.trim() : '';
     const resumoRaiox = obsTexto
-      ? `\n\n${'★'.repeat(Math.max(0,Math.min(5,rx.estrelas||0)))}${rx.semRoteirizacao ? ' · Sem roteirização' : rx.sprRoteirizado!=null ? ` · SPR ${rx.sprRoteirizado}` : ''}${rx.orfaos!=null ? ` · Órfãos ${rx.orfaos}` : ''}\n${obsTexto}`
+      ? `\n\n${'★'.repeat(Math.max(0,Math.min(5,rx.estrelas||0)))}${rx.semRoteirizacao ? ' · Sem roteirização' : rx.sprRoteirizado!=null ? ` · SPR ${rx.sprRoteirizado}` : ''}${rx.orfaos!=null ? ` · Órfãos ${rx.orfaos}` : ''}${rx.pedRoteirizados!=null ? ` · Pedidos ${rx.pedRoteirizados.toLocaleString('pt-BR')}` : ''}${rx.rotasFinal!=null ? ` · Rotas ${rx.rotasFinal.toLocaleString('pt-BR')}` : ''}\n${obsTexto}`
       : '';
 
     // Arrastar-e-soltar: só "fixa" (operação própria), "cobertura" (ausência

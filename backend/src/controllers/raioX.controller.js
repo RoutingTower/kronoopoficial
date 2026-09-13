@@ -1,6 +1,6 @@
 const supabaseService = require("../services/supabaseService");
 const { getCaller, supervisorIdDoAnalista } = require("../services/authz");
-const { escolherRaioX } = require("../services/planilhaMatching");
+const { escolherRaioX, duracaoEmSegundos } = require("../services/planilhaMatching");
 
 const COLLECTION = "raioX";
 const MIN_OBSERVACAO_LEN = 150;
@@ -29,6 +29,7 @@ function inicioPadrao() {
 const CAMPOS_LEVE = [
   "id", "analistaId", "operacao", "ciclo", "hora", "data", "estrelas",
   "sprRoteirizado", "sprMeta", "semRoteirizacao", "orfaos",
+  "pedRoteirizados", "rotasFinal",
   "duracaoSegundos", "duracaoOrigem", "ts",
 ];
 
@@ -132,6 +133,16 @@ async function createRaioX(req, res) {
       }
     }
   }
+  // Pedidos roteirizados/rotas final e horário real/duração — mesma linha
+  // de fluxo (se achada acima), independente de SPR/Órfãos já terem vindo
+  // no corpo ou não (esses dois campos nunca vêm do front, só da planilha).
+  const pedRoteirizadosFinal = fluxoEncontrado ? fluxoEncontrado.pedRoteirizados ?? null : null;
+  const rotasFinalFinal = fluxoEncontrado ? fluxoEncontrado.rotasFinal ?? null : null;
+  const horaInicioRealFinal = fluxoEncontrado ? fluxoEncontrado.horaInicio ?? null : null;
+  const horaFimRealFinal = fluxoEncontrado ? fluxoEncontrado.horaFim ?? null : null;
+  const duracaoSegundosFinal = fluxoEncontrado && fluxoEncontrado.horaInicio && fluxoEncontrado.horaFim
+    ? duracaoEmSegundos(fluxoEncontrado.horaInicio, fluxoEncontrado.horaFim)
+    : null;
 
   // Evita duplicar quando o analista reenvia o mesmo Raio-X (ex.: achou que
   // não tinha ido da primeira vez e clicou de novo minutos depois) — cada
@@ -162,10 +173,16 @@ async function createRaioX(req, res) {
     sprMeta: sprMetaFinal,
     semRoteirizacao: !!semRoteirizacao,
     orfaos: orfaosFinal,
-    // Preenchido depois pela planilha de roteirização importada (ver
-    // planilhaImport.controller.js, que casa por data+operação+ciclo).
-    duracaoSegundos: null,
-    duracaoOrigem: null,
+    pedRoteirizados: pedRoteirizadosFinal,
+    rotasFinal: rotasFinalFinal,
+    // Preenchido depois pela planilha de roteirização/Kronos x Fluxo
+    // importada (ver planilhaImport.controller.js/fluxoImport.controller.js,
+    // que casam por data+operação+ciclo) — ou já agora mesmo, se a linha do
+    // fluxo já tiver chegado antes desta finalização (fluxoEncontrado acima).
+    duracaoSegundos: duracaoSegundosFinal,
+    duracaoOrigem: duracaoSegundosFinal != null ? "planilha" : null,
+    horaInicioReal: horaInicioRealFinal,
+    horaFimReal: horaFimRealFinal,
     ts: Date.now(),
   });
   // Vincula a linha do fluxo que já foi consumida acima — sem isso ela

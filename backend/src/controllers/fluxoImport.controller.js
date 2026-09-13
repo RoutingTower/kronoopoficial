@@ -157,6 +157,8 @@ async function importarFluxo(req, res) {
       const patch = {
         sprRoteirizado: dadosFluxo.sprFinal,
         orfaos: dadosFluxo.orfaosIniciais,
+        pedRoteirizados: dadosFluxo.pedRoteirizados,
+        rotasFinal: dadosFluxo.rotasFinal,
         horaInicioReal: horaInicio,
       };
       if (temFim) {

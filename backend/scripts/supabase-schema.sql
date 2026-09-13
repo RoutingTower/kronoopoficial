@@ -190,6 +190,12 @@ create index idx_raiox_data on raio_x(data);
 -- fica null ("aguardando planilha"), não um número inventado.
 alter table raio_x alter column spr_roteirizado drop not null;
 
+-- Pedidos roteirizados e rotas final da operação — mesma fonte da Kronos x
+-- Fluxo (ped_roteirizados/rotas_final), pensados pro card do analista E pra
+-- base da futura extensão do Resultado SPR (rotas/volume por HUB/Ciclo).
+alter table raio_x add column ped_roteirizados integer;
+alter table raio_x add column rotas_final integer;
+
 -- Cada linha da planilha "Kronos x Fluxo" (Apps Script externo, não
 -- versionado neste repo) — guardada por inteiro, não é um rascunho
 -- descartável: além de alimentar sprRoteirizado/orfaos do Raio-X (ver
