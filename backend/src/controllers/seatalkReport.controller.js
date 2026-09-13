@@ -33,12 +33,9 @@ const LIMITE_ORFAOS = 40;
 // essas listas viravam a maior parte do report e empurravam o tamanho da
 // mensagem pra cima do limite do SeaTalk (ver enviarParaSeatalkEmPartes).
 // Pedido explícito do usuário: focar no que mais importa em vez de listar
-// tudo. Sempre mostra quantos ficaram de fora ("+N hub(s)") pra não esconder
-// o tamanho real do problema.
+// tudo, sem escrever "(top N)" nem quantos ficaram de fora no texto — só
+// o corte em si importa pro tamanho da mensagem.
 const TOP_N_LISTA = 3;
-function pushMais(linhas, total, mostrados) {
-  if (total > mostrados) linhas.push(`+ ${total - mostrados} hub(s) também nessa lista.`);
-}
 
 // Mesma convenção de virada de madrugada do resto do app (hourSortValue,
 // frontend/js/utils.js) — hora antes das 7h conta como "depois" da noite
@@ -221,18 +218,19 @@ function operacoesAbaixoMetaNaJanela(rowsJanela) {
   rowsJanela
     .filter((r) => !r.semRoteirizacao && r.sprRoteirizado != null && r.sprMeta != null)
     .forEach((r) => {
-      if (!porOperacao.has(r.operacao)) porOperacao.set(r.operacao, { sprSoma: 0, metaSoma: 0, count: 0 });
+      if (!porOperacao.has(r.operacao)) porOperacao.set(r.operacao, { sprSoma: 0, metaSoma: 0, count: 0, diasAbaixo: 0 });
       const d = porOperacao.get(r.operacao);
       d.sprSoma += r.sprRoteirizado;
       d.metaSoma += r.sprMeta;
       d.count += 1;
+      if (r.sprRoteirizado < r.sprMeta) d.diasAbaixo += 1;
     });
   const resultado = [];
   porOperacao.forEach((d, operacao) => {
     if (d.count < LIMITE_MIN_AMOSTRA_CLUSTER) return;
     const sprMedio = d.sprSoma / d.count;
     const metaMedia = d.metaSoma / d.count;
-    if (metaMedia - sprMedio >= LIMITE_GAP_CLUSTER) resultado.push({ operacao, sprMedio, metaMedia, count: d.count });
+    if (metaMedia - sprMedio >= LIMITE_GAP_CLUSTER) resultado.push({ operacao, sprMedio, metaMedia, count: d.count, diasAbaixo: d.diasAbaixo });
   });
   // Sem cortar aqui — quem quer só os N piores pra exibir corta na hora de
   // montar a seção (montarFechamento); quem só precisa saber SE uma operação
@@ -316,33 +314,17 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
 
   // Operações consistentemente abaixo da própria meta de SPR nos últimos
   // DIAS_JANELA_CLUSTER dias — candidatas a revisão de clusterização.
-  // Volumetria/SPR "de hoje" (rowPorOperacaoHoje, quando a operação rodou no
-  // turno) dão contexto de como ela se saiu especificamente nesse
-  // fechamento. Calculado aqui em cima (não junto da seção) porque
-  // "prioridade máxima" abaixo precisa cruzar com `ofensores`.
-  const rowPorOperacaoHoje = new Map();
-  rows.forEach((r) => rowPorOperacaoHoje.set(r.operacao, r));
   const clusterizacao = operacoesAbaixoMetaNaJanela(rowsUltimosDias);
-
-  // Hub que está LENTO hoje (ofensores) E cronicamente abaixo da própria
-  // meta de SPR (clusterização) é o sinal mais forte de que tem algo
-  // estrutural na malha, não um dia ruim isolado — pedido explícito do
-  // usuário, com dois exemplos reais confirmando o padrão (Salvador_Retiro,
-  // Juazeiro apareceram nas duas listas em turnos diferentes).
-  const operacoesOfensoras = new Set(ofensores.map((r) => r.operacao));
-  const prioridadeMaxima = clusterizacao.filter((c) => operacoesOfensoras.has(c.operacao));
 
   const tituloData = dataHoje ? ` — ${formatarDataBR(dataHoje)}${dataOntem ? ` (vs. ${formatarDataBR(dataOntem)})` : ""}` : "";
 
   // Resumo executivo — 1 linha com o veredito do turno, pra quem só quer o
-  // essencial sem ler o report inteiro. 🔴 se tem prioridade máxima (o pior
-  // sinal: lento hoje E cronicamente abaixo da meta), 🟡 se só tem ofensor
-  // de tempo ou SPR caiu vs ontem, 🟢 se nada disso.
+  // essencial sem ler o report inteiro. 🟡 se tem ofensor de tempo ou SPR
+  // caiu vs ontem, 🟢 se nada disso.
   const resumoPartes = [];
   if (tendencia) resumoPartes.push(`SPR ${tendencia.deltaGeral >= 0 ? "subiu" : tendencia.deltaGeral < 0 ? "caiu" : "ficou estável"}${tendencia.deltaPct != null ? ` ${tendencia.deltaPct >= 0 ? "+" : ""}${tendencia.deltaPct.toFixed(1)}%` : ""} vs ontem`);
-  if (prioridadeMaxima.length > 0) resumoPartes.push(`${prioridadeMaxima.length} hub(s) em prioridade máxima`);
-  else if (ofensores.length > 0) resumoPartes.push(`${ofensores.length} hub(s) acima do SLA`);
-  const resumoEmoji = prioridadeMaxima.length > 0 ? "🔴" : (ofensores.length > 0 || (tendencia && tendencia.deltaGeral < 0)) ? "🟡" : "🟢";
+  if (ofensores.length > 0) resumoPartes.push(`${ofensores.length} hub(s) acima do SLA`);
+  const resumoEmoji = (ofensores.length > 0 || (tendencia && tendencia.deltaGeral < 0)) ? "🟡" : "🟢";
   const linhas = [];
   linhas.push(`📢 REPORT DE FECHAMENTO | ${horaFechamento}`, `Elaborado por ${ELABORADO_POR}`, "");
   linhas.push(`${resumoEmoji} RESUMO: ${resumoPartes.length ? resumoPartes.join(", ") + "." : "turno tranquilo, sem alertas."}`, "");
@@ -395,13 +377,6 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
     linhas.push("");
   }
 
-  if (prioridadeMaxima.length > 0) {
-    linhas.push("⚠️ PRIORIDADE MÁXIMA — lento hoje E cronicamente abaixo da meta", "");
-    prioridadeMaxima.slice(0, TOP_N_LISTA).forEach((c) => linhas.push(`🔺 ${c.operacao} — SPR médio ${DIAS_JANELA_CLUSTER}d: ${c.sprMedio.toFixed(0)} (REF ${c.metaMedia.toFixed(0)}) | passou de ${formatarDuracao(SLA_SEGUNDOS)} hoje`));
-    pushMais(linhas, prioridadeMaxima.length, TOP_N_LISTA);
-    linhas.push("");
-  }
-
   // Pedidos/Rotas/Órfãos ao lado do SPR nos dois extremos — pedido
   // explícito pra correlacionar/justificar o SPR ofensor: um SPR muito alto
   // ou muito baixo costuma ter explicação na volumetria (poucas rotas pra
@@ -414,7 +389,7 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
     return partes.join(" | ");
   };
 
-  linhas.push(`🚨 HUBS OFENSORES — OPERAÇÃO SUPERIOR A ${formatarDuracao(SLA_SEGUNDOS)} (top ${TOP_N_LISTA})`, "");
+  linhas.push(`🚨 HUBS OFENSORES — OPERAÇÃO SUPERIOR A ${formatarDuracao(SLA_SEGUNDOS)}`, "");
   if (ofensores.length === 0) {
     linhas.push(`✅ Nenhum hub passou de ${formatarDuracao(SLA_SEGUNDOS)} de operação.`);
   } else {
@@ -423,58 +398,54 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
       const sprTxt = r.sprRoteirizado != null ? r.sprRoteirizado : "aguardando planilha";
       linhas.push(`▸ ${r.operacao} — ${horario} | Tempo: ${formatarDuracao(r.duracaoSegundos)} | SPR ${sprTxt} | Órf ${r.orfaos ?? 0}`);
     });
-    pushMais(linhas, ofensores.length, TOP_N_LISTA);
   }
   linhas.push("");
 
-  linhas.push(`📈 HUBS COM SPR ${LIMITE_SPR_ALTO}+ (top ${TOP_N_LISTA})`, "");
+  linhas.push(`📈 HUBS COM SPR ${LIMITE_SPR_ALTO}+`, "");
   if (sprAlto.length === 0) {
     linhas.push(`✅ Nenhum hub com SPR igual ou acima de ${LIMITE_SPR_ALTO}.`);
   } else {
     sprAlto.slice(0, TOP_N_LISTA).forEach((r) => linhas.push(`▸ ${r.operacao} | SPR ${r.sprRoteirizado} | ${correlacaoTxt(r)}`));
-    pushMais(linhas, sprAlto.length, TOP_N_LISTA);
   }
   linhas.push("");
 
-  linhas.push(`📉 HUBS COM SPR ABAIXO DE ${LIMITE_SPR_BAIXO} (top ${TOP_N_LISTA})`, "");
+  linhas.push(`📉 HUBS COM SPR ABAIXO DE ${LIMITE_SPR_BAIXO}`, "");
   if (sprBaixo.length === 0) {
     linhas.push(`✅ Nenhum hub ficou com SPR abaixo de ${LIMITE_SPR_BAIXO}.`);
   } else {
     sprBaixo.slice(0, TOP_N_LISTA).forEach((r) => linhas.push(`▸ ${r.operacao} | SPR ${r.sprRoteirizado} | ${correlacaoTxt(r)}`));
-    pushMais(linhas, sprBaixo.length, TOP_N_LISTA);
   }
   linhas.push("");
 
-  linhas.push(`📦 HUBS COM MAIS DE ${LIMITE_ORFAOS} ÓRFÃOS (top ${TOP_N_LISTA})`, "");
+  linhas.push(`📦 HUBS COM MAIS DE ${LIMITE_ORFAOS} ÓRFÃOS`, "");
   if (comOrfaos.length === 0) {
     linhas.push(`✅ Nenhum hub com mais de ${LIMITE_ORFAOS} órfãos.`);
   } else {
+    // Só o essencial pedido: órfãos, pedidos roteirizados e quanto os
+    // órfãos representam do total (órfãos + pedidos) — sem SPR/Rotas/tempo
+    // de roteirização, que não ajudam aqui.
     comOrfaos.slice(0, TOP_N_LISTA).forEach((r) => {
-      // Mesma correlação de Pedidos/Rotas/SPR já mostrada nos extremos de
-      // SPR — fazia falta aqui também, pedido explícito.
-      const partes = [`Órf ${formatarNumero(r.orfaos)}`];
-      if (!r.semRoteirizacao && r.sprRoteirizado != null) partes.push(`SPR ${r.sprRoteirizado}`);
-      if (r.pedRoteirizados != null) partes.push(`Ped ${formatarNumero(r.pedRoteirizados)}`);
-      if (r.rotasFinal != null) partes.push(`Rot ${formatarNumero(r.rotasFinal)}`);
-      const clusters = r.orfaosClustersOfensores ? ` — ${r.orfaosClustersOfensores}` : "";
-      linhas.push(`▸ ${r.operacao} | ${partes.join(" | ")}${clusters}`);
+      const partes = [`Órfãos ${formatarNumero(r.orfaos)}`];
+      if (r.pedRoteirizados != null) {
+        const totalPedidos = r.pedRoteirizados + r.orfaos;
+        const pct = totalPedidos > 0 ? (r.orfaos / totalPedidos) * 100 : 0;
+        partes.push(`Pedidos ${formatarNumero(r.pedRoteirizados)}`);
+        partes.push(`${pct.toFixed(1)}% órfãos`);
+      }
+      linhas.push(`▸ ${r.operacao} — ${partes.join(" | ")}`);
     });
-    pushMais(linhas, comOrfaos.length, TOP_N_LISTA);
   }
   linhas.push("");
 
-  linhas.push(`🔬 OPORTUNIDADE DE CLUSTERIZAÇÃO — ${LIMITE_GAP_CLUSTER}+ pontos abaixo do SPR referencial nos últimos ${DIAS_JANELA_CLUSTER} dias (top ${TOP_N_CLUSTER})`, "");
+  linhas.push(`🔬 OPORTUNIDADE DE CLUSTERIZAÇÃO — ${LIMITE_GAP_CLUSTER}+ pontos abaixo do SPR referencial nos últimos ${DIAS_JANELA_CLUSTER} dias`, "");
   if (clusterizacao.length === 0) {
     linhas.push("✅ Nenhuma operação consistentemente abaixo da meta de SPR na janela analisada.");
   } else {
+    // Só o essencial pedido: SPR roteirizado (médio na janela) vs REF, e
+    // há quantos dias não bate a meta — sem volumetria de hoje.
     clusterizacao.slice(0, TOP_N_CLUSTER).forEach((c) => {
-      const hoje = rowPorOperacaoHoje.get(c.operacao);
-      const volumeHoje = hoje
-        ? ` | Hoje: SPR ${hoje.sprRoteirizado ?? "—"}${hoje.pedRoteirizados != null ? ` | Ped ${formatarNumero(hoje.pedRoteirizados)}` : ""}${hoje.rotasFinal != null ? ` | Rot ${formatarNumero(hoje.rotasFinal)}` : ""}`
-        : " | Não rodou nesse turno";
-      linhas.push(`🔺 ${c.operacao} — SPR médio ${DIAS_JANELA_CLUSTER}d: ${c.sprMedio.toFixed(0)} (REF ${c.metaMedia.toFixed(0)}, ${c.count} finalização(ões))${volumeHoje}`);
+      linhas.push(`🔺 ${c.operacao} — SPR ${c.sprMedio.toFixed(0)} (REF ${c.metaMedia.toFixed(0)}) | não bate a meta há ${c.diasAbaixo} dia(s)`);
     });
-    pushMais(linhas, clusterizacao.length, TOP_N_CLUSTER);
   }
   linhas.push("");
 
