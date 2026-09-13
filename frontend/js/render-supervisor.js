@@ -1275,6 +1275,25 @@ function sprResultadoBody(selecionados, picker){
   const maxRoteirizadoHub = Math.max(1, ...porHub.map(h=>h.roteirizadoMedio));
   const hubsForaMeta = porHub.filter(h=>h.deltaMedio<0).length;
 
+  // Volume roteirizado por operação (Pedidos/Rotas, vem da Kronos x Fluxo) —
+  // soma, não média: é sobre quantidade total movida no período, não sobre
+  // "bateu a meta" de SPR. Usa doPeriodo (não comMeta) de propósito — esses
+  // dois campos independem de meta SPR cadastrada, então um hub sem meta
+  // configurada não pode sumir do volume só por isso.
+  const porOperacaoVolumeAgg = {};
+  doPeriodo.forEach(r=>{
+    if(r.pedRoteirizados==null && r.rotasFinal==null) return;
+    if(!porOperacaoVolumeAgg[r.operacao]) porOperacaoVolumeAgg[r.operacao] = { pedidos:0, rotas:0 };
+    const d = porOperacaoVolumeAgg[r.operacao];
+    if(r.pedRoteirizados!=null) d.pedidos += r.pedRoteirizados;
+    if(r.rotasFinal!=null) d.rotas += r.rotasFinal;
+  });
+  const sprMedioPorOperacao = new Map(porHub.map(h=>[h.operacao, h.roteirizadoMedio]));
+  const porOperacaoVolume = Object.entries(porOperacaoVolumeAgg).map(([operacao,d])=>({
+    operacao, pedidos:d.pedidos, rotas:d.rotas,
+    sprMedio: sprMedioPorOperacao.has(operacao) ? sprMedioPorOperacao.get(operacao) : null,
+  })).sort((a,b)=>b.pedidos-a.pedidos);
+
   // Tendência do card de KPI: compara a média de SPR Lançado do período
   // exibido com a de uma janela anterior de mesmo tamanho, imediatamente
   // antes dela — funciona tanto pro período inteiro quanto pra uma semana
@@ -1422,6 +1441,12 @@ function sprResultadoBody(selecionados, picker){
   ${detalhe.map(d=>`<tr><td>${escapeHtml(d.operacao)}</td><td style="cursor:pointer;" data-analista-timeline="${d.analistaId}" title="Ver histórico">${escapeHtml(d.nome)}</td><td class="mono">${d.metaMedio.toFixed(1)}</td><td class="mono">${d.roteirizadoMedio.toFixed(1)}</td><td class="mono" style="color:${d.deltaMedio>=0?'var(--done)':'var(--alert)'};">${d.deltaMedio>=0?'+':''}${d.deltaMedio.toFixed(1)}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">Sem finalizações com meta cadastrada no período</td></tr>'}
   </tbody></table>
   ${semMeta>0 ? `<div class="help-text" style="margin-top:10px;">${semMeta} finalização(ões) no período sem meta SPR cadastrada pra operação/ciclo — não entram nesse cálculo.</div>` : ''}
+  </div>
+  <div class="card" style="margin-bottom:20px;">
+  <div class="section-title">Volume roteirizado por operação <span style="color:var(--text-faint);text-transform:none;letter-spacing:0;">(Pedidos e Rotas — soma no período, vem da planilha Kronos x Fluxo)</span></div>
+  <table><thead><tr><th>Operação</th><th>Pedidos</th><th>Rotas</th><th>SPR médio</th></tr></thead><tbody>
+  ${porOperacaoVolume.map(d=>`<tr><td>${escapeHtml(d.operacao)}</td><td class="mono">${d.pedidos.toLocaleString('pt-BR')}</td><td class="mono">${d.rotas.toLocaleString('pt-BR')}</td><td class="mono">${d.sprMedio!=null?d.sprMedio.toFixed(1):'—'}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">Sem dados de volume no período (aguardando a planilha Kronos x Fluxo)</td></tr>'}
+  </tbody></table>
   </div>
   <div class="grid-2" style="align-items:start;">
   <div class="card">
