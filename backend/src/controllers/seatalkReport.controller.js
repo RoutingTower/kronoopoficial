@@ -28,6 +28,18 @@ const LIMITE_SPR_ALTO = 120;
 const LIMITE_SPR_BAIXO = 90;
 const LIMITE_ORFAOS = 40;
 
+// Listas de ofensores/SPR alto/SPR baixo/órfãos mostram só os TOP_N_LISTA
+// piores (já vêm ordenadas por gravidade) — com o turno inteiro (~90 hubs)
+// essas listas viravam a maior parte do report e empurravam o tamanho da
+// mensagem pra cima do limite do SeaTalk (ver enviarParaSeatalkEmPartes).
+// Pedido explícito do usuário: focar no que mais importa em vez de listar
+// tudo. Sempre mostra quantos ficaram de fora ("+N hub(s)") pra não esconder
+// o tamanho real do problema.
+const TOP_N_LISTA = 3;
+function pushMais(linhas, total, mostrados) {
+  if (total > mostrados) linhas.push(`+ ${total - mostrados} hub(s) também nessa lista.`);
+}
+
 // Mesma convenção de virada de madrugada do resto do app (hourSortValue,
 // frontend/js/utils.js) — hora antes das 7h conta como "depois" da noite
 // anterior, pra comparar/ordenar corretamente dentro do turno 19h–06h.
@@ -197,7 +209,7 @@ const DIAS_JANELA_CLUSTER = 7;
 // entra quem fica consistentemente MUITO abaixo (gap mínimo), e mesmo
 // assim a lista fica curta (top N piores), pra continuar acionável.
 const LIMITE_GAP_CLUSTER = 8;
-const TOP_N_CLUSTER = 10;
+const TOP_N_CLUSTER = TOP_N_LISTA;
 
 // Média de SPR Lançado x Meta por operação numa janela de dias — quem fica
 // consistentemente abaixo da própria meta é candidato a revisão de
@@ -247,7 +259,7 @@ async function enviarParaSeatalk(texto, webhookUrl) {
 // depois de aceitar a chamada, sem devolver erro. LIMITE_CARACTERES_MENSAGEM
 // é uma margem conservadora (não documentada pelo SeaTalk); divide por
 // linha inteira pra nunca cortar uma seção no meio.
-const LIMITE_CARACTERES_MENSAGEM = 1500;
+const LIMITE_CARACTERES_MENSAGEM = 2500;
 function dividirEmPartes(texto, limite = LIMITE_CARACTERES_MENSAGEM) {
   const linhas = texto.split("\n");
   const partes = [];
@@ -398,39 +410,42 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
     return partes.join(" | ");
   };
 
-  linhas.push(`🚨 HUBS OFENSORES — OPERAÇÃO SUPERIOR A ${formatarDuracao(SLA_SEGUNDOS)}`, "");
+  linhas.push(`🚨 HUBS OFENSORES — OPERAÇÃO SUPERIOR A ${formatarDuracao(SLA_SEGUNDOS)} (top ${TOP_N_LISTA})`, "");
   if (ofensores.length === 0) {
     linhas.push(`✅ Nenhum hub passou de ${formatarDuracao(SLA_SEGUNDOS)} de operação.`);
   } else {
-    ofensores.forEach((r) => {
+    ofensores.slice(0, TOP_N_LISTA).forEach((r) => {
       const horario = `${r.horaInicioReal || r.hora} às ${r.horaFimReal || "—"}`;
       const sprTxt = r.sprRoteirizado != null ? r.sprRoteirizado : "aguardando planilha";
       linhas.push(`🔴 ${r.operacao} — ${horario} | Tempo: ${formatarDuracao(r.duracaoSegundos)} | SPR ${sprTxt} | Órf ${r.orfaos ?? 0}`);
     });
+    pushMais(linhas, ofensores.length, TOP_N_LISTA);
   }
   linhas.push("");
 
-  linhas.push(`📈 HUBS COM SPR ${LIMITE_SPR_ALTO}+`, "");
+  linhas.push(`📈 HUBS COM SPR ${LIMITE_SPR_ALTO}+ (top ${TOP_N_LISTA})`, "");
   if (sprAlto.length === 0) {
     linhas.push(`✅ Nenhum hub com SPR igual ou acima de ${LIMITE_SPR_ALTO}.`);
   } else {
-    sprAlto.forEach((r) => linhas.push(`🟠 ${r.operacao} | SPR ${r.sprRoteirizado} | ${correlacaoTxt(r)}`));
+    sprAlto.slice(0, TOP_N_LISTA).forEach((r) => linhas.push(`🟠 ${r.operacao} | SPR ${r.sprRoteirizado} | ${correlacaoTxt(r)}`));
+    pushMais(linhas, sprAlto.length, TOP_N_LISTA);
   }
   linhas.push("");
 
-  linhas.push(`📉 HUBS COM SPR ABAIXO DE ${LIMITE_SPR_BAIXO}`, "");
+  linhas.push(`📉 HUBS COM SPR ABAIXO DE ${LIMITE_SPR_BAIXO} (top ${TOP_N_LISTA})`, "");
   if (sprBaixo.length === 0) {
     linhas.push(`✅ Nenhum hub ficou com SPR abaixo de ${LIMITE_SPR_BAIXO}.`);
   } else {
-    sprBaixo.forEach((r) => linhas.push(`🟡 ${r.operacao} | SPR ${r.sprRoteirizado} | ${correlacaoTxt(r)}`));
+    sprBaixo.slice(0, TOP_N_LISTA).forEach((r) => linhas.push(`🟡 ${r.operacao} | SPR ${r.sprRoteirizado} | ${correlacaoTxt(r)}`));
+    pushMais(linhas, sprBaixo.length, TOP_N_LISTA);
   }
   linhas.push("");
 
-  linhas.push(`📦 HUBS COM MAIS DE ${LIMITE_ORFAOS} ÓRFÃOS`, "");
+  linhas.push(`📦 HUBS COM MAIS DE ${LIMITE_ORFAOS} ÓRFÃOS (top ${TOP_N_LISTA})`, "");
   if (comOrfaos.length === 0) {
     linhas.push(`✅ Nenhum hub com mais de ${LIMITE_ORFAOS} órfãos.`);
   } else {
-    comOrfaos.forEach((r) => {
+    comOrfaos.slice(0, TOP_N_LISTA).forEach((r) => {
       // Mesma correlação de Pedidos/Rotas/SPR já mostrada nos extremos de
       // SPR — fazia falta aqui também, pedido explícito.
       const partes = [`Órf ${formatarNumero(r.orfaos)}`];
@@ -440,6 +455,7 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
       const clusters = r.orfaosClustersOfensores ? ` — ${r.orfaosClustersOfensores}` : "";
       linhas.push(`🔵 ${r.operacao} | ${partes.join(" | ")}${clusters}`);
     });
+    pushMais(linhas, comOrfaos.length, TOP_N_LISTA);
   }
   linhas.push("");
 
