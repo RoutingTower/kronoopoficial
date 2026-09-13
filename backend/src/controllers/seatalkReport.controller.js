@@ -234,7 +234,10 @@ function operacoesAbaixoMetaNaJanela(rowsJanela) {
     const metaMedia = d.metaSoma / d.count;
     if (metaMedia - sprMedio >= LIMITE_GAP_CLUSTER) resultado.push({ operacao, sprMedio, metaMedia, count: d.count });
   });
-  return resultado.sort((a, b) => (a.sprMedio - a.metaMedia) - (b.sprMedio - b.metaMedia)).slice(0, TOP_N_CLUSTER);
+  // Sem cortar aqui — quem quer só os N piores pra exibir corta na hora de
+  // montar a seção (montarFechamento); quem só precisa saber SE uma operação
+  // é crônica (ex.: sinalizar no hora a hora) precisa da lista inteira.
+  return resultado.sort((a, b) => (a.sprMedio - a.metaMedia) - (b.sprMedio - b.metaMedia));
 }
 
 async function enviarParaSeatalk(texto, webhookUrl) {
@@ -394,7 +397,8 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
 
   if (prioridadeMaxima.length > 0) {
     linhas.push("⚠️ PRIORIDADE MÁXIMA — lento hoje E cronicamente abaixo da meta", "");
-    prioridadeMaxima.forEach((c) => linhas.push(`🔺 ${c.operacao} — SPR médio ${DIAS_JANELA_CLUSTER}d: ${c.sprMedio.toFixed(0)} (REF ${c.metaMedia.toFixed(0)}) | passou de ${formatarDuracao(SLA_SEGUNDOS)} hoje`));
+    prioridadeMaxima.slice(0, TOP_N_LISTA).forEach((c) => linhas.push(`🔺 ${c.operacao} — SPR médio ${DIAS_JANELA_CLUSTER}d: ${c.sprMedio.toFixed(0)} (REF ${c.metaMedia.toFixed(0)}) | passou de ${formatarDuracao(SLA_SEGUNDOS)} hoje`));
+    pushMais(linhas, prioridadeMaxima.length, TOP_N_LISTA);
     linhas.push("");
   }
 
@@ -463,13 +467,14 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
   if (clusterizacao.length === 0) {
     linhas.push("✅ Nenhuma operação consistentemente abaixo da meta de SPR na janela analisada.");
   } else {
-    clusterizacao.forEach((c) => {
+    clusterizacao.slice(0, TOP_N_CLUSTER).forEach((c) => {
       const hoje = rowPorOperacaoHoje.get(c.operacao);
       const volumeHoje = hoje
         ? ` | Hoje: SPR ${hoje.sprRoteirizado ?? "—"}${hoje.pedRoteirizados != null ? ` | Ped ${formatarNumero(hoje.pedRoteirizados)}` : ""}${hoje.rotasFinal != null ? ` | Rot ${formatarNumero(hoje.rotasFinal)}` : ""}`
         : " | Não rodou nesse turno";
       linhas.push(`🔸 ${c.operacao} — SPR médio ${DIAS_JANELA_CLUSTER}d: ${c.sprMedio.toFixed(0)} (REF ${c.metaMedia.toFixed(0)}, ${c.count} finalização(ões))${volumeHoje}`);
     });
+    pushMais(linhas, clusterizacao.length, TOP_N_CLUSTER);
   }
   linhas.push("");
 
@@ -498,9 +503,10 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
   return linhas.join("\n");
 }
 
-function montarHora(rows, horaInicio, horaFim, naoFinalizados, rowsOntemMesmaJanela) {
+function montarHora(rows, horaInicio, horaFim, naoFinalizados, rowsOntemMesmaJanela, operacoesCronicas) {
   naoFinalizados = naoFinalizados || [];
   rowsOntemMesmaJanela = rowsOntemMesmaJanela || [];
+  operacoesCronicas = operacoesCronicas || new Set();
   const linhas = [];
   linhas.push(`📢 INFORMATIVO OPERACIONAL | ${horaInicio.slice(0, 2)}h às ${horaFim.slice(0, 2)}h`, "");
 
@@ -577,6 +583,12 @@ function montarHora(rows, horaInicio, horaFim, naoFinalizados, rowsOntemMesmaJan
         let orfSeg = `Órf ${orfaosHoje}`;
         if (ontemHub && ontemHub.orfaos != null) orfSeg += comparativoTxt(orfaosHoje, ontemHub.orfaos);
         segs.push(orfSeg);
+        // Crônico: mesmo critério de "Oportunidade de Clusterização" do
+        // fechamento (operacoesAbaixoMetaNaJanela) — abaixo da própria meta
+        // há pelo menos DIAS_JANELA_CLUSTER dias, não só nessa hora. Sinal
+        // independente do emoji de hoje: um hub pode estar 🟢 nessa hora e
+        // ainda assim ser crônico (variação natural de um dia bom isolado).
+        if (operacoesCronicas.has(r.operacao)) segs.push(`⚠️ abaixo da meta há ${DIAS_JANELA_CLUSTER}d+`);
         // 🟢 bateu ou passou a meta, 🟡 ficou abaixo — ✅ só quando não dá
         // pra comparar (sem meta cadastrada ou sem SPR ainda).
         const emoji = r.sprMeta != null && r.sprRoteirizado != null ? (r.sprRoteirizado >= r.sprMeta ? "🟢" : "🟡") : "✅";
@@ -944,7 +956,22 @@ async function enviarReportSeatalk(req, res) {
       }
       const doPeriodoOntem = todasDoDiaOntemHora.filter((r) => horaValor(r.hora) >= horaValor(horaInicio) && horaValor(r.hora) < horaValor(horaFim));
 
-      texto = montarHora(doPeriodo, horaInicio, horaFim, naoFinalizados, doPeriodoOntem);
+      // Mesmo critério crônico do fechamento (operacoesAbaixoMetaNaJanela) —
+      // pedido explícito pra sinalizar no hora a hora também, não só esperar
+      // o fechamento das 05h.
+      const dataInicioJanelaHora = diaAnterior(data, DIAS_JANELA_CLUSTER - 1);
+      const rowsJanelaHoraBruta = await supabaseService.listWhere(COLLECTION, [
+        ["data", ">=", dataInicioJanelaHora],
+        ["data", "<=", data],
+      ]);
+      let rowsJanelaHora = rowsJanelaHoraBruta;
+      if (supervisor) {
+        const supervisorPorAnalista = new Map(usuarios.map((u) => [u.id, u.supervisorId]));
+        rowsJanelaHora = rowsJanelaHoraBruta.filter((r) => supervisorPorAnalista.get(r.analistaId) === supervisor.id);
+      }
+      const operacoesCronicas = new Set(operacoesAbaixoMetaNaJanela(rowsJanelaHora).map((c) => c.operacao));
+
+      texto = montarHora(doPeriodo, horaInicio, horaFim, naoFinalizados, doPeriodoOntem, operacoesCronicas);
     }
   }
 
