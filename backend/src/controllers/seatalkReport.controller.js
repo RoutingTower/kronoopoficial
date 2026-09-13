@@ -522,7 +522,10 @@ function montarHora(rows, horaInicio, horaFim, naoFinalizados, rowsOntemMesmaJan
         let orfSeg = `Órf ${orfaosHoje}`;
         if (ontemHub && ontemHub.orfaos != null) orfSeg += comparativoTxt(orfaosHoje, ontemHub.orfaos);
         segs.push(orfSeg);
-        linhas.push(`✅ ${r.operacao} - ${segs.join(" | ")}`, "");
+        // 🟢 bateu ou passou a meta, 🟡 ficou abaixo — ✅ só quando não dá
+        // pra comparar (sem meta cadastrada ou sem SPR ainda).
+        const emoji = r.sprMeta != null && r.sprRoteirizado != null ? (r.sprRoteirizado >= r.sprMeta ? "🟢" : "🟡") : "✅";
+        linhas.push(`${emoji} ${r.operacao} - ${segs.join(" | ")}`, "");
       });
     naoFinalizados
       .slice()
