@@ -129,6 +129,15 @@ function escolherRaioX(candidatos, ciclo, inicioTxt) {
   return null;
 }
 
+// Janela do rascunho "ao vivo" (roteirizacao_status) — quem chama pede só
+// os últimos N dias pra não carregar histórico à toa (o timer só importa
+// pra operação em curso ou recém-terminada).
+function dataDiasAtras(dias) {
+  const d = new Date();
+  d.setDate(d.getDate() - dias);
+  return d.toISOString().slice(0, 10);
+}
+
 module.exports = {
   paraDataISO,
   paraSegundosDoDia,
@@ -139,4 +148,5 @@ module.exports = {
   normalizarOperacao,
   TOLERANCIA_HORARIO_SEG,
   escolherRaioX,
+  dataDiasAtras,
 };

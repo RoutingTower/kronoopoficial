@@ -6,6 +6,7 @@ const {
   paraHoraMinuto,
   dataOperacionalDoSheet,
   escolherRaioX,
+  dataDiasAtras,
 } = require("../services/planilhaMatching");
 
 // Corta listas de diagnóstico grandes (a planilha real manda dezenas de
@@ -182,12 +183,6 @@ async function importarPlanilha(req, res) {
     errosAtualizacao: resumir(errosRaioX),
     errosStatus: resumir(errosStatus),
   });
-}
-
-function dataDiasAtras(dias) {
-  const d = new Date();
-  d.setDate(d.getDate() - dias);
-  return d.toISOString().slice(0, 10);
 }
 
 module.exports = { importarPlanilha };
