@@ -47,6 +47,17 @@ module.exports = {
   // POST nele, nunca expõe essa URL pro frontend.
   seatalkReportToken: process.env.SEATALK_REPORT_TOKEN || "",
   seatalkWebhookUrl: process.env.SEATALK_REPORT_WEBHOOK_URL || "",
+  // Bot "Shôdisponível" (suporte noturno, 21h-04h) — webhook de um System
+  // Account SEPARADO do report de SPR acima (persona/avatar diferente no
+  // SeaTalk). Antes disparado por um workflow do GitHub Actions
+  // (.github/workflows/seatalk-suporte-noturno.yml) com `schedule:` cron;
+  // trocado pro mesmo Apps Script que já chama /api/reports/seatalk de hora
+  // em hora, porque o cron do GitHub Actions simplesmente não disparava
+  // sozinho (só rodava via "Run workflow" manual) — motivo exato não
+  // confirmado (repositório foi transferido de dono pouco antes), mas o
+  // gatilho do Apps Script já é comprovadamente confiável (é o mesmo que já
+  // roda a importação da planilha e o report de SPR hora a hora).
+  seatalkSuporteWebhookUrl: process.env.SEATALK_SUPORTE_WEBHOOK_URL || "",
   // Varredura manual/retroativa de passagem de bastão (ver
   // backend/src/controllers/passagemBastao.controller.js) — chamada sob
   // demanda pra pré-visualizar ou disparar os avisos de troca de titular

@@ -10,7 +10,7 @@
 // pro webhook do SeaTalk.
 
 const supabaseService = require("../services/supabaseService");
-const { seatalkReportToken, seatalkWebhookUrl } = require("../config/env");
+const { seatalkReportToken, seatalkWebhookUrl, seatalkSuporteWebhookUrl } = require("../config/env");
 
 const COLLECTION = "raioX";
 
@@ -151,9 +151,10 @@ function mediaSprPorChave(rows, chaveFn) {
 // volumetria se possível".
 const LIMITE_MIN_AMOSTRA_UF = 3;
 
-async function enviarParaSeatalk(texto) {
-  if (!seatalkWebhookUrl) throw new Error("SEATALK_REPORT_WEBHOOK_URL não configurado.");
-  const res = await fetch(seatalkWebhookUrl, {
+async function enviarParaSeatalk(texto, webhookUrl) {
+  const url = webhookUrl || seatalkWebhookUrl;
+  if (!url) throw new Error("Webhook do SeaTalk não configurado.");
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ tag: "text", text: { content: texto } }),
@@ -435,4 +436,67 @@ async function enviarReportSeatalk(req, res) {
   res.json({ enviado: true, tamanho: texto.length, preview: texto });
 }
 
-module.exports = { enviarReportSeatalk, montarFechamento, montarHora, montarAnaliseDiaria, operacoesEsperadas, separarNaoFinalizados };
+// Bot "Shôdisponível" — pergunta quem está disponível pra suporte, só
+// durante o turno da madrugada (21h-04h). Antes era um workflow do GitHub
+// Actions com `schedule:` cron; o cron nunca disparou sozinho de verdade (só
+// via "Run workflow" manual — 1 execução total, a do teste), então passou a
+// ser chamado daqui, pelo MESMO Apps Script que já dispara
+// /api/reports/seatalk de hora em hora com sucesso comprovado. Servidor não
+// tenta adivinhar a hora do Brasil (Render roda em UTC) — quem manda
+// `horaLocal` é o Apps Script (Session.getScriptTimeZone(), mesma lógica já
+// usada em enviarReportSeatalk).
+const MENSAGENS_SUPORTE = [
+  "Mais uma hora vencida, faltam menos pra bater o turno. Bora com tudo!",
+  "Quem segura a peteca agora ganha o crédito depois. Coragem!",
+  "De madrugada é quando os fortes aparecem.",
+  "Um passo de cada vez — o suporte de agora evita o perrengue de amanhã.",
+  "Cansaço é temporário, o trabalho bem feito fica.",
+  "Ninguém disse que ia ser fácil, só disse que ia valer a pena.",
+  "O turno da madrugada separa quem só reclama de quem resolve.",
+  "Respira fundo, foca no próximo hub, o resto se resolve.",
+  "Toda operação difícil também passa.",
+  "Hoje é mais um dia que vai provar do que você é capaz.",
+  "Força não é não cansar, é continuar mesmo cansado.",
+  "Cada hora de suporte é um problema a menos amanhã.",
+  "O sol vai nascer e vocês vão estar de pé — isso já é vitória.",
+  "Trabalho em equipe é isso: alguém sempre aparece quando precisa.",
+  "Menos uma hora pro fim do turno, bora fechar com chave de ouro.",
+  "Quem chega até aqui já mostrou que aguenta o tranco.",
+  "A madrugada é curta pra quem tá ocupado ajudando alguém.",
+  "Não é sobre não cair, é sobre continuar levantando.",
+  "Vocês são a base que segura a operação de pé. Valeu por isso.",
+  "Mais um round vencido. Segue o jogo!",
+];
+
+function diaDoAno(d) {
+  const inicio = Date.UTC(d.getUTCFullYear(), 0, 0);
+  return Math.floor((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - inicio) / 86400000);
+}
+
+async function enviarSuporteNoturno(req, res) {
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+  if (!seatalkReportToken || token !== seatalkReportToken) {
+    return res.status(403).json({ error: "forbidden", message: "Token inválido." });
+  }
+
+  if (!seatalkSuporteWebhookUrl) {
+    return res.status(500).json({ error: "config", message: "SEATALK_SUPORTE_WEBHOOK_URL não configurado." });
+  }
+  const horaLocal = Number(req.body.horaLocal);
+  if (!Number.isInteger(horaLocal) || horaLocal < 0 || horaLocal > 23) {
+    return res.status(400).json({ error: "bad_request", message: "horaLocal (0-23, hora local de Brasília) é obrigatório." });
+  }
+  // Turno 21h-04h — fora disso, não é erro, só não tem nada pra perguntar.
+  if (horaLocal >= 5 && horaLocal < 21) {
+    return res.json({ enviado: false, motivo: "fora do turno (21h-04h)" });
+  }
+
+  const indice = (diaDoAno(new Date()) + horaLocal) % MENSAGENS_SUPORTE.length;
+  const texto = `📢 SUPORTE NOTURNO | ${horaLocal}h\n\nQuem tá disponível pra dar suporte agora? Levanta a mão aqui no tópico! 🙋‍♂️🙋‍♀️\n\n💪 ${MENSAGENS_SUPORTE[indice]}`;
+
+  await enviarParaSeatalk(texto, seatalkSuporteWebhookUrl);
+  res.json({ enviado: true, tamanho: texto.length, preview: texto });
+}
+
+module.exports = { enviarReportSeatalk, enviarSuporteNoturno, montarFechamento, montarHora, montarAnaliseDiaria, operacoesEsperadas, separarNaoFinalizados };
