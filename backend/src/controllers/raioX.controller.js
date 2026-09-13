@@ -138,6 +138,7 @@ async function createRaioX(req, res) {
   // no corpo ou não (esses dois campos nunca vêm do front, só da planilha).
   const pedRoteirizadosFinal = fluxoEncontrado ? fluxoEncontrado.pedRoteirizados ?? null : null;
   const rotasFinalFinal = fluxoEncontrado ? fluxoEncontrado.rotasFinal ?? null : null;
+  const orfaosClustersOfensoresFinal = fluxoEncontrado ? fluxoEncontrado.orfaosClustersOfensores || null : null;
   const horaInicioRealFinal = fluxoEncontrado ? fluxoEncontrado.horaInicio ?? null : null;
   const horaFimRealFinal = fluxoEncontrado ? fluxoEncontrado.horaFim ?? null : null;
   const duracaoSegundosFinal = fluxoEncontrado && fluxoEncontrado.horaInicio && fluxoEncontrado.horaFim
@@ -175,6 +176,7 @@ async function createRaioX(req, res) {
     orfaos: orfaosFinal,
     pedRoteirizados: pedRoteirizadosFinal,
     rotasFinal: rotasFinalFinal,
+    orfaosClustersOfensores: orfaosClustersOfensoresFinal,
     // Preenchido depois pela planilha de roteirização/Kronos x Fluxo
     // importada (ver planilhaImport.controller.js/fluxoImport.controller.js,
     // que casam por data+operação+ciclo) — ou já agora mesmo, se a linha do

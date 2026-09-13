@@ -196,6 +196,12 @@ alter table raio_x alter column spr_roteirizado drop not null;
 alter table raio_x add column ped_roteirizados integer;
 alter table raio_x add column rotas_final integer;
 
+-- Texto livre com os clusters que mais geraram órfão (ex.: "Abaetetuba
+-- (10) · Benguí (3)") — vem de orfaos_clusters_ofensores na Kronos x
+-- Fluxo, só pra referência/exibição (pedido explícito: aparecer no report
+-- de fechamento do SeaTalk junto do hub que passou de 40 órfãos).
+alter table raio_x add column orfaos_clusters_ofensores text;
+
 -- Cada linha da planilha "Kronos x Fluxo" (Apps Script externo, não
 -- versionado neste repo) — guardada por inteiro, não é um rascunho
 -- descartável: além de alimentar sprRoteirizado/orfaos do Raio-X (ver

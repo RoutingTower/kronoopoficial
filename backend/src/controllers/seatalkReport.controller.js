@@ -14,10 +14,12 @@ const { seatalkReportToken, seatalkWebhookUrl, seatalkSuporteWebhookUrl } = requ
 
 const COLLECTION = "raioX";
 
-// Mesmo SLA de 1h já usado no resto do app pra "Tempo de Execução" (ver
-// SLA_TEMPO_EXECUCAO_SEGUNDOS, frontend/js/utils.js) — hub "ofensor" é o
-// mesmo critério de "acima do SLA" que já aparece nos cards.
-const SLA_SEGUNDOS = 3600;
+// SLA específico da lista de "ofensores" deste report — 1h10min, pedido
+// explícito do usuário. Independente do SLA de 1h usado no card do
+// analista (SLA_TEMPO_EXECUCAO_SEGUNDOS, frontend/js/utils.js) — os dois
+// não precisam ser o mesmo número, são critérios diferentes (um é "acima
+// do SLA" pro analista, o outro é "vale reportar pro turno inteiro").
+const SLA_SEGUNDOS = 70 * 60;
 const LIMITE_SPR_ALTO = 120;
 const LIMITE_SPR_BAIXO = 90;
 const LIMITE_ORFAOS = 40;
@@ -240,9 +242,9 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
   }
   linhas.push("");
 
-  linhas.push("🚨 HUBS OFENSORES — OPERAÇÃO SUPERIOR A 1 HORA", "");
+  linhas.push(`🚨 HUBS OFENSORES — OPERAÇÃO SUPERIOR A ${formatarDuracao(SLA_SEGUNDOS)}`, "");
   if (ofensores.length === 0) {
-    linhas.push("✅ Nenhum hub passou de 1 hora de operação.");
+    linhas.push(`✅ Nenhum hub passou de ${formatarDuracao(SLA_SEGUNDOS)} de operação.`);
   } else {
     ofensores.forEach((r) => {
       linhas.push(`🔴 ${r.operacao}`);
@@ -283,7 +285,10 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
   if (comOrfaos.length === 0) {
     linhas.push(`✅ Nenhum hub com mais de ${LIMITE_ORFAOS} órfãos.`);
   } else {
-    comOrfaos.forEach((r) => linhas.push(`🔵 ${r.operacao} | Órf ${formatarNumero(r.orfaos)}`));
+    comOrfaos.forEach((r) => {
+      const clusters = r.orfaosClustersOfensores ? ` — ${r.orfaosClustersOfensores}` : "";
+      linhas.push(`🔵 ${r.operacao} | Órf ${formatarNumero(r.orfaos)}${clusters}`);
+    });
   }
   linhas.push("");
 

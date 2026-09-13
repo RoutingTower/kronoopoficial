@@ -184,6 +184,7 @@ async function importarFluxo(req, res) {
         orfaos: dadosFluxo.orfaosIniciais,
         pedRoteirizados: dadosFluxo.pedRoteirizados,
         rotasFinal: dadosFluxo.rotasFinal,
+        orfaosClustersOfensores: dadosFluxo.orfaosClustersOfensores || null,
         horaInicioReal: horaInicio,
       };
       if (temFim) {
