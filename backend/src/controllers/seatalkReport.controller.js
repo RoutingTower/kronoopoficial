@@ -14,6 +14,10 @@ const { seatalkReportToken, seatalkWebhookUrl, seatalkSuporteWebhookUrl } = requ
 
 const COLLECTION = "raioX";
 
+// Assinatura do report de fechamento — pedido explícito pra não sumir quem
+// é o responsável pelo relatório automático.
+const ELABORADO_POR = "Thiago Ribeiro";
+
 // SLA específico da lista de "ofensores" deste report — 1h10min, pedido
 // explícito do usuário. Independente do SLA de 1h usado no card do
 // analista (SLA_TEMPO_EXECUCAO_SEGUNDOS, frontend/js/utils.js) — os dois
@@ -40,6 +44,34 @@ function formatarDuracao(segundos) {
 
 function formatarNumero(n) {
   return Number(n || 0).toLocaleString("pt-BR");
+}
+
+// Mini-histórico visual de SPR — uma seta por dia dentro da janela,
+// comparando com o dia anterior (📈 subiu, 📉 caiu, ➡️ igual), pra bater o
+// olho na tendência da semana sem abrir o Resultado SPR. Só entra no report
+// quando tem pelo menos 2 dias com SPR na janela (senão não tem o que
+// comparar). O primeiro dia da janela não tem seta própria (▪️, nada antes
+// dele pra comparar).
+function tendenciaSemanalTxt(rowsJanela) {
+  const porDia = new Map();
+  rowsJanela
+    .filter((r) => !r.semRoteirizacao && r.sprRoteirizado != null)
+    .forEach((r) => {
+      if (!porDia.has(r.data)) porDia.set(r.data, { soma: 0, count: 0 });
+      const d = porDia.get(r.data);
+      d.soma += r.sprRoteirizado;
+      d.count += 1;
+    });
+  const dias = [...porDia.keys()].sort();
+  if (dias.length < 2) return null;
+  const medias = dias.map((d) => porDia.get(d).soma / porDia.get(d).count);
+  const setas = medias.map((m, i) => {
+    if (i === 0) return "▪️";
+    if (m > medias[i - 1]) return "📈";
+    if (m < medias[i - 1]) return "📉";
+    return "➡️";
+  });
+  return setas.join("");
 }
 
 // Mesma convenção de dias da base mestra do frontend (WEEKDAYS/bmRodaNoDia,
@@ -207,9 +239,13 @@ async function enviarParaSeatalk(texto, webhookUrl) {
   }
 }
 
-function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, rowsUltimosDias) {
+function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, rowsUltimosDias, rowsOntem, dataHoje, dataOntem) {
   naoFinalizados = naoFinalizados || [];
   rowsUltimosDias = rowsUltimosDias || [];
+  // Análise diária (hoje vs ontem) embutida NO MESMO report, não mais uma
+  // mensagem separada — pedido explícito. Só calcula quando tem ontem pra
+  // comparar; sem isso, o consolidado cai pros números simples de sempre.
+  const tendencia = rowsOntem && rowsOntem.length ? computarTendenciaDiaria(rows, rowsOntem) : null;
   const analisados = rows.length;
   const roteirizados = rows.filter((r) => r.duracaoSegundos != null).length;
   const comSpr = rows.filter((r) => !r.semRoteirizacao && r.sprRoteirizado != null);
@@ -242,15 +278,68 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
   const operacoesOfensoras = new Set(ofensores.map((r) => r.operacao));
   const prioridadeMaxima = clusterizacao.filter((c) => operacoesOfensoras.has(c.operacao));
 
+  const tituloData = dataHoje ? ` — ${formatarDataBR(dataHoje)}${dataOntem ? ` (vs. ${formatarDataBR(dataOntem)})` : ""}` : "";
+
+  // Resumo executivo — 1 linha com o veredito do turno, pra quem só quer o
+  // essencial sem ler o report inteiro. 🔴 se tem prioridade máxima (o pior
+  // sinal: lento hoje E cronicamente abaixo da meta), 🟡 se só tem ofensor
+  // de tempo ou SPR caiu vs ontem, 🟢 se nada disso.
+  const resumoPartes = [];
+  if (tendencia) resumoPartes.push(`SPR ${tendencia.deltaGeral >= 0 ? "subiu" : tendencia.deltaGeral < 0 ? "caiu" : "ficou estável"}${tendencia.deltaPct != null ? ` ${tendencia.deltaPct >= 0 ? "+" : ""}${tendencia.deltaPct.toFixed(1)}%` : ""} vs ontem`);
+  if (prioridadeMaxima.length > 0) resumoPartes.push(`${prioridadeMaxima.length} hub(s) em prioridade máxima`);
+  else if (ofensores.length > 0) resumoPartes.push(`${ofensores.length} hub(s) acima do SLA`);
+  const resumoEmoji = prioridadeMaxima.length > 0 ? "🔴" : (ofensores.length > 0 || (tendencia && tendencia.deltaGeral < 0)) ? "🟡" : "🟢";
   const linhas = [];
-  linhas.push(`📢 REPORT DE FECHAMENTO | ${horaFechamento}`, "");
-  linhas.push(`📊 CONSOLIDADO ${nomeSupervisor ? nomeSupervisor.toUpperCase() : "GERAL"}`, "");
-  linhas.push(`• Hubs analisados: ${analisados}`);
+  linhas.push(`📢 REPORT DE FECHAMENTO | ${horaFechamento}`, `Elaborado por ${ELABORADO_POR}`, "");
+  linhas.push(`${resumoEmoji} RESUMO: ${resumoPartes.length ? resumoPartes.join(", ") + "." : "turno tranquilo, sem alertas."}`, "");
+  linhas.push(`📊 CONSOLIDADO ${nomeSupervisor ? nomeSupervisor.toUpperCase() : "GERAL"}${tituloData}`, "");
+  linhas.push(`• Hubs analisados: ${analisados}${tendencia ? ` (ontem: ${rowsOntem.length})` : ""}`);
   linhas.push(`• Hubs roteirizados: ${roteirizados}`);
-  linhas.push(`• SPR médio: ${sprMedio}`);
+  if (tendencia) {
+    linhas.push(`• SPR médio: ${tendencia.sprMedioHoje.toFixed(1)} (ontem: ${tendencia.sprMedioOntem.toFixed(1)})${tendencia.deltaPct != null ? ` → ${tendencia.deltaPct >= 0 ? "+" : ""}${tendencia.deltaPct.toFixed(1)}% ${tendencia.deltaGeral >= 0 ? "📈" : "📉"}` : ""}`);
+    linhas.push(`• Hubs abaixo da meta: ${tendencia.abaixoMetaHoje} (ontem: ${tendencia.abaixoMetaOntem})`);
+  } else {
+    linhas.push(`• SPR médio: ${sprMedio}`);
+  }
   linhas.push(`• Total de órfãos: ${formatarNumero(totalOrfaos)}`);
-  linhas.push(`• Pedidos roteirizados: ${formatarNumero(totalPedidos)}`);
-  linhas.push(`• Rotas: ${formatarNumero(totalRotas)}`, "");
+  if (tendencia) {
+    linhas.push(`• Pedidos roteirizados: ${formatarNumero(totalPedidos)} (ontem: ${formatarNumero(tendencia.totalPedidosOntem)})${tendencia.deltaPedidosPct != null ? ` → ${tendencia.deltaPedidosPct >= 0 ? "+" : ""}${tendencia.deltaPedidosPct.toFixed(1)}%` : ""}`);
+    linhas.push(`• Rotas: ${formatarNumero(totalRotas)} (ontem: ${formatarNumero(tendencia.totalRotasOntem)})${tendencia.deltaRotasPct != null ? ` → ${tendencia.deltaRotasPct >= 0 ? "+" : ""}${tendencia.deltaRotasPct.toFixed(1)}%` : ""}`);
+  } else {
+    linhas.push(`• Pedidos roteirizados: ${formatarNumero(totalPedidos)}`);
+    linhas.push(`• Rotas: ${formatarNumero(totalRotas)}`);
+  }
+  const sparkline = tendenciaSemanalTxt(rowsUltimosDias);
+  if (sparkline) linhas.push(`• Tendência ${DIAS_JANELA_CLUSTER}d: ${sparkline}`);
+  linhas.push("");
+
+  if (tendencia) {
+    linhas.push("🏆 MAIOR EVOLUÇÃO (vs ontem)", "");
+    if (tendencia.maiorEvolucao.length === 0) {
+      linhas.push("Nenhuma operação com SPR maior que ontem.");
+    } else {
+      tendencia.maiorEvolucao.forEach((d) => linhas.push(`🟢 ${d.operacao} — SPR ${d.ontem.toFixed(0)} → ${d.hoje.toFixed(0)} (+${d.delta.toFixed(0)})${tendencia.volumeHojeTxt(d.operacao)}`));
+    }
+    linhas.push("");
+
+    linhas.push("⚠️ MAIOR QUEDA (vs ontem)", "");
+    if (tendencia.maiorQueda.length === 0) {
+      linhas.push("Nenhuma operação com SPR menor que ontem.");
+    } else {
+      tendencia.maiorQueda.forEach((d) => linhas.push(`🔴 ${d.operacao} — SPR ${d.ontem.toFixed(0)} → ${d.hoje.toFixed(0)} (${d.delta.toFixed(0)})${tendencia.volumeHojeTxt(d.operacao)}`));
+    }
+    linhas.push("");
+
+    if (tendencia.ufAlta || tendencia.ufBaixa) {
+      const partes = [];
+      if (tendencia.ufAlta) partes.push(`${tendencia.ufAlta.uf} foi o estado que mais puxou a alta de hoje (SPR médio +${tendencia.ufAlta.delta.toFixed(1)}, ${tendencia.ufAlta.countHoje} hubs)`);
+      if (tendencia.ufBaixa) partes.push(`${tendencia.ufBaixa.uf} foi o que mais recuou (${tendencia.ufBaixa.delta.toFixed(1)}, ${tendencia.ufBaixa.countHoje} hubs)`);
+      linhas.push(`📍 ${partes.join(" — ")}.`);
+    } else {
+      linhas.push("📍 Sem volume suficiente pra atribuir a variação a um estado específico hoje.");
+    }
+    linhas.push("");
+  }
 
   if (prioridadeMaxima.length > 0) {
     linhas.push("⚠️ PRIORIDADE MÁXIMA — lento hoje E cronicamente abaixo da meta", "");
@@ -344,18 +433,60 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
   linhas.push("");
 
   const tiposComAlerta = [pendentes.length > 0, ofensores.length > 0, sprAlto.length > 0, sprBaixo.length > 0, comOrfaos.length > 0].filter(Boolean).length;
-  linhas.push(
-    tiposComAlerta > 0
-      ? `Status: Fechamento concluído com ${tiposComAlerta} tipo${tiposComAlerta > 1 ? "s" : ""} de alerta operacional identificado${tiposComAlerta > 1 ? "s" : ""}.`
-      : "Status: Fechamento concluído sem nenhum alerta operacional."
-  );
+  let statusTxt = tiposComAlerta > 0
+    ? `Fechamento concluído com ${tiposComAlerta} tipo${tiposComAlerta > 1 ? "s" : ""} de alerta operacional identificado${tiposComAlerta > 1 ? "s" : ""}.`
+    : "Fechamento concluído sem nenhum alerta operacional.";
+  if (tendencia) {
+    statusTxt += ` SPR médio ${tendencia.deltaGeral >= 0 ? "subiu" : tendencia.deltaGeral < 0 ? "caiu" : "ficou estável"} em relação a ontem.`;
+  }
+  linhas.push(`Status: ${statusTxt}`);
   return linhas.join("\n");
 }
 
-function montarHora(rows, horaInicio, horaFim, naoFinalizados) {
+function montarHora(rows, horaInicio, horaFim, naoFinalizados, rowsOntemMesmaJanela) {
   naoFinalizados = naoFinalizados || [];
+  rowsOntemMesmaJanela = rowsOntemMesmaJanela || [];
   const linhas = [];
   linhas.push(`📢 INFORMATIVO OPERACIONAL | ${horaInicio.slice(0, 2)}h às ${horaFim.slice(0, 2)}h`, "");
+
+  // Comparativo com a MESMA janela de ontem — Pedidos/Rotas somados e SPR
+  // médio, com variação percentual. Só aparece quando tem algo pra
+  // comparar (ontem também teve movimento nessa janela).
+  if (rowsOntemMesmaJanela.length > 0) {
+    const comSprHoje = rows.filter((r) => !r.semRoteirizacao && r.sprRoteirizado != null);
+    const comSprOntem = rowsOntemMesmaJanela.filter((r) => !r.semRoteirizacao && r.sprRoteirizado != null);
+    const sprMedioHoje = comSprHoje.length ? comSprHoje.reduce((s, r) => s + r.sprRoteirizado, 0) / comSprHoje.length : null;
+    const sprMedioOntem = comSprOntem.length ? comSprOntem.reduce((s, r) => s + r.sprRoteirizado, 0) / comSprOntem.length : null;
+    const totalPedidosHoje = rows.reduce((s, r) => s + (r.pedRoteirizados || 0), 0);
+    const totalPedidosOntem = rowsOntemMesmaJanela.reduce((s, r) => s + (r.pedRoteirizados || 0), 0);
+    const totalRotasHoje = rows.reduce((s, r) => s + (r.rotasFinal || 0), 0);
+    const totalRotasOntem = rowsOntemMesmaJanela.reduce((s, r) => s + (r.rotasFinal || 0), 0);
+    const pct = (hoje, ontem) => (ontem ? ((hoje - ontem) / ontem) * 100 : null);
+    const sprPct = sprMedioHoje != null ? pct(sprMedioHoje, sprMedioOntem) : null;
+    const pedidosPct = pct(totalPedidosHoje, totalPedidosOntem);
+    const rotasPct = pct(totalRotasHoje, totalRotasOntem);
+    const setaTxt = (p) => (p == null ? "" : ` → ${p >= 0 ? "+" : ""}${p.toFixed(1)}% ${p >= 0 ? "📈" : "📉"}`);
+
+    linhas.push("📊 COMPARATIVO COM ONTEM (mesma janela)", "");
+    linhas.push(`• SPR médio: ${sprMedioHoje != null ? sprMedioHoje.toFixed(1) : "—"} (ontem: ${sprMedioOntem != null ? sprMedioOntem.toFixed(1) : "—"})${setaTxt(sprPct)}`);
+    linhas.push(`• Pedidos: ${formatarNumero(totalPedidosHoje)} (ontem: ${formatarNumero(totalPedidosOntem)})${setaTxt(pedidosPct)}`);
+    linhas.push(`• Rotas: ${formatarNumero(totalRotasHoje)} (ontem: ${formatarNumero(totalRotasOntem)})${setaTxt(rotasPct)}`, "");
+  }
+
+  // Comparação HUB A HUB da mesma janela de ontem — pedido explícito, além
+  // do comparativo agregado acima. Cada hub que rodou ontem NESSA MESMA
+  // janela de horário ganha "· ontem X (+Y%)" junto do próprio valor.
+  const ontemPorOperacao = new Map();
+  rowsOntemMesmaJanela.forEach((r) => ontemPorOperacao.set(r.operacao, r));
+  // pctHub tolera ontem=0 explicitamente (ex.: 0 órfãos ontem, N hoje) —
+  // só fica sem porcentagem quando realmente não dá pra calcular (0/0 ou
+  // sem dado), mas mostra o "ontem 0" mesmo assim pra dar contexto.
+  const pctHub = (hoje, ontem) => (ontem ? ((hoje - ontem) / ontem) * 100 : hoje === ontem ? 0 : null);
+  const comparativoTxt = (hoje, ontem) => {
+    const p = pctHub(hoje, ontem);
+    return ` · ontem ${formatarNumero(ontem)}${p != null ? ` (${p >= 0 ? "+" : ""}${p.toFixed(1)}%)` : ""}`;
+  };
+
   if (rows.length === 0 && naoFinalizados.length === 0) {
     linhas.push("Nenhum hub agendado pra essa janela.");
   } else {
@@ -367,18 +498,31 @@ function montarHora(rows, horaInicio, horaFim, naoFinalizados) {
           segs.push(`${r.horaInicioReal} às ${r.horaFimReal}`);
           segs.push(formatarDuracao(r.duracaoSegundos));
         }
+        const ontemHub = ontemPorOperacao.get(r.operacao);
         if (!r.semRoteirizacao && r.sprRoteirizado != null) {
-          if (r.sprMeta != null) {
-            const delta = r.sprRoteirizado - r.sprMeta;
-            segs.push(`SPR ${r.sprRoteirizado} (meta ${r.sprMeta}, ${delta >= 0 ? "+" : ""}${delta})`);
-          } else {
-            segs.push(`SPR ${r.sprRoteirizado}`);
+          let sprSeg = r.sprMeta != null
+            ? `SPR ${r.sprRoteirizado} (meta ${r.sprMeta}, ${r.sprRoteirizado - r.sprMeta >= 0 ? "+" : ""}${r.sprRoteirizado - r.sprMeta})`
+            : `SPR ${r.sprRoteirizado}`;
+          if (ontemHub && !ontemHub.semRoteirizacao && ontemHub.sprRoteirizado != null) {
+            sprSeg += comparativoTxt(r.sprRoteirizado, ontemHub.sprRoteirizado);
           }
+          segs.push(sprSeg);
         }
-        if (r.pedRoteirizados != null) segs.push(`Ped ${formatarNumero(r.pedRoteirizados)}`);
-        if (r.rotasFinal != null) segs.push(`Rot ${formatarNumero(r.rotasFinal)}`);
-        segs.push(`Órf ${r.orfaos ?? 0}`);
-        linhas.push(`✅ ${r.operacao} - ${segs.join(" | ")}`);
+        if (r.pedRoteirizados != null) {
+          let pedSeg = `Ped ${formatarNumero(r.pedRoteirizados)}`;
+          if (ontemHub && ontemHub.pedRoteirizados != null) pedSeg += comparativoTxt(r.pedRoteirizados, ontemHub.pedRoteirizados);
+          segs.push(pedSeg);
+        }
+        if (r.rotasFinal != null) {
+          let rotSeg = `Rot ${formatarNumero(r.rotasFinal)}`;
+          if (ontemHub && ontemHub.rotasFinal != null) rotSeg += comparativoTxt(r.rotasFinal, ontemHub.rotasFinal);
+          segs.push(rotSeg);
+        }
+        const orfaosHoje = r.orfaos ?? 0;
+        let orfSeg = `Órf ${orfaosHoje}`;
+        if (ontemHub && ontemHub.orfaos != null) orfSeg += comparativoTxt(orfaosHoje, ontemHub.orfaos);
+        segs.push(orfSeg);
+        linhas.push(`✅ ${r.operacao} - ${segs.join(" | ")}`, "");
       });
     naoFinalizados
       .slice()
@@ -394,12 +538,11 @@ function montarHora(rows, horaInicio, horaFim, naoFinalizados) {
   return linhas.join("\n");
 }
 
-// Compara hoje com ontem — sempre dia contra dia (não semana), pedido
-// explícito. Só usa o que já existe no Raio-X (SPR lançado/meta), sem
-// depender de pedidos/rotas. A atribuição por UF (qual estado puxou a alta
-// ou a queda) é aritmética pura (soma/média por grupo, maior/menor delta)
-// — não é uma IA "opinando", só uma regra bem desenhada.
-function montarAnaliseDiaria(rowsHoje, rowsOntem, dataHoje, dataOntem, nomeSupervisor) {
+// Todo o cálculo de tendência hoje-vs-ontem, compartilhado entre
+// montarAnaliseDiaria (standalone, mantida por compatibilidade) e o
+// consolidado unificado de montarFechamento — extraído pra não duplicar a
+// lógica (que já não é pequena) nos dois lugares.
+function computarTendenciaDiaria(rowsHoje, rowsOntem) {
   const comSprHoje = rowsHoje.filter((r) => !r.semRoteirizacao && r.sprRoteirizado != null);
   const comSprOntem = rowsOntem.filter((r) => !r.semRoteirizacao && r.sprRoteirizado != null);
   const sprMedioHoje = comSprHoje.length ? comSprHoje.reduce((s, r) => s + r.sprRoteirizado, 0) / comSprHoje.length : 0;
@@ -410,17 +553,13 @@ function montarAnaliseDiaria(rowsHoje, rowsOntem, dataHoje, dataOntem, nomeSuper
   const abaixoMetaHoje = comSprHoje.filter((r) => r.sprMeta != null && r.sprRoteirizado < r.sprMeta).length;
   const abaixoMetaOntem = comSprOntem.filter((r) => r.sprMeta != null && r.sprRoteirizado < r.sprMeta).length;
 
-  // Volume total (Kronos x Fluxo) — soma do dia inteiro, independente de
-  // meta SPR cadastrada (mesmo raciocínio da tabela "Volume roteirizado por
-  // operação" no Resultado SPR, render-supervisor.js).
   const totalPedidosHoje = rowsHoje.reduce((s, r) => s + (r.pedRoteirizados || 0), 0);
   const totalPedidosOntem = rowsOntem.reduce((s, r) => s + (r.pedRoteirizados || 0), 0);
   const totalRotasHoje = rowsHoje.reduce((s, r) => s + (r.rotasFinal || 0), 0);
   const totalRotasOntem = rowsOntem.reduce((s, r) => s + (r.rotasFinal || 0), 0);
   const deltaPedidosPct = totalPedidosOntem ? ((totalPedidosHoje - totalPedidosOntem) / totalPedidosOntem) * 100 : null;
+  const deltaRotasPct = totalRotasOntem ? ((totalRotasHoje - totalRotasOntem) / totalRotasOntem) * 100 : null;
 
-  // Por operação — casa só quem finalizou nos DOIS dias (média do dia, pro
-  // caso raro de mais de uma finalização da mesma operação no mesmo dia).
   const porOperacaoHoje = mediaSprPorChave(rowsHoje, (r) => r.operacao);
   const porOperacaoOntem = mediaSprPorChave(rowsOntem, (r) => r.operacao);
   const deltasOperacao = [];
@@ -432,8 +571,6 @@ function montarAnaliseDiaria(rowsHoje, rowsOntem, dataHoje, dataOntem, nomeSuper
   const maiorEvolucao = deltasOperacao.filter((d) => d.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 2);
   const maiorQueda = deltasOperacao.filter((d) => d.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 2);
 
-  // Por UF — só entram no ranking os estados com amostra mínima nos DOIS
-  // dias (ver LIMITE_MIN_AMOSTRA_UF).
   const porUfHoje = mediaSprPorChave(rowsHoje, (r) => ufDaOperacao(r.operacao));
   const porUfOntem = mediaSprPorChave(rowsOntem, (r) => ufDaOperacao(r.operacao));
   const deltasUf = [];
@@ -448,8 +585,49 @@ function montarAnaliseDiaria(rowsHoje, rowsOntem, dataHoje, dataOntem, nomeSuper
   const ufBaixaCandidata = deltasUf[deltasUf.length - 1];
   const ufBaixa = ufBaixaCandidata && ufBaixaCandidata.delta < 0 && ufBaixaCandidata.uf !== ufAlta?.uf ? ufBaixaCandidata : null;
 
+  const rowPorOperacaoHoje = new Map();
+  rowsHoje.forEach((r) => rowPorOperacaoHoje.set(r.operacao, r));
+  const volumeHojeTxt = (operacao) => {
+    const r = rowPorOperacaoHoje.get(operacao);
+    if (!r) return "";
+    const partes = [];
+    if (r.pedRoteirizados != null) partes.push(`Ped ${formatarNumero(r.pedRoteirizados)}`);
+    if (r.rotasFinal != null) partes.push(`Rot ${formatarNumero(r.rotasFinal)}`);
+    return partes.length ? ` | ${partes.join(" | ")}` : "";
+  };
+
+  return {
+    sprMedioHoje, sprMedioOntem, deltaGeral, deltaPct,
+    abaixoMetaHoje, abaixoMetaOntem,
+    totalPedidosHoje, totalPedidosOntem, deltaPedidosPct,
+    totalRotasHoje, totalRotasOntem, deltaRotasPct,
+    maiorEvolucao, maiorQueda, ufAlta, ufBaixa,
+    volumeHojeTxt,
+  };
+}
+
+// Compara hoje com ontem — sempre dia contra dia (não semana), pedido
+// explícito. Só usa o que já existe no Raio-X (SPR lançado/meta), sem
+// depender de pedidos/rotas. A atribuição por UF (qual estado puxou a alta
+// ou a queda) é aritmética pura (soma/média por grupo, maior/menor delta)
+// — não é uma IA "opinando", só uma regra bem desenhada.
+function montarAnaliseDiaria(rowsHoje, rowsOntem, dataHoje, dataOntem, nomeSupervisor, comoSecao) {
+  const {
+    sprMedioHoje, sprMedioOntem, deltaGeral, deltaPct,
+    abaixoMetaHoje, abaixoMetaOntem,
+    totalPedidosHoje, totalPedidosOntem, deltaPedidosPct,
+    totalRotasHoje, totalRotasOntem,
+    maiorEvolucao, maiorQueda, ufAlta, ufBaixa,
+    volumeHojeTxt,
+  } = computarTendenciaDiaria(rowsHoje, rowsOntem);
+
   const linhas = [];
-  linhas.push(`📊 ANÁLISE DIÁRIA DE SPR | CONSOLIDADO ${nomeSupervisor ? nomeSupervisor.toUpperCase() : "GERAL"}`, "");
+  linhas.push(
+    comoSecao
+      ? "📊 ANÁLISE DIÁRIA (hoje vs ontem)"
+      : `📊 ANÁLISE DIÁRIA DE SPR | CONSOLIDADO ${nomeSupervisor ? nomeSupervisor.toUpperCase() : "GERAL"}`,
+    ""
+  );
   linhas.push(`📅 ${formatarDataBR(dataHoje)} (vs. ${formatarDataBR(dataOntem)})`, "");
   linhas.push(`• SPR médio: ${sprMedioHoje.toFixed(1)} (dia anterior: ${sprMedioOntem.toFixed(1)}) → ${deltaPct != null ? `${deltaPct >= 0 ? "+" : ""}${deltaPct.toFixed(1)}%` : "—"} ${deltaGeral >= 0 ? "📈" : "📉"}`);
   linhas.push(`• Hubs analisados: ${rowsHoje.length} (dia anterior: ${rowsOntem.length})`);
@@ -461,7 +639,7 @@ function montarAnaliseDiaria(rowsHoje, rowsOntem, dataHoje, dataOntem, nomeSuper
   if (maiorEvolucao.length === 0) {
     linhas.push("Nenhuma operação com SPR maior que ontem.");
   } else {
-    maiorEvolucao.forEach((d) => linhas.push(`🟢 ${d.operacao} — SPR ${d.ontem.toFixed(0)} → ${d.hoje.toFixed(0)} (+${d.delta.toFixed(0)})`));
+    maiorEvolucao.forEach((d) => linhas.push(`🟢 ${d.operacao} — SPR ${d.ontem.toFixed(0)} → ${d.hoje.toFixed(0)} (+${d.delta.toFixed(0)})${volumeHojeTxt(d.operacao)}`));
   }
   linhas.push("");
 
@@ -469,7 +647,7 @@ function montarAnaliseDiaria(rowsHoje, rowsOntem, dataHoje, dataOntem, nomeSuper
   if (maiorQueda.length === 0) {
     linhas.push("Nenhuma operação com SPR menor que ontem.");
   } else {
-    maiorQueda.forEach((d) => linhas.push(`🔴 ${d.operacao} — SPR ${d.ontem.toFixed(0)} → ${d.hoje.toFixed(0)} (${d.delta.toFixed(0)})`));
+    maiorQueda.forEach((d) => linhas.push(`🔴 ${d.operacao} — SPR ${d.ontem.toFixed(0)} → ${d.hoje.toFixed(0)} (${d.delta.toFixed(0)})${volumeHojeTxt(d.operacao)}`));
   }
   linhas.push("");
 
@@ -484,6 +662,84 @@ function montarAnaliseDiaria(rowsHoje, rowsOntem, dataHoje, dataOntem, nomeSuper
   linhas.push("");
 
   linhas.push(`Status: SPR médio ${deltaGeral >= 0 ? "subiu" : deltaGeral < 0 ? "caiu" : "ficou estável"} em relação a ontem.`);
+  return linhas.join("\n");
+}
+
+// Report semanal — janela rolante de 7 dias vs os 7 dias anteriores, pra ver
+// tendência sem o ruído dia a dia. Reaproveita computarTendenciaDiaria tal e
+// qual (a função só compara dois conjuntos de linhas — não importa se cada
+// "lado" é 1 dia ou 7, o cálculo é o mesmo).
+function montarRelatorioSemanal(rowsSemana, rowsSemanaAnterior, dataInicioSemana, dataFimSemana, dataInicioSemanaAnterior, dataFimSemanaAnterior, nomeSupervisor) {
+  const {
+    sprMedioHoje: sprMedioSemana, sprMedioOntem: sprMedioSemanaAnterior, deltaGeral, deltaPct,
+    abaixoMetaHoje: abaixoMetaSemana, abaixoMetaOntem: abaixoMetaSemanaAnterior,
+    totalPedidosHoje: totalPedidosSemana, totalPedidosOntem: totalPedidosSemanaAnterior, deltaPedidosPct,
+    totalRotasHoje: totalRotasSemana, totalRotasOntem: totalRotasSemanaAnterior, deltaRotasPct,
+    maiorEvolucao, maiorQueda, ufAlta, ufBaixa,
+    volumeHojeTxt,
+  } = computarTendenciaDiaria(rowsSemana, rowsSemanaAnterior);
+
+  const linhas = [];
+  linhas.push(`📢 REPORT SEMANAL${nomeSupervisor ? " | " + nomeSupervisor.toUpperCase() : ""}`, `Elaborado por ${ELABORADO_POR}`, "");
+  linhas.push(`📅 ${formatarDataBR(dataInicioSemana)} a ${formatarDataBR(dataFimSemana)} (vs. ${formatarDataBR(dataInicioSemanaAnterior)} a ${formatarDataBR(dataFimSemanaAnterior)})`, "");
+  linhas.push(`• SPR médio: ${sprMedioSemana.toFixed(1)} (semana anterior: ${sprMedioSemanaAnterior.toFixed(1)})${deltaPct != null ? ` → ${deltaPct >= 0 ? "+" : ""}${deltaPct.toFixed(1)}%` : ""} ${deltaGeral >= 0 ? "📈" : "📉"}`);
+  linhas.push(`• Hubs analisados: ${rowsSemana.length} (semana anterior: ${rowsSemanaAnterior.length})`);
+  linhas.push(`• Hubs abaixo da meta: ${abaixoMetaSemana} (semana anterior: ${abaixoMetaSemanaAnterior})`);
+  linhas.push(`• Pedidos roteirizados: ${formatarNumero(totalPedidosSemana)} (semana anterior: ${formatarNumero(totalPedidosSemanaAnterior)})${deltaPedidosPct != null ? ` → ${deltaPedidosPct >= 0 ? "+" : ""}${deltaPedidosPct.toFixed(1)}%` : ""}`);
+  linhas.push(`• Rotas: ${formatarNumero(totalRotasSemana)} (semana anterior: ${formatarNumero(totalRotasSemanaAnterior)})${deltaRotasPct != null ? ` → ${deltaRotasPct >= 0 ? "+" : ""}${deltaRotasPct.toFixed(1)}%` : ""}`, "");
+
+  linhas.push("🏆 MAIOR EVOLUÇÃO NA SEMANA", "");
+  if (maiorEvolucao.length === 0) {
+    linhas.push("Nenhuma operação com SPR maior que a semana anterior.");
+  } else {
+    maiorEvolucao.forEach((d) => linhas.push(`🟢 ${d.operacao} — SPR ${d.ontem.toFixed(0)} → ${d.hoje.toFixed(0)} (+${d.delta.toFixed(0)})${volumeHojeTxt(d.operacao)}`));
+  }
+  linhas.push("");
+
+  linhas.push("⚠️ MAIOR QUEDA NA SEMANA", "");
+  if (maiorQueda.length === 0) {
+    linhas.push("Nenhuma operação com SPR menor que a semana anterior.");
+  } else {
+    maiorQueda.forEach((d) => linhas.push(`🔴 ${d.operacao} — SPR ${d.ontem.toFixed(0)} → ${d.hoje.toFixed(0)} (${d.delta.toFixed(0)})${volumeHojeTxt(d.operacao)}`));
+  }
+  linhas.push("");
+
+  if (ufAlta || ufBaixa) {
+    const partes = [];
+    if (ufAlta) partes.push(`${ufAlta.uf} foi o estado que mais puxou a alta da semana (SPR médio +${ufAlta.delta.toFixed(1)}, ${ufAlta.countHoje} hubs)`);
+    if (ufBaixa) partes.push(`${ufBaixa.uf} foi o que mais recuou (${ufBaixa.delta.toFixed(1)}, ${ufBaixa.countHoje} hubs)`);
+    linhas.push(`📍 ${partes.join(" — ")}.`);
+  } else {
+    linhas.push("📍 Sem volume suficiente pra atribuir a variação a um estado específico nessa semana.");
+  }
+  linhas.push("");
+
+  linhas.push(`Status: SPR médio ${deltaGeral >= 0 ? "subiu" : deltaGeral < 0 ? "caiu" : "ficou estável"} em relação à semana anterior.`);
+  return linhas.join("\n");
+}
+
+// Alerta imediato de "Prioridade Máxima" — não espera o fechamento das 05h:
+// se um hub que acabou de finalizar NESSA hora está lento (ofensor de tempo)
+// E é cronicamente abaixo da própria meta de SPR (mesmo critério de
+// montarFechamento), manda um aviso curto na hora. Devolve null quando não
+// tem nada pra avisar (quem chama decide não enviar nada nesse caso).
+function montarAlertaPrioridade(doPeriodo, rowsUltimosDias, horaInicio, horaFim) {
+  const ofensoresDoPeriodo = doPeriodo.filter((r) => r.duracaoSegundos != null && r.duracaoSegundos > SLA_SEGUNDOS);
+  if (ofensoresDoPeriodo.length === 0) return null;
+
+  const clusterizacao = operacoesAbaixoMetaNaJanela(rowsUltimosDias);
+  const porOperacaoCluster = new Map(clusterizacao.map((c) => [c.operacao, c]));
+  const criticos = ofensoresDoPeriodo.filter((r) => porOperacaoCluster.has(r.operacao));
+  if (criticos.length === 0) return null;
+
+  const linhas = [];
+  linhas.push(`🚨 ALERTA — PRIORIDADE MÁXIMA (${horaInicio.slice(0, 2)}h às ${horaFim.slice(0, 2)}h)`, "");
+  criticos.forEach((r) => {
+    const c = porOperacaoCluster.get(r.operacao);
+    linhas.push(`🔺 ${r.operacao} — ${formatarDuracao(r.duracaoSegundos)} de operação | SPR médio ${DIAS_JANELA_CLUSTER}d: ${c.sprMedio.toFixed(0)} (REF ${c.metaMedia.toFixed(0)}) | Hoje: SPR ${r.sprRoteirizado != null ? r.sprRoteirizado : "aguardando planilha"}`);
+    linhas.push("");
+  });
+  linhas.push("Esse hub está lento agora E cronicamente abaixo da meta — vale checar antes do fechamento.");
   return linhas.join("\n");
 }
 
@@ -503,7 +759,7 @@ async function enviarReportSeatalk(req, res) {
   }
 
   const { tipo, data, horaInicio, horaFim, supervisorEmail } = req.body;
-  const TIPOS_VALIDOS = ["fechamento", "hora", "analise_diaria"];
+  const TIPOS_VALIDOS = ["fechamento", "hora", "analise_diaria", "semanal", "alerta_prioridade"];
   if (!data || !TIPOS_VALIDOS.includes(tipo)) {
     return res.status(400).json({ error: "bad_request", message: `tipo (${TIPOS_VALIDOS.map((t) => `'${t}'`).join(", ")}) e data são obrigatórios.` });
   }
@@ -542,6 +798,46 @@ async function enviarReportSeatalk(req, res) {
       rowsOntem = rowsOntemBruta.filter((r) => supervisorPorAnalista.get(r.analistaId) === supervisor.id);
     }
     texto = montarAnaliseDiaria(todasDoDia, rowsOntem, data, dataOntem, supervisor?.name);
+  } else if (tipo === "semanal") {
+    // Janela rolante: 7 dias terminando em `data` vs os 7 dias anteriores.
+    const dataFimSemana = data;
+    const dataInicioSemana = diaAnterior(data, 6);
+    const dataFimSemanaAnterior = diaAnterior(dataInicioSemana, 1);
+    const dataInicioSemanaAnterior = diaAnterior(dataFimSemanaAnterior, 6);
+
+    const [rowsSemanaBruta, rowsSemanaAnteriorBruta] = await Promise.all([
+      supabaseService.listWhere(COLLECTION, [["data", ">=", dataInicioSemana], ["data", "<=", dataFimSemana]]),
+      supabaseService.listWhere(COLLECTION, [["data", ">=", dataInicioSemanaAnterior], ["data", "<=", dataFimSemanaAnterior]]),
+    ]);
+    let rowsSemana = rowsSemanaBruta;
+    let rowsSemanaAnterior = rowsSemanaAnteriorBruta;
+    if (supervisor) {
+      const supervisorPorAnalista = new Map(usuarios.map((u) => [u.id, u.supervisorId]));
+      rowsSemana = rowsSemanaBruta.filter((r) => supervisorPorAnalista.get(r.analistaId) === supervisor.id);
+      rowsSemanaAnterior = rowsSemanaAnteriorBruta.filter((r) => supervisorPorAnalista.get(r.analistaId) === supervisor.id);
+    }
+    texto = montarRelatorioSemanal(rowsSemana, rowsSemanaAnterior, dataInicioSemana, dataFimSemana, dataInicioSemanaAnterior, dataFimSemanaAnterior, supervisor?.name);
+  } else if (tipo === "alerta_prioridade") {
+    if (!horaInicio || !horaFim) {
+      return res.status(400).json({ error: "bad_request", message: "horaInicio e horaFim são obrigatórios pra tipo='alerta_prioridade'." });
+    }
+    const doPeriodo = todasDoDia.filter((r) => horaValor(r.hora) >= horaValor(horaInicio) && horaValor(r.hora) < horaValor(horaFim));
+    const dataInicioJanelaAlerta = diaAnterior(data, DIAS_JANELA_CLUSTER - 1);
+    const rowsJanelaAlertaBruta = await supabaseService.listWhere(COLLECTION, [
+      ["data", ">=", dataInicioJanelaAlerta],
+      ["data", "<=", data],
+    ]);
+    let rowsJanelaAlerta = rowsJanelaAlertaBruta;
+    if (supervisor) {
+      const supervisorPorAnalista = new Map(usuarios.map((u) => [u.id, u.supervisorId]));
+      rowsJanelaAlerta = rowsJanelaAlertaBruta.filter((r) => supervisorPorAnalista.get(r.analistaId) === supervisor.id);
+    }
+    const textoAlerta = montarAlertaPrioridade(doPeriodo, rowsJanelaAlerta, horaInicio, horaFim);
+    if (!textoAlerta) {
+      return res.json({ enviado: false, motivo: "nenhum hub em prioridade máxima nessa janela" });
+    }
+    await enviarParaSeatalk(textoAlerta);
+    return res.json({ enviado: true, tamanho: textoAlerta.length, preview: textoAlerta });
   } else {
     const esperadas = await operacoesEsperadas(data, supervisor?.id || null);
     if (tipo === "fechamento") {
@@ -559,7 +855,18 @@ async function enviarReportSeatalk(req, res) {
         const supervisorPorAnalista = new Map(usuarios.map((u) => [u.id, u.supervisorId]));
         rowsJanela = rowsJanelaBruta.filter((r) => supervisorPorAnalista.get(r.analistaId) === supervisor.id);
       }
-      texto = montarFechamento(todasDoDia, req.body.horaFechamento || "05h", supervisor?.name, naoFinalizados, rowsJanela);
+      // Análise diária (hoje vs ontem) entra DENTRO do mesmo consolidado do
+      // fechamento agora — pedido explícito, pra ser um report só, não dois
+      // colados com divisor.
+      const dataOntemFechamento = diaAnterior(data);
+      const rowsOntemFechamentoBruta = await supabaseService.listWhere(COLLECTION, [["data", "==", dataOntemFechamento]]);
+      let rowsOntemFechamento = rowsOntemFechamentoBruta;
+      if (supervisor) {
+        const supervisorPorAnalista = new Map(usuarios.map((u) => [u.id, u.supervisorId]));
+        rowsOntemFechamento = rowsOntemFechamentoBruta.filter((r) => supervisorPorAnalista.get(r.analistaId) === supervisor.id);
+      }
+
+      texto = montarFechamento(todasDoDia, req.body.horaFechamento || "05h", supervisor?.name, naoFinalizados, rowsJanela, rowsOntemFechamento, data, dataOntemFechamento);
     } else {
       if (!horaInicio || !horaFim) {
         return res.status(400).json({ error: "bad_request", message: "horaInicio e horaFim são obrigatórios pra tipo='hora'." });
@@ -567,7 +874,19 @@ async function enviarReportSeatalk(req, res) {
       const doPeriodo = todasDoDia.filter((r) => horaValor(r.hora) >= horaValor(horaInicio) && horaValor(r.hora) < horaValor(horaFim));
       const esperadasDoPeriodo = esperadas.filter((e) => horaValor(e.horaInicio) >= horaValor(horaInicio) && horaValor(e.horaInicio) < horaValor(horaFim));
       const naoFinalizados = separarNaoFinalizados(esperadasDoPeriodo, todasDoDiaBruta);
-      texto = montarHora(doPeriodo, horaInicio, horaFim, naoFinalizados);
+
+      // Mesma janela de horário, mas de ONTEM — pra "COMPARATIVO COM ONTEM"
+      // dentro do informativo hora a hora.
+      const dataOntemHora = diaAnterior(data);
+      const todasDoDiaOntemHoraBruta = await supabaseService.listWhere(COLLECTION, [["data", "==", dataOntemHora]]);
+      let todasDoDiaOntemHora = todasDoDiaOntemHoraBruta;
+      if (supervisor) {
+        const supervisorPorAnalista = new Map(usuarios.map((u) => [u.id, u.supervisorId]));
+        todasDoDiaOntemHora = todasDoDiaOntemHoraBruta.filter((r) => supervisorPorAnalista.get(r.analistaId) === supervisor.id);
+      }
+      const doPeriodoOntem = todasDoDiaOntemHora.filter((r) => horaValor(r.hora) >= horaValor(horaInicio) && horaValor(r.hora) < horaValor(horaFim));
+
+      texto = montarHora(doPeriodo, horaInicio, horaFim, naoFinalizados, doPeriodoOntem);
     }
   }
 
@@ -640,4 +959,4 @@ async function enviarSuporteNoturno(req, res) {
   res.json({ enviado: true, tamanho: texto.length, preview: texto });
 }
 
-module.exports = { enviarReportSeatalk, enviarSuporteNoturno, montarFechamento, montarHora, montarAnaliseDiaria, operacoesEsperadas, separarNaoFinalizados };
+module.exports = { enviarReportSeatalk, enviarSuporteNoturno, montarFechamento, montarHora, montarAnaliseDiaria, montarRelatorioSemanal, montarAlertaPrioridade, operacoesEsperadas, separarNaoFinalizados };
