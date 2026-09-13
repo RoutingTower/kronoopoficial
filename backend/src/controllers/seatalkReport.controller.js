@@ -898,7 +898,7 @@ async function enviarReportSeatalk(req, res) {
 }
 
 // Bot "Shôdisponível" — pergunta quem está disponível pra suporte, só
-// durante o turno da madrugada (21h-04h). Antes era um workflow do GitHub
+// durante o turno da madrugada (19h-04h). Antes era um workflow do GitHub
 // Actions com `schedule:` cron; o cron nunca disparou sozinho de verdade (só
 // via "Run workflow" manual — 1 execução total, a do teste), então passou a
 // ser chamado daqui, pelo MESMO Apps Script que já dispara
@@ -948,9 +948,9 @@ async function enviarSuporteNoturno(req, res) {
   if (!Number.isInteger(horaLocal) || horaLocal < 0 || horaLocal > 23) {
     return res.status(400).json({ error: "bad_request", message: "horaLocal (0-23, hora local de Brasília) é obrigatório." });
   }
-  // Turno 21h-04h — fora disso, não é erro, só não tem nada pra perguntar.
-  if (horaLocal >= 5 && horaLocal < 21) {
-    return res.json({ enviado: false, motivo: "fora do turno (21h-04h)" });
+  // Turno 19h-04h — fora disso, não é erro, só não tem nada pra perguntar.
+  if (horaLocal >= 5 && horaLocal < 19) {
+    return res.json({ enviado: false, motivo: "fora do turno (19h-04h)" });
   }
 
   const indice = (diaDoAno(new Date()) + horaLocal) % MENSAGENS_SUPORTE.length;

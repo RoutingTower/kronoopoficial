@@ -47,7 +47,7 @@ module.exports = {
   // POST nele, nunca expõe essa URL pro frontend.
   seatalkReportToken: process.env.SEATALK_REPORT_TOKEN || "",
   seatalkWebhookUrl: process.env.SEATALK_REPORT_WEBHOOK_URL || "",
-  // Bot "Shôdisponível" (suporte noturno, 21h-04h) — webhook de um System
+  // Bot "Shôdisponível" (suporte noturno, 19h-04h) — webhook de um System
   // Account SEPARADO do report de SPR acima (persona/avatar diferente no
   // SeaTalk). Antes disparado por um workflow do GitHub Actions
   // (.github/workflows/seatalk-suporte-noturno.yml) com `schedule:` cron;
