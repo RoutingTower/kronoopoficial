@@ -181,14 +181,32 @@ async function authHeaders(){
 // uma busca que acabou de rodar por outro motivo.
 let ultimoLoadDBEm = 0;
 let _loadDBInFlight = null;
+// Nunca deixa UM endpoint acessório falhar (tabela ainda sem migração,
+// coluna nova sem o SQL rodado no Supabase, instabilidade pontual) derrubar
+// o login de TODO MUNDO — Promise.all rejeita o array inteiro se uma só
+// promise falhar dentro dele. Já aconteceu 2x em produção por esse motivo
+// exato (operacao_transferencias antes de existir; raio_x.ped_roteirizados/
+// rotas_final antes do ALTER TABLE rodar). Cada fonte aqui cai pra [] e só
+// loga o erro no console — a tela correspondente fica vazia/incompleta em
+// vez do app inteiro travar no carregamento.
+function fetchSeguro(caminho){
+  return apiRequest('GET', caminho).catch(e=>{
+    console.error(`KronoOP: falha ao buscar ${caminho} — seguindo com lista vazia.`, e);
+    return [];
+  });
+}
+
 async function loadDB(){
   if(_loadDBInFlight) return _loadDBInFlight;
   _loadDBInFlight = (async ()=>{
+    // "users" é a única exceção sem rede de segurança: sem ele nada mais no
+    // app funciona mesmo (userById é usado em toda tela), então um fallback
+    // silencioso só esconderia o problema real em vez de evitar dano.
     const [users, baseMestra, suplencias, sprs, raioX, raioXHistorico, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas, operacaoLinks, operacaoTransferencias] = await Promise.all([
       apiRequest('GET', '/users'),
-      apiRequest('GET', '/base-mestra'),
-      apiRequest('GET', '/suplencias'),
-      apiRequest('GET', '/sprs'),
+      fetchSeguro('/base-mestra'),
+      fetchSeguro('/suplencias'),
+      fetchSeguro('/sprs'),
       // ?inicio= explícito (7 dias) em vez de confiar no default de 30 dias
       // do backend (ver raioX.controller.js) — é a coleção que mais cresce
       // (1 registro por finalização de operação, de toda a equipe, pra
@@ -199,7 +217,7 @@ async function loadDB(){
       // quem só precisa dos números (Resultado SPR/Tempo de Execução) usa
       // DB.raioXHistorico logo abaixo, que cobre uma janela bem mais longa
       // por ser bem mais leve (sem o campo de texto).
-      apiRequest('GET', '/raio-x?inicio='+addDaysISO(todayISO(), -7)),
+      fetchSeguro('/raio-x?inicio='+addDaysISO(todayISO(), -7)),
       // "campos=leve" tira a "observacao" (texto livre, de longe o campo
       // mais pesado) do SELECT no Postgres — não é só filtrar depois de
       // buscar, o Supabase nunca chega a mandar essa coluna (ver
@@ -220,34 +238,27 @@ async function loadDB(){
       // (que olha pro período ANTES do selecionado) já não tinha dado
       // disponível além de 30 dias antes desta mudança também — não é uma
       // regressão nova.
-      apiRequest('GET', '/raio-x?campos=leve&inicio='+addDaysISO(todayISO(), -30)),
-      apiRequest('GET', '/roteirizacao-status'),
-      apiRequest('GET', '/ausencias'),
-      apiRequest('GET', '/recados'),
-      apiRequest('GET', '/reunioes'),
-      apiRequest('GET', '/plantoes'),
-      apiRequest('GET', '/lembretes'),
-      apiRequest('GET', '/feedbacks'),
-      apiRequest('GET', '/particularidades'),
-      apiRequest('GET', '/particularidade-ciente'),
-      apiRequest('GET', '/reuniao-presenca'),
-      apiRequest('GET', '/formularios'),
-      apiRequest('GET', '/formulario-respostas'),
+      fetchSeguro('/raio-x?campos=leve&inicio='+addDaysISO(todayISO(), -30)),
+      fetchSeguro('/roteirizacao-status'),
+      fetchSeguro('/ausencias'),
+      fetchSeguro('/recados'),
+      fetchSeguro('/reunioes'),
+      fetchSeguro('/plantoes'),
+      fetchSeguro('/lembretes'),
+      fetchSeguro('/feedbacks'),
+      fetchSeguro('/particularidades'),
+      fetchSeguro('/particularidade-ciente'),
+      fetchSeguro('/reuniao-presenca'),
+      fetchSeguro('/formularios'),
+      fetchSeguro('/formulario-respostas'),
       // Link do grupo do SeaTalk por operação — tabela pequena e estável
       // (cadastrada uma vez por hub, não muda), ver botão "SeaTalk" no
       // card do analista (render-analista.js).
-      apiRequest('GET', '/operacao-links'),
+      fetchSeguro('/operacao-links'),
       // Envios pendentes de operação entre analistas (ver "Enviar" no
       // card, render-analista.js) — coleção pequena e de giro rápido
       // (some assim que é respondida), sem custo relevante de egress.
-      // .catch(): a tabela é nova (operacao_transferencias) e só existe
-      // depois que alguém colar o SQL no Supabase (ver
-      // supabase-schema.sql) — sem essa rede de segurança, o login inteiro
-      // quebrava pra TODO MUNDO enquanto a migração não roda, porque um
-      // Promise.all rejeita tudo se UMA promise falhar (foi exatamente o
-      // que aconteceu em produção). Cai pra [] e só loga, nunca derruba o
-      // app inteiro por causa de uma feature nova e pequena.
-      apiRequest('GET', '/operacao-transferencias').catch(e=>{ console.error('KronoOP: falha ao buscar operacao-transferencias (tabela nova, confira se o SQL já rodou no Supabase).', e); return []; }),
+      fetchSeguro('/operacao-transferencias'),
     ]);
     DB = { users, baseMestra, suplencias, sprs, raioX, raioXHistorico, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas, operacaoLinks, operacaoTransferencias };
     ultimoLoadDBEm = Date.now();
