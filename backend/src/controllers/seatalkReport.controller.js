@@ -111,9 +111,9 @@ function ufDaOperacao(operacao) {
   return m ? m[1].toUpperCase() : "";
 }
 
-function diaAnterior(dataStr) {
+function diaAnterior(dataStr, dias = 1) {
   const d = new Date(dataStr + "T12:00:00");
-  d.setDate(d.getDate() - 1);
+  d.setDate(d.getDate() - dias);
   return d.toISOString().slice(0, 10);
 }
 
@@ -151,6 +151,39 @@ function mediaSprPorChave(rows, chaveFn) {
 // volumetria se possível".
 const LIMITE_MIN_AMOSTRA_UF = 3;
 
+// "Oportunidade de clusterização" (fechamento) — só entra na lista quem tem
+// pelo menos essa quantidade de finalizações COM meta cadastrada nos
+// últimos DIAS_JANELA_CLUSTER dias, pra não apontar uma operação por causa
+// de 1 dia ruim isolado.
+const LIMITE_MIN_AMOSTRA_CLUSTER = 2;
+const DIAS_JANELA_CLUSTER = 7;
+
+// Média de SPR Lançado x Meta por operação numa janela de dias — quem fica
+// consistentemente abaixo da própria meta é candidato a revisão de
+// clusterização (a operação, não o analista: é sobre a malha, não sobre
+// quem executou). rowsJanela já vem filtrado pela equipe (se aplicável) e
+// pela janela de datas por quem chama.
+function operacoesAbaixoMetaNaJanela(rowsJanela) {
+  const porOperacao = new Map();
+  rowsJanela
+    .filter((r) => !r.semRoteirizacao && r.sprRoteirizado != null && r.sprMeta != null)
+    .forEach((r) => {
+      if (!porOperacao.has(r.operacao)) porOperacao.set(r.operacao, { sprSoma: 0, metaSoma: 0, count: 0 });
+      const d = porOperacao.get(r.operacao);
+      d.sprSoma += r.sprRoteirizado;
+      d.metaSoma += r.sprMeta;
+      d.count += 1;
+    });
+  const resultado = [];
+  porOperacao.forEach((d, operacao) => {
+    if (d.count < LIMITE_MIN_AMOSTRA_CLUSTER) return;
+    const sprMedio = d.sprSoma / d.count;
+    const metaMedia = d.metaSoma / d.count;
+    if (sprMedio < metaMedia) resultado.push({ operacao, sprMedio, metaMedia, count: d.count });
+  });
+  return resultado.sort((a, b) => (a.sprMedio - a.metaMedia) - (b.sprMedio - b.metaMedia));
+}
+
 async function enviarParaSeatalk(texto, webhookUrl) {
   const url = webhookUrl || seatalkWebhookUrl;
   if (!url) throw new Error("Webhook do SeaTalk não configurado.");
@@ -165,13 +198,16 @@ async function enviarParaSeatalk(texto, webhookUrl) {
   }
 }
 
-function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados) {
+function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, rowsUltimosDias) {
   naoFinalizados = naoFinalizados || [];
+  rowsUltimosDias = rowsUltimosDias || [];
   const analisados = rows.length;
   const roteirizados = rows.filter((r) => r.duracaoSegundos != null).length;
   const comSpr = rows.filter((r) => !r.semRoteirizacao && r.sprRoteirizado != null);
   const sprMedio = comSpr.length ? Math.round(comSpr.reduce((s, r) => s + r.sprRoteirizado, 0) / comSpr.length) : 0;
   const totalOrfaos = rows.reduce((s, r) => s + (r.orfaos || 0), 0);
+  const totalPedidos = rows.reduce((s, r) => s + (r.pedRoteirizados || 0), 0);
+  const totalRotas = rows.reduce((s, r) => s + (r.rotasFinal || 0), 0);
 
   const ofensores = rows.filter((r) => r.duracaoSegundos != null && r.duracaoSegundos > SLA_SEGUNDOS).sort((a, b) => b.duracaoSegundos - a.duracaoSegundos);
   const sprAlto = comSpr.filter((r) => r.sprRoteirizado >= LIMITE_SPR_ALTO).sort((a, b) => b.sprRoteirizado - a.sprRoteirizado);
@@ -185,7 +221,9 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados) 
   linhas.push(`• Hubs analisados: ${analisados}`);
   linhas.push(`• Hubs roteirizados: ${roteirizados}`);
   linhas.push(`• SPR médio: ${sprMedio}`);
-  linhas.push(`• Total de órfãos: ${formatarNumero(totalOrfaos)}`, "");
+  linhas.push(`• Total de órfãos: ${formatarNumero(totalOrfaos)}`);
+  linhas.push(`• Pedidos roteirizados: ${formatarNumero(totalPedidos)}`);
+  linhas.push(`• Rotas: ${formatarNumero(totalRotas)}`, "");
 
   linhas.push("⏳ HUBS AINDA SEM RAIO-X", "");
   if (pendentes.length === 0) {
@@ -206,11 +244,23 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados) 
     });
   }
 
+  // Pedidos/Rotas/Órfãos ao lado do SPR nos dois extremos — pedido
+  // explícito pra correlacionar/justificar o SPR ofensor: um SPR muito alto
+  // ou muito baixo costuma ter explicação na volumetria (poucas rotas pra
+  // muito pedido, ou o contrário) ou na quantidade de órfãos.
+  const correlacaoTxt = (r) => {
+    const partes = [];
+    if (r.pedRoteirizados != null) partes.push(`Ped ${formatarNumero(r.pedRoteirizados)}`);
+    if (r.rotasFinal != null) partes.push(`Rot ${formatarNumero(r.rotasFinal)}`);
+    partes.push(`Órf ${r.orfaos ?? 0}`);
+    return partes.join(" | ");
+  };
+
   linhas.push(`📈 HUBS COM SPR ${LIMITE_SPR_ALTO}+`, "");
   if (sprAlto.length === 0) {
     linhas.push(`✅ Nenhum hub com SPR igual ou acima de ${LIMITE_SPR_ALTO}.`);
   } else {
-    sprAlto.forEach((r) => linhas.push(`🟠 ${r.operacao} | SPR ${r.sprRoteirizado}`));
+    sprAlto.forEach((r) => linhas.push(`🟠 ${r.operacao} | SPR ${r.sprRoteirizado} | ${correlacaoTxt(r)}`));
   }
   linhas.push("");
 
@@ -218,7 +268,7 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados) 
   if (sprBaixo.length === 0) {
     linhas.push(`✅ Nenhum hub ficou com SPR abaixo de ${LIMITE_SPR_BAIXO}.`);
   } else {
-    sprBaixo.forEach((r) => linhas.push(`🟡 ${r.operacao} | SPR ${r.sprRoteirizado}`));
+    sprBaixo.forEach((r) => linhas.push(`🟡 ${r.operacao} | SPR ${r.sprRoteirizado} | ${correlacaoTxt(r)}`));
   }
   linhas.push("");
 
@@ -227,6 +277,27 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados) 
     linhas.push(`✅ Nenhum hub com mais de ${LIMITE_ORFAOS} órfãos.`);
   } else {
     comOrfaos.forEach((r) => linhas.push(`🔵 ${r.operacao} | Órf ${formatarNumero(r.orfaos)}`));
+  }
+  linhas.push("");
+
+  // Operações consistentemente abaixo da própria meta de SPR nos últimos
+  // DIAS_JANELA_CLUSTER dias — candidatas a revisão de clusterização.
+  // Volumetria/SPR "de hoje" (rowDoDia, quando a operação rodou no turno)
+  // dão contexto de como ela se saiu especificamente nesse fechamento.
+  const rowPorOperacaoHoje = new Map();
+  rows.forEach((r) => rowPorOperacaoHoje.set(r.operacao, r));
+  const clusterizacao = operacoesAbaixoMetaNaJanela(rowsUltimosDias);
+  linhas.push(`🔬 OPORTUNIDADE DE CLUSTERIZAÇÃO — abaixo do SPR referencial nos últimos ${DIAS_JANELA_CLUSTER} dias`, "");
+  if (clusterizacao.length === 0) {
+    linhas.push("✅ Nenhuma operação consistentemente abaixo da meta de SPR na janela analisada.");
+  } else {
+    clusterizacao.forEach((c) => {
+      const hoje = rowPorOperacaoHoje.get(c.operacao);
+      const volumeHoje = hoje
+        ? ` | Hoje: SPR ${hoje.sprRoteirizado ?? "—"}${hoje.pedRoteirizados != null ? ` | Ped ${formatarNumero(hoje.pedRoteirizados)}` : ""}${hoje.rotasFinal != null ? ` | Rot ${formatarNumero(hoje.rotasFinal)}` : ""}`
+        : " | Não rodou nesse turno";
+      linhas.push(`🔸 ${c.operacao} — SPR médio ${DIAS_JANELA_CLUSTER}d: ${c.sprMedio.toFixed(0)} (REF ${c.metaMedia.toFixed(0)}, ${c.count} finalização(ões))${volumeHoje}`);
+    });
   }
   linhas.push("");
 
@@ -262,6 +333,8 @@ function montarHora(rows, horaInicio, horaFim, naoFinalizados) {
             segs.push(`SPR ${r.sprRoteirizado}`);
           }
         }
+        if (r.pedRoteirizados != null) segs.push(`Ped ${formatarNumero(r.pedRoteirizados)}`);
+        if (r.rotasFinal != null) segs.push(`Rot ${formatarNumero(r.rotasFinal)}`);
         segs.push(`Órf ${r.orfaos ?? 0}`);
         linhas.push(`✅ ${r.operacao} - ${segs.join(" | ")}`);
       });
@@ -294,6 +367,15 @@ function montarAnaliseDiaria(rowsHoje, rowsOntem, dataHoje, dataOntem, nomeSuper
 
   const abaixoMetaHoje = comSprHoje.filter((r) => r.sprMeta != null && r.sprRoteirizado < r.sprMeta).length;
   const abaixoMetaOntem = comSprOntem.filter((r) => r.sprMeta != null && r.sprRoteirizado < r.sprMeta).length;
+
+  // Volume total (Kronos x Fluxo) — soma do dia inteiro, independente de
+  // meta SPR cadastrada (mesmo raciocínio da tabela "Volume roteirizado por
+  // operação" no Resultado SPR, render-supervisor.js).
+  const totalPedidosHoje = rowsHoje.reduce((s, r) => s + (r.pedRoteirizados || 0), 0);
+  const totalPedidosOntem = rowsOntem.reduce((s, r) => s + (r.pedRoteirizados || 0), 0);
+  const totalRotasHoje = rowsHoje.reduce((s, r) => s + (r.rotasFinal || 0), 0);
+  const totalRotasOntem = rowsOntem.reduce((s, r) => s + (r.rotasFinal || 0), 0);
+  const deltaPedidosPct = totalPedidosOntem ? ((totalPedidosHoje - totalPedidosOntem) / totalPedidosOntem) * 100 : null;
 
   // Por operação — casa só quem finalizou nos DOIS dias (média do dia, pro
   // caso raro de mais de uma finalização da mesma operação no mesmo dia).
@@ -329,7 +411,9 @@ function montarAnaliseDiaria(rowsHoje, rowsOntem, dataHoje, dataOntem, nomeSuper
   linhas.push(`📅 ${formatarDataBR(dataHoje)} (vs. ${formatarDataBR(dataOntem)})`, "");
   linhas.push(`• SPR médio: ${sprMedioHoje.toFixed(1)} (dia anterior: ${sprMedioOntem.toFixed(1)}) → ${deltaPct != null ? `${deltaPct >= 0 ? "+" : ""}${deltaPct.toFixed(1)}%` : "—"} ${deltaGeral >= 0 ? "📈" : "📉"}`);
   linhas.push(`• Hubs analisados: ${rowsHoje.length} (dia anterior: ${rowsOntem.length})`);
-  linhas.push(`• Hubs abaixo da meta: ${abaixoMetaHoje} — dia anterior: ${abaixoMetaOntem}`, "");
+  linhas.push(`• Hubs abaixo da meta: ${abaixoMetaHoje} — dia anterior: ${abaixoMetaOntem}`);
+  linhas.push(`• Pedidos roteirizados: ${formatarNumero(totalPedidosHoje)} (dia anterior: ${formatarNumero(totalPedidosOntem)})${deltaPedidosPct != null ? ` → ${deltaPedidosPct >= 0 ? "+" : ""}${deltaPedidosPct.toFixed(1)}%` : ""}`);
+  linhas.push(`• Rotas: ${formatarNumero(totalRotasHoje)} (dia anterior: ${formatarNumero(totalRotasOntem)})`, "");
 
   linhas.push("🏆 MAIOR EVOLUÇÃO", "");
   if (maiorEvolucao.length === 0) {
@@ -420,7 +504,20 @@ async function enviarReportSeatalk(req, res) {
     const esperadas = await operacoesEsperadas(data, supervisor?.id || null);
     if (tipo === "fechamento") {
       const naoFinalizados = separarNaoFinalizados(esperadas, todasDoDiaBruta);
-      texto = montarFechamento(todasDoDia, req.body.horaFechamento || "05h", supervisor?.name, naoFinalizados);
+      // Janela dos últimos DIAS_JANELA_CLUSTER dias (incluindo hoje) pra
+      // "Oportunidade de clusterização" — quem fica consistentemente abaixo
+      // da própria meta de SPR, não só num dia isolado.
+      const dataInicioJanela = diaAnterior(data, DIAS_JANELA_CLUSTER - 1);
+      const rowsJanelaBruta = await supabaseService.listWhere(COLLECTION, [
+        ["data", ">=", dataInicioJanela],
+        ["data", "<=", data],
+      ]);
+      let rowsJanela = rowsJanelaBruta;
+      if (supervisor) {
+        const supervisorPorAnalista = new Map(usuarios.map((u) => [u.id, u.supervisorId]));
+        rowsJanela = rowsJanelaBruta.filter((r) => supervisorPorAnalista.get(r.analistaId) === supervisor.id);
+      }
+      texto = montarFechamento(todasDoDia, req.body.horaFechamento || "05h", supervisor?.name, naoFinalizados, rowsJanela);
     } else {
       if (!horaInicio || !horaFim) {
         return res.status(400).json({ error: "bad_request", message: "horaInicio e horaFim são obrigatórios pra tipo='hora'." });
