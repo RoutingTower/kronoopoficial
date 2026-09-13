@@ -35,6 +35,15 @@ async function createAusencia(req, res) {
   if (!bmDaAusencia || bmDaAusencia.analistaId !== analistaId) {
     return res.status(400).json({ error: "bad_request", message: "Essa operação não pertence mais a esse analista na base mestra — confira se ela foi repassada pra outro titular." });
   }
+  // Trava duplicidade: já existe ausência pra essa MESMA operação+data —
+  // sem essa checagem dava pra registrar a folga duas vezes com suplentes
+  // diferentes (achado real em produção: LM Hub_RN_Natal_03 PM1, 12/09,
+  // com Leonardo e Wanderley cobrindo o Jefferson ao mesmo tempo). Edite a
+  // existente (troca de suplente) em vez de criar outra.
+  const jaExiste = await supabaseService.listWhere("ausencias", [["baseMestraId", "==", baseMestraId], ["data", "==", data]]);
+  if (jaExiste.length > 0) {
+    return res.status(409).json({ error: "conflict", message: "Já existe uma ausência registrada pra essa operação nessa data — edite a existente em vez de criar outra." });
+  }
   const [caller, supervisorId] = await Promise.all([getCaller(req), supervisorIdDoAnalista(analistaId)]);
   if (!caller || (!caller.isAdmin && (caller.role !== "supervisor" || supervisorId !== caller.id))) {
     return res.status(403).json({ error: "forbidden", message: "Você só pode gerenciar ausências da sua equipe." });
@@ -89,6 +98,17 @@ async function updateAusencia(req, res) {
       if (!bm || bm.analistaId !== req.body.analistaId) {
         return res.status(400).json({ error: "bad_request", message: "A operação escolhida não pertence ao novo titular." });
       }
+    }
+  }
+
+  // Mesma trava de duplicidade do createAusencia: só relevante quando
+  // baseMestraId ou data estão mudando (senão é sempre igual a si mesma).
+  const novoBmId = req.body.baseMestraId !== undefined ? req.body.baseMestraId : existing.baseMestraId;
+  const novaData = req.body.data !== undefined ? req.body.data : existing.data;
+  if (novoBmId !== existing.baseMestraId || novaData !== existing.data) {
+    const jaExiste = await supabaseService.listWhere("ausencias", [["baseMestraId", "==", novoBmId], ["data", "==", novaData]]);
+    if (jaExiste.some((a) => a.id !== existing.id)) {
+      return res.status(409).json({ error: "conflict", message: "Já existe uma ausência registrada pra essa operação nessa data." });
     }
   }
 

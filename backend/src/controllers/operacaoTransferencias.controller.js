@@ -163,6 +163,15 @@ async function responderTransferencia(req, res) {
   const destinoNome = caller.name;
   let resultado = null;
   if (existing.categoria === "fixa") {
+    // Mesma trava de duplicidade do createAusencia (ausencias.controller.js)
+    // — sem isso, aceitar duas transferências "fixa" da mesma operação+data
+    // (ex.: enviada de novo pra outra pessoa antes da primeira ausência ser
+    // corrigida) cria duas linhas de ausência com suplentes diferentes pro
+    // mesmo titular, e a operação passa a aparecer na agenda dos dois.
+    const jaExiste = await supabaseService.listWhere("ausencias", [["baseMestraId", "==", existing.bmId], ["data", "==", existing.data]]);
+    if (jaExiste.length > 0) {
+      return res.status(409).json({ error: "conflict", message: "Já existe uma ausência registrada pra essa operação nessa data — não dá pra aceitar essa transferência agora." });
+    }
     resultado = await supabaseService.create("ausencias", {
       analistaId: existing.titularId,
       baseMestraId: existing.bmId,
