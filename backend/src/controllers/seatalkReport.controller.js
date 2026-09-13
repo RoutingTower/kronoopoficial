@@ -157,6 +157,13 @@ const LIMITE_MIN_AMOSTRA_UF = 3;
 // de 1 dia ruim isolado.
 const LIMITE_MIN_AMOSTRA_CLUSTER = 2;
 const DIAS_JANELA_CLUSTER = 7;
+// Sem esses dois filtros, a lista vira quase a operação inteira — com só
+// 6-7 finalizações por semana, é normal a média ficar alguns pontos abaixo
+// da meta por variação natural, não por um problema real de malha. Só
+// entra quem fica consistentemente MUITO abaixo (gap mínimo), e mesmo
+// assim a lista fica curta (top N piores), pra continuar acionável.
+const LIMITE_GAP_CLUSTER = 8;
+const TOP_N_CLUSTER = 10;
 
 // Média de SPR Lançado x Meta por operação numa janela de dias — quem fica
 // consistentemente abaixo da própria meta é candidato a revisão de
@@ -179,9 +186,9 @@ function operacoesAbaixoMetaNaJanela(rowsJanela) {
     if (d.count < LIMITE_MIN_AMOSTRA_CLUSTER) return;
     const sprMedio = d.sprSoma / d.count;
     const metaMedia = d.metaSoma / d.count;
-    if (sprMedio < metaMedia) resultado.push({ operacao, sprMedio, metaMedia, count: d.count });
+    if (metaMedia - sprMedio >= LIMITE_GAP_CLUSTER) resultado.push({ operacao, sprMedio, metaMedia, count: d.count });
   });
-  return resultado.sort((a, b) => (a.sprMedio - a.metaMedia) - (b.sprMedio - b.metaMedia));
+  return resultado.sort((a, b) => (a.sprMedio - a.metaMedia) - (b.sprMedio - b.metaMedia)).slice(0, TOP_N_CLUSTER);
 }
 
 async function enviarParaSeatalk(texto, webhookUrl) {
@@ -240,7 +247,7 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
     ofensores.forEach((r) => {
       linhas.push(`🔴 ${r.operacao}`);
       linhas.push(`🕒 ${r.horaInicioReal || r.hora} às ${r.horaFimReal || "—"} | Tempo: ${formatarDuracao(r.duracaoSegundos)}`);
-      linhas.push(`SPR ${r.sprRoteirizado} | Órf ${r.orfaos ?? 0}`, "");
+      linhas.push(`SPR ${r.sprRoteirizado != null ? r.sprRoteirizado : "aguardando planilha"} | Órf ${r.orfaos ?? 0}`, "");
     });
   }
 
@@ -287,7 +294,7 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
   const rowPorOperacaoHoje = new Map();
   rows.forEach((r) => rowPorOperacaoHoje.set(r.operacao, r));
   const clusterizacao = operacoesAbaixoMetaNaJanela(rowsUltimosDias);
-  linhas.push(`🔬 OPORTUNIDADE DE CLUSTERIZAÇÃO — abaixo do SPR referencial nos últimos ${DIAS_JANELA_CLUSTER} dias`, "");
+  linhas.push(`🔬 OPORTUNIDADE DE CLUSTERIZAÇÃO — ${LIMITE_GAP_CLUSTER}+ pontos abaixo do SPR referencial nos últimos ${DIAS_JANELA_CLUSTER} dias (top ${TOP_N_CLUSTER})`, "");
   if (clusterizacao.length === 0) {
     linhas.push("✅ Nenhuma operação consistentemente abaixo da meta de SPR na janela analisada.");
   } else {
