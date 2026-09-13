@@ -493,7 +493,9 @@ async function enviarSuporteNoturno(req, res) {
   }
 
   const indice = (diaDoAno(new Date()) + horaLocal) % MENSAGENS_SUPORTE.length;
-  const texto = `📢 SUPORTE NOTURNO | ${horaLocal}h\n\nQuem tá disponível pra dar suporte agora? Levanta a mão aqui no tópico! 🙋‍♂️🙋‍♀️\n\n💪 ${MENSAGENS_SUPORTE[indice]}`;
+  const proximaHora = (horaLocal + 1) % 24;
+  const janela = `${String(horaLocal).padStart(2, "0")}:00 - ${String(proximaHora).padStart(2, "0")}:00`;
+  const texto = `📢 SUPORTE NOTURNO | ${janela}\n\nQuem tá disponível pra dar suporte agora? Levanta a mão aqui no tópico! 🙋‍♂️🙋‍♀️\n\n💪 ${MENSAGENS_SUPORTE[indice]}`;
 
   await enviarParaSeatalk(texto, seatalkSuporteWebhookUrl);
   res.json({ enviado: true, tamanho: texto.length, preview: texto });
