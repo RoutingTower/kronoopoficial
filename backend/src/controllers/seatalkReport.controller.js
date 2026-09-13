@@ -224,6 +224,24 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
   const comOrfaos = rows.filter((r) => (r.orfaos || 0) > LIMITE_ORFAOS).sort((a, b) => b.orfaos - a.orfaos);
   const pendentes = naoFinalizados.slice().sort((a, b) => horaValor(a.horaInicio) - horaValor(b.horaInicio));
 
+  // Operações consistentemente abaixo da própria meta de SPR nos últimos
+  // DIAS_JANELA_CLUSTER dias — candidatas a revisão de clusterização.
+  // Volumetria/SPR "de hoje" (rowPorOperacaoHoje, quando a operação rodou no
+  // turno) dão contexto de como ela se saiu especificamente nesse
+  // fechamento. Calculado aqui em cima (não junto da seção) porque
+  // "prioridade máxima" abaixo precisa cruzar com `ofensores`.
+  const rowPorOperacaoHoje = new Map();
+  rows.forEach((r) => rowPorOperacaoHoje.set(r.operacao, r));
+  const clusterizacao = operacoesAbaixoMetaNaJanela(rowsUltimosDias);
+
+  // Hub que está LENTO hoje (ofensores) E cronicamente abaixo da própria
+  // meta de SPR (clusterização) é o sinal mais forte de que tem algo
+  // estrutural na malha, não um dia ruim isolado — pedido explícito do
+  // usuário, com dois exemplos reais confirmando o padrão (Salvador_Retiro,
+  // Juazeiro apareceram nas duas listas em turnos diferentes).
+  const operacoesOfensoras = new Set(ofensores.map((r) => r.operacao));
+  const prioridadeMaxima = clusterizacao.filter((c) => operacoesOfensoras.has(c.operacao));
+
   const linhas = [];
   linhas.push(`📢 REPORT DE FECHAMENTO | ${horaFechamento}`, "");
   linhas.push(`📊 CONSOLIDADO ${nomeSupervisor ? nomeSupervisor.toUpperCase() : "GERAL"}`, "");
@@ -234,23 +252,10 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
   linhas.push(`• Pedidos roteirizados: ${formatarNumero(totalPedidos)}`);
   linhas.push(`• Rotas: ${formatarNumero(totalRotas)}`, "");
 
-  linhas.push("⏳ HUBS AINDA SEM RAIO-X", "");
-  if (pendentes.length === 0) {
-    linhas.push("✅ Todos os hubs programados do turno já têm Raio-X.");
-  } else {
-    pendentes.forEach((p) => linhas.push(`⏳ ${p.operacao} (${p.responsavelNome}) — previsto p/ ${p.horaInicio}`));
-  }
-  linhas.push("");
-
-  linhas.push(`🚨 HUBS OFENSORES — OPERAÇÃO SUPERIOR A ${formatarDuracao(SLA_SEGUNDOS)}`, "");
-  if (ofensores.length === 0) {
-    linhas.push(`✅ Nenhum hub passou de ${formatarDuracao(SLA_SEGUNDOS)} de operação.`);
-  } else {
-    ofensores.forEach((r) => {
-      linhas.push(`🔴 ${r.operacao}`);
-      linhas.push(`🕒 ${r.horaInicioReal || r.hora} às ${r.horaFimReal || "—"} | Tempo: ${formatarDuracao(r.duracaoSegundos)}`);
-      linhas.push(`SPR ${r.sprRoteirizado != null ? r.sprRoteirizado : "aguardando planilha"} | Órf ${r.orfaos ?? 0}`, "");
-    });
+  if (prioridadeMaxima.length > 0) {
+    linhas.push("⚠️ PRIORIDADE MÁXIMA — lento hoje E cronicamente abaixo da meta", "");
+    prioridadeMaxima.forEach((c) => linhas.push(`🔺 ${c.operacao} — SPR médio ${DIAS_JANELA_CLUSTER}d: ${c.sprMedio.toFixed(0)} (REF ${c.metaMedia.toFixed(0)}) | passou de ${formatarDuracao(SLA_SEGUNDOS)} hoje`));
+    linhas.push("");
   }
 
   // Pedidos/Rotas/Órfãos ao lado do SPR nos dois extremos — pedido
@@ -264,6 +269,18 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
     partes.push(`Órf ${r.orfaos ?? 0}`);
     return partes.join(" | ");
   };
+
+  linhas.push(`🚨 HUBS OFENSORES — OPERAÇÃO SUPERIOR A ${formatarDuracao(SLA_SEGUNDOS)}`, "");
+  if (ofensores.length === 0) {
+    linhas.push(`✅ Nenhum hub passou de ${formatarDuracao(SLA_SEGUNDOS)} de operação.`);
+  } else {
+    ofensores.forEach((r) => {
+      const horario = `${r.horaInicioReal || r.hora} às ${r.horaFimReal || "—"}`;
+      const sprTxt = r.sprRoteirizado != null ? r.sprRoteirizado : "aguardando planilha";
+      linhas.push(`🔴 ${r.operacao} — ${horario} | Tempo: ${formatarDuracao(r.duracaoSegundos)} | SPR ${sprTxt} | Órf ${r.orfaos ?? 0}`);
+    });
+  }
+  linhas.push("");
 
   linhas.push(`📈 HUBS COM SPR ${LIMITE_SPR_ALTO}+`, "");
   if (sprAlto.length === 0) {
@@ -286,19 +303,18 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
     linhas.push(`✅ Nenhum hub com mais de ${LIMITE_ORFAOS} órfãos.`);
   } else {
     comOrfaos.forEach((r) => {
+      // Mesma correlação de Pedidos/Rotas/SPR já mostrada nos extremos de
+      // SPR — fazia falta aqui também, pedido explícito.
+      const partes = [`Órf ${formatarNumero(r.orfaos)}`];
+      if (!r.semRoteirizacao && r.sprRoteirizado != null) partes.push(`SPR ${r.sprRoteirizado}`);
+      if (r.pedRoteirizados != null) partes.push(`Ped ${formatarNumero(r.pedRoteirizados)}`);
+      if (r.rotasFinal != null) partes.push(`Rot ${formatarNumero(r.rotasFinal)}`);
       const clusters = r.orfaosClustersOfensores ? ` — ${r.orfaosClustersOfensores}` : "";
-      linhas.push(`🔵 ${r.operacao} | Órf ${formatarNumero(r.orfaos)}${clusters}`);
+      linhas.push(`🔵 ${r.operacao} | ${partes.join(" | ")}${clusters}`);
     });
   }
   linhas.push("");
 
-  // Operações consistentemente abaixo da própria meta de SPR nos últimos
-  // DIAS_JANELA_CLUSTER dias — candidatas a revisão de clusterização.
-  // Volumetria/SPR "de hoje" (rowDoDia, quando a operação rodou no turno)
-  // dão contexto de como ela se saiu especificamente nesse fechamento.
-  const rowPorOperacaoHoje = new Map();
-  rows.forEach((r) => rowPorOperacaoHoje.set(r.operacao, r));
-  const clusterizacao = operacoesAbaixoMetaNaJanela(rowsUltimosDias);
   linhas.push(`🔬 OPORTUNIDADE DE CLUSTERIZAÇÃO — ${LIMITE_GAP_CLUSTER}+ pontos abaixo do SPR referencial nos últimos ${DIAS_JANELA_CLUSTER} dias (top ${TOP_N_CLUSTER})`, "");
   if (clusterizacao.length === 0) {
     linhas.push("✅ Nenhuma operação consistentemente abaixo da meta de SPR na janela analisada.");
@@ -310,6 +326,20 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
         : " | Não rodou nesse turno";
       linhas.push(`🔸 ${c.operacao} — SPR médio ${DIAS_JANELA_CLUSTER}d: ${c.sprMedio.toFixed(0)} (REF ${c.metaMedia.toFixed(0)}, ${c.count} finalização(ões))${volumeHoje}`);
     });
+  }
+  linhas.push("");
+
+  // "Ainda sem Raio-X" vai por último de propósito: às 05h (fim do turno)
+  // é a lista menos acionável de todas (não dá mais pra fazer nada a
+  // respeito NESSE turno) e pode ficar grande — antes vinha logo depois do
+  // consolidado e empurrava os alertas mais úteis (Ofensores,
+  // Clusterização) pra baixo, com risco de ficar escondido atrás do "ver
+  // mais" do SeaTalk.
+  linhas.push("⏳ HUBS AINDA SEM RAIO-X", "");
+  if (pendentes.length === 0) {
+    linhas.push("✅ Todos os hubs programados do turno já têm Raio-X.");
+  } else {
+    pendentes.forEach((p) => linhas.push(`⏳ ${p.operacao} (${p.responsavelNome}) — previsto p/ ${p.horaInicio}`));
   }
   linhas.push("");
 
