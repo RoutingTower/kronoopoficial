@@ -26,7 +26,7 @@ const {
   paraDataISO,
   paraHoraMinuto,
   duracaoEmSegundos,
-  dataOperacionalDoSheet,
+  dataOperacionalDaExpedicao,
   escolherRaioX,
   dataDiasAtras,
   diaAdjacente,
@@ -125,7 +125,7 @@ async function importarFluxo(req, res) {
       invalidos.push({ data: dataTxt, operacao, ciclo });
       continue;
     }
-    const dataOperacional = dataOperacionalDoSheet(dataISO, inicioTxt);
+    const dataOperacional = dataOperacionalDaExpedicao(dataISO, inicioTxt);
     const analistaId = idPorEmail.get(email) || null;
     const horaInicio = paraHoraMinuto(inicioTxt);
     const temFim = !!fimTxt;
@@ -154,18 +154,17 @@ async function importarFluxo(req, res) {
     // senão horário mais próximo) do import de roteirização.
     let candidatosRaioX = raioXPorDataOperacao.get(`${dataOperacional}|${operacao}`) || [];
     let escolhido = candidatosRaioX.length ? escolherRaioX(candidatosRaioX, ciclo, inicioTxt) : null;
-    // ROFI_3.0 às vezes registra data_expedicao 1 dia à frente do dia real
-    // do turno pra essa MESMA operação, só quando o SPR/Pedidos/Rotas
-    // fecham depois do horário real já ter casado certo (achado real em
-    // produção, confirmado comparando hora_inicio_real — ver diaAdjacente
-    // em planilhaMatching.js). Só tenta o dia vizinho quando o dia exato
-    // não tem CANDIDATO NENHUM, e só aceita um candidato cujo
-    // horaInicioReal JÁ GRAVADO bate EXATO com o horário desta linha —
-    // critério bem mais estreito que escolherRaioX (que aceita ciclo exato
-    // sozinho, sem olhar hora — recorrência diária faria isso casar com
-    // QUALQUER dia vizinho do mesmo ciclo, não só o certo). Sem
-    // horaInicioReal ainda gravado no candidato, não arrisca — fica sem
-    // casar mesmo, mais seguro que corromper o dia errado.
+    // Rede de segurança residual pra quando dataOperacionalDaExpedicao (acima)
+    // ainda assim erra por 1 dia — ex.: horário mal formatado na planilha,
+    // ou um caso real de anomalia na ROFI_3.0 além do deslocamento normal
+    // já tratado. Só tenta o dia vizinho quando o dia exato não tem
+    // CANDIDATO NENHUM, e só aceita um candidato cujo horaInicioReal JÁ
+    // GRAVADO bate EXATO com o horário desta linha — critério bem mais
+    // estreito que escolherRaioX (que aceita ciclo exato sozinho, sem olhar
+    // hora — recorrência diária faria isso casar com QUALQUER dia vizinho
+    // do mesmo ciclo, não só o certo). Sem horaInicioReal ainda gravado no
+    // candidato, não arrisca — fica sem casar mesmo, mais seguro que
+    // corromper o dia errado.
     if (!escolhido && candidatosRaioX.length === 0 && horaInicio) {
       for (const deltaDias of [-1, 1]) {
         const dataVizinha = diaAdjacente(dataOperacional, deltaDias);

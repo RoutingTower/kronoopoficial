@@ -138,19 +138,34 @@ function dataDiasAtras(dias) {
   return d.toISOString().slice(0, 10);
 }
 
-// dataISO +/- N dias — usado pelo fallback de casamento da Kronos x Fluxo
-// (ver fluxoImport.controller.js/raioX.controller.js): a planilha-fonte
-// (ROFI_3.0) às vezes registra `data_expedicao` da MESMA operação com 1 dia
-// de diferença entre a chegada do horário real (bate com o dia certo do
-// turno) e a chegada do SPR/Pedidos/Rotas já fechados (chega com a data um
-// dia à frente) — achado real em produção, confirmado comparando
-// hora_inicio_real. Sem esse ajuste, a segunda chegada nunca encontra o
-// Raio-X certo e fica "solta" pra sempre.
+// dataISO +/- N dias — usado tanto por dataOperacionalDaExpedicao (abaixo)
+// quanto pelo fallback de casamento da Kronos x Fluxo em
+// fluxoImport.controller.js (rede de segurança pra quando a data_expedicao
+// ainda assim erra por 1 dia além do deslocamento normal já tratado).
 function diaAdjacente(dataISO, deltaDias) {
   const [y, m, d] = dataISO.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
   dt.setUTCDate(dt.getUTCDate() + deltaDias);
   return dt.toISOString().slice(0, 10);
+}
+
+// `data_expedicao` da Kronos x Fluxo (ROFI_3.0) NÃO é a data literal do
+// relógio como o `data` da planilha de roteirização (dataOperacionalDoSheet
+// acima) — é a data de EXPEDIÇÃO do frete, com semântica invertida:
+// confirmado com o usuário que uma operação com turno começando às 19h no
+// dia 12 tem data_expedicao registrada no dia 13 (D+1), e só as operações
+// que começam de madrugada (00h-07h, já depois da virada) têm
+// data_expedicao no mesmo dia do turno (D+0). Usar dataOperacionalDoSheet
+// aqui (como o código fazia antes) não deslocava nada pra turnos de noite
+// (h>=7) quando deveria voltar 1 dia — toda operação antes da meia-noite
+// calculava a data operacional um dia à FRENTE da real, e se por acaso já
+// existisse um Raio-X do dia seguinte com o mesmo ciclo (a própria
+// operação de amanhã, ainda não rodada), escolherRaioX casava com ele e
+// sobrescrevia o card errado com SPR/Pedidos/Rotas de ontem.
+function dataOperacionalDaExpedicao(dataExpedicaoISO, hora) {
+  const h = parseInt(String(hora).split(":")[0], 10);
+  if (h < 7) return dataExpedicaoISO;
+  return diaAdjacente(dataExpedicaoISO, -1);
 }
 
 module.exports = {
@@ -159,6 +174,7 @@ module.exports = {
   duracaoEmSegundos,
   paraHoraMinuto,
   dataOperacionalDoSheet,
+  dataOperacionalDaExpedicao,
   segundosAjustados,
   normalizarOperacao,
   TOLERANCIA_HORARIO_SEG,
