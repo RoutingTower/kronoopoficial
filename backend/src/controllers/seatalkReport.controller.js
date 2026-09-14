@@ -133,7 +133,19 @@ async function operacoesEsperadas(data, supervisorId) {
     esperadas.push({ operacao: s.operacao, ciclo: s.ciclo, horaInicio: s.horaInicio, responsavelNome: s.suplente });
   });
 
-  return esperadas;
+  // Dedup por operação+horário: baseMestra/ausências e suplências são duas
+  // fontes independentes, e o mesmo slot pode acabar registrado nas duas
+  // (ex.: uma folga com suplente via ausência E uma suplência avulsa pro
+  // mesmo hub/dia) — achado real em produção, aparecia duplicado no "ainda
+  // sem Raio-X". Mesma convenção de chave já usada em separarNaoFinalizados
+  // (operação+horário é único).
+  const vistos = new Set();
+  return esperadas.filter((e) => {
+    const chave = `${e.operacao}__${e.horaInicio}`;
+    if (vistos.has(chave)) return false;
+    vistos.add(chave);
+    return true;
+  });
 }
 
 // Cruza o esperado com o que já tem Raio-X (rows) — casa só por
@@ -474,111 +486,87 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
   return linhas.join("\n");
 }
 
-function montarHora(rows, horaInicio, horaFim, naoFinalizados, rowsOntemMesmaJanela, operacoesCronicas) {
+function montarHora(rows, horaInicio, horaFim, naoFinalizados, pendentesDeAntes, emAndamento, operacoesCronicas) {
   naoFinalizados = naoFinalizados || [];
-  rowsOntemMesmaJanela = rowsOntemMesmaJanela || [];
+  pendentesDeAntes = pendentesDeAntes || [];
+  emAndamento = emAndamento || [];
   operacoesCronicas = operacoesCronicas || new Set();
+  const totalPendentes = naoFinalizados.length + pendentesDeAntes.length;
   const linhas = [];
   linhas.push(`📢 INFORMATIVO OPERACIONAL | ${horaInicio.slice(0, 2)}h às ${horaFim.slice(0, 2)}h`, "");
 
-  // Comparativo com a MESMA janela de ontem — Pedidos/Rotas somados e SPR
-  // médio, com variação percentual. Só aparece quando tem algo pra
-  // comparar (ontem também teve movimento nessa janela).
-  if (rowsOntemMesmaJanela.length > 0) {
-    const comSprHoje = rows.filter((r) => !r.semRoteirizacao && r.sprRoteirizado != null);
-    const comSprOntem = rowsOntemMesmaJanela.filter((r) => !r.semRoteirizacao && r.sprRoteirizado != null);
-    const sprMedioHoje = comSprHoje.length ? comSprHoje.reduce((s, r) => s + r.sprRoteirizado, 0) / comSprHoje.length : null;
-    const sprMedioOntem = comSprOntem.length ? comSprOntem.reduce((s, r) => s + r.sprRoteirizado, 0) / comSprOntem.length : null;
-    const totalPedidosHoje = rows.reduce((s, r) => s + (r.pedRoteirizados || 0), 0);
-    const totalPedidosOntem = rowsOntemMesmaJanela.reduce((s, r) => s + (r.pedRoteirizados || 0), 0);
-    const totalRotasHoje = rows.reduce((s, r) => s + (r.rotasFinal || 0), 0);
-    const totalRotasOntem = rowsOntemMesmaJanela.reduce((s, r) => s + (r.rotasFinal || 0), 0);
-    const pct = (hoje, ontem) => (ontem ? ((hoje - ontem) / ontem) * 100 : null);
-    const sprPct = sprMedioHoje != null ? pct(sprMedioHoje, sprMedioOntem) : null;
-    const pedidosPct = pct(totalPedidosHoje, totalPedidosOntem);
-    const rotasPct = pct(totalRotasHoje, totalRotasOntem);
-    const setaTxt = (p) => (p == null ? "" : ` → ${p >= 0 ? "+" : ""}${p.toFixed(1)}% ${p >= 0 ? "📈" : "📉"}`);
-
-    linhas.push("📊 COMPARATIVO COM ONTEM (mesma janela)", "");
-    linhas.push(`• SPR médio: ${sprMedioHoje != null ? sprMedioHoje.toFixed(1) : "—"} (ontem: ${sprMedioOntem != null ? sprMedioOntem.toFixed(1) : "—"})${setaTxt(sprPct)}`);
-    linhas.push(`• Pedidos: ${formatarNumero(totalPedidosHoje)} (ontem: ${formatarNumero(totalPedidosOntem)})${setaTxt(pedidosPct)}`);
-    linhas.push(`• Rotas: ${formatarNumero(totalRotasHoje)} (ontem: ${formatarNumero(totalRotasOntem)})${setaTxt(rotasPct)}`, "");
-  }
-
-  // Comparação HUB A HUB da mesma janela de ontem — pedido explícito, além
-  // do comparativo agregado acima. Cada hub que rodou ontem NESSA MESMA
-  // janela de horário ganha "· ontem X (+Y%)" junto do próprio valor.
-  const ontemPorOperacao = new Map();
-  rowsOntemMesmaJanela.forEach((r) => ontemPorOperacao.set(r.operacao, r));
-  // pctHub tolera ontem=0 explicitamente (ex.: 0 órfãos ontem, N hoje) —
-  // só fica sem porcentagem quando realmente não dá pra calcular (0/0 ou
-  // sem dado), mas mostra o "ontem 0" mesmo assim pra dar contexto.
-  const pctHub = (hoje, ontem) => (ontem ? ((hoje - ontem) / ontem) * 100 : hoje === ontem ? 0 : null);
-  const comparativoTxt = (hoje, ontem) => {
-    const p = pctHub(hoje, ontem);
-    return ` · ontem ${formatarNumero(ontem)}${p != null ? ` (${p >= 0 ? "+" : ""}${p.toFixed(1)}%)` : ""}`;
+  // Extraído pra reaproveitar entre a lista geral e a seção "Abaixo da
+  // Meta" — mesmo formato de linhas pros dois grupos.
+  const renderHub = (r) => {
+    // Marcador neutro (▸), sem cor — o número da meta ao lado do SPR já diz
+    // se bateu ou não, o emoji verde/amarelo/check virou ruído sem
+    // significado extra e só confundia (pedido explícito).
+    linhas.push(`▸ ${r.operacao}`);
+    if (r.horaInicioReal && r.horaFimReal) {
+      linhas.push(`${r.horaInicioReal} às ${r.horaFimReal} (${formatarDuracao(r.duracaoSegundos)})`);
+    }
+    if (!r.semRoteirizacao && r.sprRoteirizado != null) {
+      linhas.push(r.sprMeta != null
+        ? `SPR ${r.sprRoteirizado} (meta ${r.sprMeta}, ${r.sprRoteirizado - r.sprMeta >= 0 ? "+" : ""}${r.sprRoteirizado - r.sprMeta})`
+        : `SPR ${r.sprRoteirizado}`);
+    }
+    const volumetria = [];
+    if (r.pedRoteirizados != null) volumetria.push(`Pedidos ${formatarNumero(r.pedRoteirizados)}`);
+    if (r.rotasFinal != null) volumetria.push(`Rotas ${formatarNumero(r.rotasFinal)}`);
+    volumetria.push(`Órfãos ${r.orfaos ?? 0}`);
+    linhas.push(volumetria.join(" · "));
+    // Crônico: mesmo critério de "Oportunidade de Clusterização" do
+    // fechamento (operacoesAbaixoMetaNaJanela) — abaixo da própria meta há
+    // pelo menos DIAS_JANELA_CLUSTER dias, não só nessa hora.
+    if (operacoesCronicas.has(r.operacao)) linhas.push(`🔺 Abaixo da meta há ${DIAS_JANELA_CLUSTER}d+`);
+    linhas.push("");
   };
 
-  if (rows.length === 0 && naoFinalizados.length === 0) {
+  if (rows.length === 0 && totalPendentes === 0) {
     linhas.push("Nenhum hub agendado pra essa janela.");
   } else {
-    rows
-      .sort((a, b) => horaValor(a.hora) - horaValor(b.hora))
-      .forEach((r) => {
-        const ontemHub = ontemPorOperacao.get(r.operacao);
-        // 🟢 bateu ou passou a meta, 🟡 ficou abaixo — ✅ só quando não dá
-        // pra comparar (sem meta cadastrada ou sem SPR ainda).
-        const emoji = r.sprMeta != null && r.sprRoteirizado != null ? (r.sprRoteirizado >= r.sprMeta ? "🟢" : "🟡") : "✅";
-        linhas.push(`${emoji} ${r.operacao}`);
+    // Hubs abaixo da própria meta ganham um tópico separado, à parte da
+    // lista geral — pedido explícito, pra não misturar quem está bem com
+    // quem precisa de atenção.
+    const abaixoMeta = rows.filter((r) => r.sprMeta != null && r.sprRoteirizado != null && r.sprRoteirizado < r.sprMeta);
+    const demais = rows.filter((r) => !abaixoMeta.includes(r));
 
-        // Cada hub em várias linhas curtas (horário, SPR, volumetria) em vez
-        // de tudo espremido numa linha só com "|" — pedido explícito, ficava
-        // difícil de ler no celular. Layout escolhido pelo usuário entre
-        // algumas opções de mockup.
-        if (r.horaInicioReal && r.horaFimReal) {
-          linhas.push(`${r.horaInicioReal} às ${r.horaFimReal} (${formatarDuracao(r.duracaoSegundos)})`);
-        }
+    demais.sort((a, b) => horaValor(a.hora) - horaValor(b.hora)).forEach(renderHub);
 
-        if (!r.semRoteirizacao && r.sprRoteirizado != null) {
-          let sprLinha = r.sprMeta != null
-            ? `SPR ${r.sprRoteirizado} (meta ${r.sprMeta}, ${r.sprRoteirizado - r.sprMeta >= 0 ? "+" : ""}${r.sprRoteirizado - r.sprMeta})`
-            : `SPR ${r.sprRoteirizado}`;
-          if (ontemHub && !ontemHub.semRoteirizacao && ontemHub.sprRoteirizado != null) {
-            sprLinha += comparativoTxt(r.sprRoteirizado, ontemHub.sprRoteirizado);
-          }
-          linhas.push(sprLinha);
-        }
+    if (abaixoMeta.length > 0) {
+      linhas.push("📉 ABAIXO DA META", "");
+      abaixoMeta.sort((a, b) => horaValor(a.hora) - horaValor(b.hora)).forEach(renderHub);
+    }
 
-        const volumetria = [];
-        if (r.pedRoteirizados != null) {
-          const p = ontemHub && ontemHub.pedRoteirizados != null ? pctHub(r.pedRoteirizados, ontemHub.pedRoteirizados) : null;
-          volumetria.push(`Pedidos ${formatarNumero(r.pedRoteirizados)}${p != null ? ` (${p >= 0 ? "+" : ""}${p.toFixed(1)}%)` : ""}`);
-        }
-        if (r.rotasFinal != null) {
-          const p = ontemHub && ontemHub.rotasFinal != null ? pctHub(r.rotasFinal, ontemHub.rotasFinal) : null;
-          volumetria.push(`Rotas ${formatarNumero(r.rotasFinal)}${p != null ? ` (${p >= 0 ? "+" : ""}${p.toFixed(1)}%)` : ""}`);
-        }
-        volumetria.push(`Órfãos ${r.orfaos ?? 0}`);
-        linhas.push(volumetria.join(" · "));
-
-        // Crônico: mesmo critério de "Oportunidade de Clusterização" do
-        // fechamento (operacoesAbaixoMetaNaJanela) — abaixo da própria meta
-        // há pelo menos DIAS_JANELA_CLUSTER dias, não só nessa hora. Sinal
-        // independente do emoji de hoje: um hub pode estar 🟢 nessa hora e
-        // ainda assim ser crônico (variação natural de um dia bom isolado).
-        if (operacoesCronicas.has(r.operacao)) linhas.push(`🔺 Abaixo da meta há ${DIAS_JANELA_CLUSTER}d+`);
-
-        linhas.push("");
-      });
     naoFinalizados
       .slice()
       .sort((a, b) => horaValor(a.horaInicio) - horaValor(b.horaInicio))
       .forEach((p) => linhas.push(`⏳ ${p.operacao} (${p.responsavelNome}) — ainda sem Raio-X`));
+    // Quem já tinha aparecido pendente numa hora anterior e continua sem
+    // Raio-X — sinalizado à parte, pra não confundir com pendência nova
+    // desta janela. Se já finalizou desde então, aparece na lista normal
+    // acima (com o horário real), não precisa repetir aqui.
+    pendentesDeAntes
+      .slice()
+      .sort((a, b) => horaValor(a.horaInicio) - horaValor(b.horaInicio))
+      .forEach((p) => linhas.push(`⏳ ${p.operacao} (${p.responsavelNome}) — pendente de hora anterior (previsto p/ ${p.horaInicio})`));
   }
+
+  // Prévia da PRÓXIMA hora — quem já está escalado pra rodar, mesmo antes
+  // de finalizar (pedido explícito: dar visibilidade de quem está
+  // roteirizando agora/daqui a pouco, não só o que já fechou).
+  if (emAndamento.length > 0) {
+    linhas.push("", "🔄 ROTEIRIZAÇÕES EM ANDAMENTO", "");
+    emAndamento
+      .slice()
+      .sort((a, b) => horaValor(a.horaInicio) - horaValor(b.horaInicio))
+      .forEach((e) => linhas.push(`▸ ${e.operacao} — ${e.responsavelNome}`));
+  }
+
   linhas.push(
     "",
-    naoFinalizados.length > 0
-      ? `Status: ${naoFinalizados.length} hub(s) dessa janela ainda sem Raio-X.`
+    totalPendentes > 0
+      ? `Status: ${totalPendentes} hub(s) ainda sem Raio-X.`
       : "Status: Todos os hubs foram finalizados sem intercorrências."
   );
   return linhas.join("\n");
@@ -921,16 +909,33 @@ async function enviarReportSeatalk(req, res) {
       const esperadasDoPeriodo = esperadas.filter((e) => horaValor(e.horaInicio) >= horaValor(horaInicio) && horaValor(e.horaInicio) < horaValor(horaFim));
       const naoFinalizados = separarNaoFinalizados(esperadasDoPeriodo, todasDoDiaBruta);
 
-      // Mesma janela de horário, mas de ONTEM — pra "COMPARATIVO COM ONTEM"
-      // dentro do informativo hora a hora.
-      const dataOntemHora = diaAnterior(data);
-      const todasDoDiaOntemHoraBruta = await supabaseService.listWhere(COLLECTION, [["data", "==", dataOntemHora]]);
-      let todasDoDiaOntemHora = todasDoDiaOntemHoraBruta;
-      if (supervisor) {
-        const supervisorPorAnalista = new Map(usuarios.map((u) => [u.id, u.supervisorId]));
-        todasDoDiaOntemHora = todasDoDiaOntemHoraBruta.filter((r) => supervisorPorAnalista.get(r.analistaId) === supervisor.id);
-      }
-      const doPeriodoOntem = todasDoDiaOntemHora.filter((r) => horaValor(r.hora) >= horaValor(horaInicio) && horaValor(r.hora) < horaValor(horaFim));
+      // Hubs esperados em horas ANTERIORES desse mesmo turno — pedido
+      // explícito pra não deixar uma pendência sumir pra sempre depois que a
+      // janela dela passa (antes, só aparecia UMA vez no "ainda sem Raio-X"
+      // da própria hora e nunca mais era checada).
+      const esperadasAnteriores = esperadas.filter((e) => horaValor(e.horaInicio) < horaValor(horaInicio));
+      // Continua sem Raio-X: sinalizado à parte na seção de pendentes,
+      // deixando claro que não é pendência nova desta hora.
+      const pendentesDeAntes = separarNaoFinalizados(esperadasAnteriores, todasDoDiaBruta);
+      // Já finalizou, só que atrasado (Raio-X criado depois que a hora
+      // originalmente esperada já tinha passado) — usa `ts` (timestamp de
+      // criação, não a hora agendada) pra saber se foi "nessa última hora"
+      // sem precisar adivinhar fuso horário nenhum, só tempo decorrido.
+      const UMA_HORA_MS = 60 * 60 * 1000;
+      const agora = Date.now();
+      const atrasadosRecemFinalizados = todasDoDia.filter((r) =>
+        esperadasAnteriores.some((e) => e.operacao === r.operacao && e.horaInicio === r.hora) &&
+        r.ts != null && (agora - r.ts) <= UMA_HORA_MS
+      );
+      const doPeriodoComAtrasados = doPeriodo.concat(atrasadosRecemFinalizados);
+
+      // Prévia da PRÓXIMA hora — quem já está escalado pra rodar, ainda sem
+      // Raio-X (pedido explícito: visibilidade de quem está roteirizando
+      // agora/daqui a pouco). horaValor(...) + 1 dá a mesma janela de 1h
+      // logo depois de horaFim, respeitando a mesma convenção de virada de
+      // madrugada (19h-06h) já usada em todo o resto do arquivo.
+      const esperadasProximaHora = esperadas.filter((e) => horaValor(e.horaInicio) >= horaValor(horaFim) && horaValor(e.horaInicio) < horaValor(horaFim) + 1);
+      const emAndamento = esperadasProximaHora.filter((e) => !todasDoDiaBruta.some((r) => r.operacao === e.operacao && r.hora === e.horaInicio));
 
       // Mesmo critério crônico do fechamento (operacoesAbaixoMetaNaJanela) —
       // pedido explícito pra sinalizar no hora a hora também, não só esperar
@@ -947,7 +952,7 @@ async function enviarReportSeatalk(req, res) {
       }
       const operacoesCronicas = new Set(operacoesAbaixoMetaNaJanela(rowsJanelaHora).map((c) => c.operacao));
 
-      texto = montarHora(doPeriodo, horaInicio, horaFim, naoFinalizados, doPeriodoOntem, operacoesCronicas);
+      texto = montarHora(doPeriodoComAtrasados, horaInicio, horaFim, naoFinalizados, pendentesDeAntes, emAndamento, operacoesCronicas);
     }
   }
 
