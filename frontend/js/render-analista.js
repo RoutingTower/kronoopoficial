@@ -85,7 +85,7 @@ function buildHourCardsHtml(items, rns, lembretes, ctx){
       // myAnalistas).
       const souEu = !it.isOff && analistaId===session?.userId;
       const souEuExec = souEu;
-      const raioxDaOperacao = !it.isOff && DB.raioX.some(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===it.horaInicio && r.data===dateStr);
+      const raioxDaOperacao = !it.isOff && DB.raioX.find(r=>r.analistaId===analistaId && r.operacao===it.operacao && r.hora===it.horaInicio && r.data===dateStr);
       const mostrarExec = souEuExec || (!souEu && session.role==='supervisor' && raioxDaOperacao);
       // Botão SeaTalk: só quando a pessoa está DE FATO nessa operação
       // agora (titular rodando a própria, ou suplente cobrindo) — não faz
@@ -109,6 +109,11 @@ function buildHourCardsHtml(items, rns, lembretes, ctx){
       // categoria — ver transferenciaAceitaDoItem, utils.js.
       const catAtual = it.isOff ? null : (categoriaOperacao(it)==='fixa' ? 'fixa' : (it.tipo==='cobertura' ? 'avulsa' : 'cobertura'));
       const transferida = !it.isOff && transferenciaAceitaDoItem(it.id, analistaId, dateStr);
+      // Pendência de justificativa (SPR fora da meta/atraso sem resposta, ou
+      // clusterização "não identificado") — ver pendenciaJustificativa,
+      // utils.js. Reaproveita o raioxDaOperacao já calculado logo acima em
+      // vez de buscar de novo.
+      const pendencia = !it.isOff ? pendenciaJustificativa(raioxDaOperacao) : null;
       let enviarBtnHtml = '';
       if(souEu){
         const titularIdEnvio = catAtual==='fixa' ? analistaId : it.responsavelId;
@@ -117,10 +122,11 @@ function buildHourCardsHtml(items, rns, lembretes, ctx){
           ? `<button class="btn btn-icon-only" data-cancelar-transferencia="${pendente.id}" title="Envio pendente pra ${escapeHtml(userById(pendente.destinoAnalistaId)?.name||'—')} — clique pra cancelar">${icon('forward',14)}<span class="badge-alerta-ciente" title="Aguardando resposta"></span></button>`
           : `<button class="btn btn-icon-only" data-enviar-operacao="1" data-enviar-categoria="${catAtual}" data-enviar-bmid="${it.id}" data-enviar-titularid="${titularIdEnvio}" data-enviar-operacaonome="${escapeHtml(it.operacao)}" data-enviar-ciclo="${escapeHtml(it.ciclo)}" data-enviar-horainicio="${it.horaInicio}" data-enviar-horafim="${it.horaFim}" data-enviar-data="${dateStr}" title="Enviar pra outro analista">${icon('forward',14)}</button>`;
       }
-      return `<div class="flash-card flash-card-${categoriaOperacao(it)}${status==='atraso'?' flash-card-atraso':''}${transferida?' flash-card-transferida':''}">
+      return `<div class="flash-card flash-card-${categoriaOperacao(it)}${status==='atraso'?' flash-card-atraso':''}${transferida?' flash-card-transferida':''}${pendencia?' flash-card-atraso':''}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
           <span class="flash-sigla">${it.operacao}</span>${statusPill(status, true)}
         </div>
+        ${pendencia ? `<span class="pill pill-atraso" style="margin-top:4px;" title="${escapeHtml(pendencia.label)}">${icon('octagon-alert',10)} ${escapeHtml(pendencia.label)}</span>` : ''}
         <div class="flash-meta">${it.ciclo} · ${it.horaInicio}–${it.horaFim}${spr!=null ? ` · SPR REF ${escapeHtml(String(spr))}` : ''}</div>
         <div class="flash-meta">${it.isSuplente ? 'Suplente' : 'Titular'}: ${it.responsavelNome}</div>
         ${it.isOff ? `<div class="flash-cover">${it.tipo==='ferias'?icon('palmtree',12)+' Férias':icon('moon',12)+' Folga'} do titular</div>`
@@ -409,6 +415,13 @@ function renderProgramacaoIntegrada(lista, dateStr){
     // não depende de reparar na cor.
     const alertaHtml = status==='atraso' && !it._pendente ? `<span class="pill pill-atraso prog-alerta">${icon('octagon-alert',10)} Não finalizado</span>` : '';
 
+    // Pendência de justificativa (SPR fora da meta/atraso sem resposta, ou
+    // clusterização "não identificado") — ver pendenciaJustificativa,
+    // utils.js. Ignora card pendente de drag ainda não salvo (it._pendente),
+    // mesmo raciocínio de "borda"/"alertaHtml" acima.
+    const pendencia = it._pendente ? null : pendenciaJustificativa(rx);
+    const pendenciaHtml = pendencia ? `<span class="pill pill-atraso prog-alerta" title="${escapeHtml(pendencia.label)}">${icon('octagon-alert',10)} ${escapeHtml(pendencia.label)}</span>` : '';
+
     // SPR e Órfãos vêm do próprio Raio-X (preenchido pelo analista), não da
     // planilha — por isso aparecem mesmo quando ainda não há duracaoSegundos
     // (rx existe mas a planilha não trouxe fim ainda). Órfãos é opcional de
@@ -471,7 +484,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
     const transferida = !it._pendente && transferenciaAceitaDoItem(it.id, analistaId, dateStr);
     const transferidaHtml = transferida ? `<span class="pill pill-suplente prog-alerta" title="Essa titularidade veio de um envio entre analistas já aceito">${icon('shuffle',10)} Transferida</span>` : '';
 
-    return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${dim?' prog-dim':''}${arrastavel?' prog-arrastavel':''}${it._pendente?' prog-card-pendente':''}${transferida?' flash-card-transferida':''}" title="${escapeHtml(detalhe+resumoRaiox)}"${dragAttrs}>
+    return `<div class="flash-card flash-card-${categoriaOperacao(it)}${borda}${pendencia?' flash-card-atraso':''}${dim?' prog-dim':''}${arrastavel?' prog-arrastavel':''}${it._pendente?' prog-card-pendente':''}${transferida?' flash-card-transferida':''}" title="${escapeHtml(detalhe+resumoRaiox)}"${dragAttrs}>
       ${moverBtnHtml}
       <span class="flash-sigla">${iconStatus?icon(iconStatus,11)+' ':''}${escapeHtml(it.operacao)}</span>
       <span class="prog-ciclo">${escapeHtml(it.ciclo)}</span>
@@ -481,6 +494,7 @@ function renderProgramacaoIntegrada(lista, dateStr){
       ${pendenteHtml}
       ${timerHtml}
       ${alertaHtml}
+      ${pendenciaHtml}
       ${transferidaHtml}
     </div>`;
   };

@@ -215,10 +215,9 @@ const DIAS_JANELA_CLUSTER = 7;
 // Sem esses dois filtros, a lista vira quase a operação inteira — com só
 // 6-7 finalizações por semana, é normal a média ficar alguns pontos abaixo
 // da meta por variação natural, não por um problema real de malha. Só
-// entra quem fica consistentemente MUITO abaixo (gap mínimo), e mesmo
-// assim a lista fica curta (top N piores), pra continuar acionável.
+// entra quem fica consistentemente MUITO abaixo (gap mínimo) — sem corte de
+// top N na exibição (pedido explícito: mostrar todas que impactaram).
 const LIMITE_GAP_CLUSTER = 8;
-const TOP_N_CLUSTER = TOP_N_LISTA;
 
 // Média de SPR Lançado x Meta por operação numa janela de dias — quem fica
 // consistentemente abaixo da própria meta é candidato a revisão de
@@ -237,12 +236,35 @@ function operacoesAbaixoMetaNaJanela(rowsJanela) {
       d.count += 1;
       if (r.sprRoteirizado < r.sprMeta) d.diasAbaixo += 1;
     });
+
+  // Justificativa de clusterização: a linha "âncora" (mais recente com
+  // clusterizacaoStatus preenchido) dentro da janela — é nela que o
+  // analista respondeu na primeira vez que a operação virou crônica, e é
+  // ela que segue sendo editada depois (updateRaioX), não uma nova a cada
+  // dia. Sem filtro de SPR/meta aqui de propósito: a resposta pode estar
+  // numa linha "sem roteirização" ou sem meta cadastrada.
+  const clusterAncoraPorOperacao = new Map();
+  rowsJanela
+    .filter((r) => r.clusterizacaoStatus)
+    .forEach((r) => {
+      const atual = clusterAncoraPorOperacao.get(r.operacao);
+      if (!atual || (r.clusterizacaoRespondidoEm || 0) > (atual.clusterizacaoRespondidoEm || 0)) {
+        clusterAncoraPorOperacao.set(r.operacao, r);
+      }
+    });
+
   const resultado = [];
   porOperacao.forEach((d, operacao) => {
     if (d.count < LIMITE_MIN_AMOSTRA_CLUSTER) return;
     const sprMedio = d.sprSoma / d.count;
     const metaMedia = d.metaSoma / d.count;
-    if (metaMedia - sprMedio >= LIMITE_GAP_CLUSTER) resultado.push({ operacao, sprMedio, metaMedia, count: d.count, diasAbaixo: d.diasAbaixo });
+    if (metaMedia - sprMedio < LIMITE_GAP_CLUSTER) return;
+    const ancora = clusterAncoraPorOperacao.get(operacao);
+    resultado.push({
+      operacao, sprMedio, metaMedia, count: d.count, diasAbaixo: d.diasAbaixo,
+      clusterizacaoStatus: ancora ? ancora.clusterizacaoStatus : null,
+      clusterizacaoTexto: ancora ? ancora.clusterizacaoTexto : null,
+    });
   });
   // Sem cortar aqui — quem quer só os N piores pra exibir corta na hora de
   // montar a seção (montarFechamento); quem só precisa saber SE uma operação
@@ -301,6 +323,20 @@ async function enviarParaSeatalkEmPartes(texto, webhookUrl) {
     const prefixo = partes.length > 1 ? `(${i + 1}/${partes.length})\n` : "";
     await enviarParaSeatalk(prefixo + partes[i], webhookUrl);
   }
+}
+
+// Justificativa de SPR fora da meta e/ou atraso pra um hub, ou a
+// sinalização de pendência quando ainda não foi respondida — null quando o
+// hub não se enquadra em nenhum dos dois critérios (não precisa de
+// justificativa nenhuma). Compartilhado entre montarFechamento e
+// montarHora, pra não ter duas versões do mesmo critério se desalinhando
+// com o tempo. Uma resposta só quando os dois gatilhos batem na mesma
+// operação (pedido explícito do usuário) — ver raioX.controller.js.
+function justificativaOperacionalTxt(r) {
+  const foraDaFaixa = r.sprRoteirizado != null && (r.sprRoteirizado < LIMITE_SPR_BAIXO || r.sprRoteirizado >= LIMITE_SPR_ALTO);
+  const atrasado = r.duracaoSegundos != null && r.duracaoSegundos > SLA_SEGUNDOS;
+  if (!foraDaFaixa && !atrasado) return null;
+  return r.justificativaTexto ? `Justificativa: ${r.justificativaTexto}` : "⏳ Aguardando justificativa do analista.";
 }
 
 function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, rowsUltimosDias, rowsOntem, dataHoje, dataOntem) {
@@ -401,14 +437,20 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
     return partes.join(" | ");
   };
 
+  const justificativaLinha = (r) => `  ${justificativaOperacionalTxt(r)}`;
+
   linhas.push(`🚨 HUBS OFENSORES — OPERAÇÃO SUPERIOR A ${formatarDuracao(SLA_SEGUNDOS)}`, "");
   if (ofensores.length === 0) {
     linhas.push(`✅ Nenhum hub passou de ${formatarDuracao(SLA_SEGUNDOS)} de operação.`);
   } else {
-    ofensores.slice(0, TOP_N_LISTA).forEach((r) => {
+    // Sem corte de top N — pedido explícito do usuário: mostrar todos que
+    // impactaram o turno, já que cada linha agora carrega uma justificativa
+    // real (ou a sinalização de que falta), não só um número solto.
+    ofensores.forEach((r) => {
       const horario = `${r.horaInicioReal || r.hora} às ${r.horaFimReal || "—"}`;
       const sprTxt = r.sprRoteirizado != null ? r.sprRoteirizado : "aguardando planilha";
       linhas.push(`▸ ${r.operacao} — ${horario} | Tempo: ${formatarDuracao(r.duracaoSegundos)} | SPR ${sprTxt} | Órf ${r.orfaos ?? 0}`);
+      linhas.push(justificativaLinha(r));
     });
   }
   linhas.push("");
@@ -417,7 +459,10 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
   if (sprAlto.length === 0) {
     linhas.push(`✅ Nenhum hub com SPR igual ou acima de ${LIMITE_SPR_ALTO}.`);
   } else {
-    sprAlto.slice(0, TOP_N_LISTA).forEach((r) => linhas.push(`▸ ${r.operacao} | SPR ${r.sprRoteirizado} | ${correlacaoTxt(r)}`));
+    sprAlto.forEach((r) => {
+      linhas.push(`▸ ${r.operacao} | SPR ${r.sprRoteirizado} | ${correlacaoTxt(r)}`);
+      linhas.push(justificativaLinha(r));
+    });
   }
   linhas.push("");
 
@@ -425,7 +470,10 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
   if (sprBaixo.length === 0) {
     linhas.push(`✅ Nenhum hub ficou com SPR abaixo de ${LIMITE_SPR_BAIXO}.`);
   } else {
-    sprBaixo.slice(0, TOP_N_LISTA).forEach((r) => linhas.push(`▸ ${r.operacao} | SPR ${r.sprRoteirizado} | ${correlacaoTxt(r)}`));
+    sprBaixo.forEach((r) => {
+      linhas.push(`▸ ${r.operacao} | SPR ${r.sprRoteirizado} | ${correlacaoTxt(r)}`);
+      linhas.push(justificativaLinha(r));
+    });
   }
   linhas.push("");
 
@@ -453,13 +501,37 @@ function montarFechamento(rows, horaFechamento, nomeSupervisor, naoFinalizados, 
   if (clusterizacao.length === 0) {
     linhas.push("✅ Nenhuma operação consistentemente abaixo da meta de SPR na janela analisada.");
   } else {
-    // Só o essencial pedido: SPR roteirizado (médio na janela) vs REF, e
-    // há quantos dias não bate a meta — sem volumetria de hoje.
-    clusterizacao.slice(0, TOP_N_CLUSTER).forEach((c) => {
+    // Só o essencial pedido: SPR roteirizado (médio na janela) vs REF, e há
+    // quantos dias não bate a meta — sem volumetria de hoje. Sem corte de
+    // top N (pedido explícito) e com a justificativa que o analista deixou
+    // na primeira vez que a operação virou crônica (editável depois direto
+    // no card, ver raioX.controller.js).
+    clusterizacao.forEach((c) => {
       linhas.push(`🔺 ${c.operacao} — SPR ${c.sprMedio.toFixed(0)} (REF ${c.metaMedia.toFixed(0)}) | não bate a meta há ${c.diasAbaixo} dia(s)`);
+      if (c.clusterizacaoTexto) {
+        linhas.push(`  ${c.clusterizacaoTexto}`);
+      } else if (c.clusterizacaoStatus === "nao_identificado") {
+        linhas.push("  Não identificado ainda — segue em aberto para análise.");
+      } else {
+        linhas.push("  ⏳ Aguardando justificativa do analista.");
+      }
     });
   }
   linhas.push("");
+
+  // Justificativas de SPR/atraso que ainda não vieram até o fechamento —
+  // sinaliza explicitamente quem não respondeu (pedido explícito do
+  // usuário), em vez de só deixar o "⏳ Aguardando..." espalhado pelas
+  // seções acima passar despercebido.
+  const semJustificativa = new Map();
+  [...ofensores, ...sprAlto, ...sprBaixo].forEach((r) => {
+    if (!r.justificativaTexto) semJustificativa.set(r.operacao, r);
+  });
+  if (semJustificativa.size > 0) {
+    linhas.push("⏳ JUSTIFICATIVAS PENDENTES", "");
+    [...semJustificativa.values()].forEach((r) => linhas.push(`▸ ${r.operacao} — sem justificativa do analista até o fechamento.`));
+    linhas.push("");
+  }
 
   // "Ainda sem Raio-X" vai por último de propósito: às 05h (fim do turno)
   // é a lista menos acionável de todas (não dá mais pra fazer nada a
@@ -515,6 +587,11 @@ function montarHora(rows, horaInicio, horaFim, naoFinalizados, pendentesDeAntes,
     if (r.rotasFinal != null) volumetria.push(`Rotas ${formatarNumero(r.rotasFinal)}`);
     volumetria.push(`Órfãos ${r.orfaos ?? 0}`);
     linhas.push(volumetria.join(" · "));
+    // Justificativa de SPR fora da meta e/ou atraso — mesmo critério do
+    // fechamento (justificativaOperacionalTxt), null quando o hub não se
+    // enquadra em nenhum dos dois.
+    const justificativa = justificativaOperacionalTxt(r);
+    if (justificativa) linhas.push(justificativa);
     // Crônico: mesmo critério de "Oportunidade de Clusterização" do
     // fechamento (operacoesAbaixoMetaNaJanela) — abaixo da própria meta há
     // pelo menos DIAS_JANELA_CLUSTER dias, não só nessa hora.

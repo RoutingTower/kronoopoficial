@@ -76,6 +76,7 @@ let uiState = {
   reunioesDate: hojeAgendaISO(), reunioesView:'mensal',
   domingosMes: todayISO(),
   particularidadesFiltro: { operacao: '', analista: 'all' },
+  pendenciasFiltro: { operacao: '', analista: 'all' },
   sugerir: null, alocarAuto: null, folgaEscolhaDraft: {}, progMoves: [], progMovesExpandido: false, inboxSelected: null,
   // Gerar Escala de Fim de Semana (ver gerarEscalaFDS em utils.js): sábado
   // âncora (domingo = sábado+1, sempre tratados como par) + quem foi

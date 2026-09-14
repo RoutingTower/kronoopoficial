@@ -50,7 +50,7 @@ async function listRaioX(req, res) {
 // Finalização é sempre auto-declarada pelo próprio analista (ver
 // frontend/js/events.js) — ninguém finaliza operação de outra pessoa.
 async function createRaioX(req, res) {
-  const { analistaId, operacao, ciclo, hora, data, estrelas, observacao, sprRoteirizado, sprMeta, semRoteirizacao, orfaos } = req.body;
+  const { analistaId, operacao, ciclo, hora, data, estrelas, observacao, sprRoteirizado, sprMeta, semRoteirizacao, orfaos, clusterizacaoStatus, clusterizacaoTexto } = req.body;
   if (!analistaId || !operacao || !hora || !data) {
     return res.status(400).json({
       error: "bad_request",
@@ -74,6 +74,33 @@ async function createRaioX(req, res) {
       return res.status(400).json({ error: "bad_request", message: "orfaos deve ser um número inteiro maior ou igual a 0" });
     }
     orfaosFinal = n;
+  }
+
+  // Clusterização: só perguntado no modal quando o frontend detecta que a
+  // operação acabou de entrar em crônica (mesmo critério de 7 dias/gap de
+  // operacoesAbaixoMetaNaJanela, seatalkReport.controller.js) e ainda não
+  // tinha resposta nos últimos 7 dias — nas próximas vezes crônica, a
+  // resposta já existe e só é editada depois (updateRaioX), não perguntada
+  // de novo aqui. "não identificado" é uma resposta válida por si só.
+  const CLUSTERIZACAO_STATUS_VALIDOS = ["identificado", "nao_identificado"];
+  let clusterizacaoStatusFinal = null;
+  let clusterizacaoTextoFinal = null;
+  let clusterizacaoRespondidoPorFinal = null;
+  let clusterizacaoRespondidoEmFinal = null;
+  if (clusterizacaoStatus !== undefined && clusterizacaoStatus !== null && clusterizacaoStatus !== "") {
+    if (!CLUSTERIZACAO_STATUS_VALIDOS.includes(clusterizacaoStatus)) {
+      return res.status(400).json({ error: "bad_request", message: `clusterizacaoStatus deve ser um de: ${CLUSTERIZACAO_STATUS_VALIDOS.join(", ")}` });
+    }
+    if (clusterizacaoStatus === "identificado" && (!clusterizacaoTexto || !clusterizacaoTexto.trim())) {
+      return res.status(400).json({ error: "bad_request", message: "clusterizacaoTexto é obrigatório quando o status é 'identificado'." });
+    }
+    clusterizacaoStatusFinal = clusterizacaoStatus;
+    clusterizacaoTextoFinal = clusterizacaoTexto ? clusterizacaoTexto.trim() : null;
+    // Respondido por/em vêm sempre do servidor, nunca do body — mesmo
+    // espírito de "ts"/"atualizadoPor" no resto do app (ex.:
+    // particularidades.controller.js).
+    clusterizacaoRespondidoPorFinal = caller.name || caller.email || "—";
+    clusterizacaoRespondidoEmFinal = Date.now();
   }
 
   // Ciclo sem roteirização nesse horário: SPR e observação deixam de ser
@@ -185,6 +212,10 @@ async function createRaioX(req, res) {
     duracaoOrigem: duracaoSegundosFinal != null ? "planilha" : null,
     horaInicioReal: horaInicioRealFinal,
     horaFimReal: horaFimRealFinal,
+    clusterizacaoStatus: clusterizacaoStatusFinal,
+    clusterizacaoTexto: clusterizacaoTextoFinal,
+    clusterizacaoRespondidoPor: clusterizacaoRespondidoPorFinal,
+    clusterizacaoRespondidoEm: clusterizacaoRespondidoEmFinal,
     ts: Date.now(),
   });
   // Vincula a linha do fluxo que já foi consumida acima — sem isso ela
@@ -218,7 +249,7 @@ async function updateRaioX(req, res) {
     return res.status(403).json({ error: "forbidden", message: "Só o próprio analista ou o supervisor da equipe (ou admin) pode editar uma finalização." });
   }
 
-  const { estrelas, observacao, sprRoteirizado, sprMeta, semRoteirizacao, orfaos } = req.body;
+  const { estrelas, observacao, sprRoteirizado, sprMeta, semRoteirizacao, orfaos, justificativaTexto, justificativaCategorias, clusterizacaoStatus, clusterizacaoTexto } = req.body;
   const patch = {};
   if (estrelas !== undefined) {
     const nota = Number(estrelas);
@@ -265,6 +296,41 @@ async function updateRaioX(req, res) {
       }
       patch.orfaos = n;
     }
+  }
+
+  // Justificativa de SPR fora da meta e/ou atraso — pendência assíncrona
+  // (o valor só é conhecido depois da finalização, via import da planilha),
+  // por isso só existe caminho de edição, nunca de criação. Uma resposta só
+  // mesmo quando os dois gatilhos batem na mesma operação (pedido do
+  // usuário). "respondidoPor"/"respondidoEm" sempre do servidor, nunca do
+  // body — pra o supervisor poder complementar sem se passar pelo analista.
+  if (justificativaTexto !== undefined) {
+    const texto = (justificativaTexto || "").trim();
+    if (!texto) {
+      return res.status(400).json({ error: "bad_request", message: "justificativaTexto não pode ser vazio." });
+    }
+    patch.justificativaTexto = texto;
+    patch.justificativaCategorias = Array.isArray(justificativaCategorias) ? justificativaCategorias : [];
+    patch.justificativaRespondidoPor = caller.name || caller.email || "—";
+    patch.justificativaRespondidoEm = Date.now();
+  }
+
+  // Clusterização — editável depois direto no card, sem precisar de um
+  // Raio-X novo (a mesma linha "âncora" que originou a pergunta é
+  // atualizada aqui). Mesma validação de createRaioX: "identificado" exige
+  // texto, "não identificado" é resposta válida por si só.
+  if (clusterizacaoStatus !== undefined) {
+    const CLUSTERIZACAO_STATUS_VALIDOS = ["identificado", "nao_identificado"];
+    if (!CLUSTERIZACAO_STATUS_VALIDOS.includes(clusterizacaoStatus)) {
+      return res.status(400).json({ error: "bad_request", message: `clusterizacaoStatus deve ser um de: ${CLUSTERIZACAO_STATUS_VALIDOS.join(", ")}` });
+    }
+    if (clusterizacaoStatus === "identificado" && (!clusterizacaoTexto || !clusterizacaoTexto.trim())) {
+      return res.status(400).json({ error: "bad_request", message: "clusterizacaoTexto é obrigatório quando o status é 'identificado'." });
+    }
+    patch.clusterizacaoStatus = clusterizacaoStatus;
+    patch.clusterizacaoTexto = clusterizacaoTexto ? clusterizacaoTexto.trim() : null;
+    patch.clusterizacaoRespondidoPor = caller.name || caller.email || "—";
+    patch.clusterizacaoRespondidoEm = Date.now();
   }
 
   const updated = await supabaseService.update(COLLECTION, req.params.id, patch);

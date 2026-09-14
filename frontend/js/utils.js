@@ -219,6 +219,73 @@ function temVigenciaNaData(analistaId, dataStr){
 
 const RAIOX_MIN_OBS_LEN = 150;
 
+// Limiares de justificativa de SPR/atraso/clusterização — portados aqui, não
+// importados, porque o frontend não importa código do backend (mesmo
+// princípio de WEEKDAYS_PT/bmRodaNoDia). Precisam ficar em sincronia manual
+// com backend/src/controllers/seatalkReport.controller.js (SLA_SEGUNDOS,
+// LIMITE_SPR_ALTO, LIMITE_SPR_BAIXO, LIMITE_GAP_CLUSTER,
+// LIMITE_MIN_AMOSTRA_CLUSTER, DIAS_JANELA_CLUSTER) — se um mudar lá, muda
+// aqui também. Nome próprio (não reaproveita SLA_TEMPO_EXECUCAO_SEGUNDOS,
+// que é 1h e é o SLA do card do analista) — são critérios independentes,
+// mesmo espírito do comentário original em seatalkReport.controller.js.
+const SLA_JUSTIFICATIVA_SEGUNDOS = 70 * 60;
+const LIMITE_SPR_ALTO_JUSTIFICATIVA = 120;
+const LIMITE_SPR_BAIXO_JUSTIFICATIVA = 90;
+const LIMITE_GAP_CLUSTER = 8;
+const LIMITE_MIN_AMOSTRA_CLUSTER = 2;
+const DIAS_JANELA_CLUSTER = 7;
+
+// Mesmo critério de justificativaOperacionalTxt (seatalkReport.controller.js):
+// SPR fora da faixa e/ou atraso, sem resposta ainda — true só quando falta
+// mesmo, false tanto quando já tem justificativa quanto quando o hub nem se
+// enquadra em nenhum dos dois critérios.
+function pendenteJustificativaOperacional(r) {
+  if (!r || r.justificativaTexto) return false;
+  const foraDaFaixa = r.sprRoteirizado != null && (r.sprRoteirizado < LIMITE_SPR_BAIXO_JUSTIFICATIVA || r.sprRoteirizado >= LIMITE_SPR_ALTO_JUSTIFICATIVA);
+  const atrasado = r.duracaoSegundos != null && r.duracaoSegundos > SLA_JUSTIFICATIVA_SEGUNDOS;
+  return foraDaFaixa || atrasado;
+}
+
+// Mesmo critério de operacoesAbaixoMetaNaJanela (seatalkReport.controller.js),
+// só que rodando em cima de DB.raioX (últimos 7 dias, já carregado no
+// cliente) em vez de uma query — usado só pra decidir se PERGUNTA a
+// clusterização no modal de finalização (não pra exibir a seção inteira,
+// isso é papel do report).
+function operacaoEstaCronica(operacao) {
+  if (!DB || !DB.raioX) return false;
+  const rows = DB.raioX.filter((r) => r.operacao === operacao && !r.semRoteirizacao && r.sprRoteirizado != null && r.sprMeta != null);
+  if (rows.length < LIMITE_MIN_AMOSTRA_CLUSTER) return false;
+  const sprMedio = rows.reduce((s, r) => s + r.sprRoteirizado, 0) / rows.length;
+  const metaMedia = rows.reduce((s, r) => s + r.sprMeta, 0) / rows.length;
+  return metaMedia - sprMedio >= LIMITE_GAP_CLUSTER;
+}
+
+// A linha de Raio-X mais recente (por clusterizacaoRespondidoEm) que já tem
+// clusterizacaoStatus preenchido pra essa operação, dentro de DB.raioX (7
+// dias) — é ela que segue sendo editada depois ("editável no card"), não
+// uma pergunta nova a cada finalização.
+function clusterizacaoAncora(operacao) {
+  if (!DB || !DB.raioX) return null;
+  return DB.raioX
+    .filter((r) => r.operacao === operacao && r.clusterizacaoStatus)
+    .sort((a, b) => (b.clusterizacaoRespondidoEm || 0) - (a.clusterizacaoRespondidoEm || 0))[0] || null;
+}
+
+// Pendência a sinalizar num card de operação (destaque na Grade) — null
+// quando não precisa de nenhum aviso. `raiox` é o registro já finalizado
+// (undefined/null se a operação ainda nem tem Raio-X, caso em que não há o
+// que sinalizar aqui).
+function pendenciaJustificativa(raiox) {
+  if (!raiox) return null;
+  if (pendenteJustificativaOperacional(raiox)) {
+    return { tipo: "operacional", label: "Falta justificar SPR/atraso" };
+  }
+  if (raiox.clusterizacaoStatus === "nao_identificado") {
+    return { tipo: "clusterizacao", label: "Clusterização não identificada" };
+  }
+  return null;
+}
+
 // Raio-X = o registro obrigatório de finalização de uma operação (estrelas +
 // observação). Enquanto ele não existe, a operação não está "finalizada" de
 // verdade — só o horário passou.

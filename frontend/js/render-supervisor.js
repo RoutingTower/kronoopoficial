@@ -15,6 +15,7 @@ function renderSupervisor(){
   else if(activeNavKey==='domingos') content = supControleDomingos(myAnalistas);
   else if(activeNavKey==='reunioes') content = supReunioes(myAnalistas) + supPlantao();
   else if(activeNavKey==='particularidades') content = supParticularidadesAuditoria(myAnalistas);
+  else if(activeNavKey==='pendencias') content = supPendenciasJustificativa(myAnalistas);
   else if(activeNavKey==='transmissao') content = supTransmissao(myAnalistas);
   else if(activeNavKey==='ocorrencias') content = supOcorrencias(myAnalistas);
   else if(activeNavKey==='feedbacks') content = supFeedbacks(myAnalistas);
@@ -840,6 +841,72 @@ function supParticularidadesAuditoria(myAnalistas){
     <td>${escapeHtml(p.atualizadoPor)}</td>
     <td style="text-align:right;"><button class="btn" data-particularidade-op="${escapeHtml(p.operacao)}" data-particularidade-sup="${p.supervisorId}">Ver / Editar</button></td>
   </tr>`).join('') || `<tr><td colspan="6" class="empty">Nenhuma particularidade preenchida ainda${temFiltro?' pra esse filtro':''}</td></tr>`}
+  </tbody></table></div>`;
+}
+
+// Pendências de justificativa (SPR fora da meta/atraso sem resposta, ou
+// clusterização "não identificado") — mesmo padrão de
+// supParticularidadesAuditoria acima (filtros → 2 stat-cards → tabela).
+// A pendência em si não é uma coleção própria — é derivada na hora de
+// DB.raioX (ver pendenciaJustificativa, utils.js), então essa tela é só
+// leitura + atalho pro mesmo modal "Editar Raio-X" que já responde a
+// pendência (data-editar-raiox, ver events.js).
+let pendenciasJustificativaExportRows = [];
+function supPendenciasJustificativa(myAnalistas){
+  const f = uiState.pendenciasFiltro;
+  const idsEquipe = new Set(myAnalistas.map(a=>a.id));
+  const operacoesTime = [...new Set(DB.baseMestra.filter(b=>idsEquipe.has(b.analistaId)).map(b=>b.operacao))].sort();
+
+  const pendencias = [];
+  DB.raioX.filter(r=>idsEquipe.has(r.analistaId)).forEach(r=>{
+    const p = pendenciaJustificativa(r);
+    if(!p) return;
+    pendencias.push({
+      operacao: r.operacao,
+      analistaNome: userById(r.analistaId)?.name || '—',
+      analistaId: r.analistaId,
+      label: p.label,
+      // "Aberta desde": pro operacional é quando o Raio-X foi criado; pra
+      // clusterização é quando alguém respondeu "não identificado" (a
+      // pendência começa na resposta, não na criação do registro).
+      desde: p.tipo==='operacional' ? r.ts : (r.clusterizacaoRespondidoEm || r.ts),
+      raioXId: r.id,
+    });
+  });
+
+  const rows = pendencias
+    .filter(p=>!f.operacao || p.operacao===f.operacao)
+    .filter(p=> f.analista==='all' || p.analistaId===f.analista)
+    .sort((a,b)=>a.desde-b.desde);
+
+  pendenciasJustificativaExportRows = rows.map(p=>[p.operacao, p.analistaNome, p.label, new Date(p.desde).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})]);
+
+  const temFiltro = f.operacao || f.analista!=='all';
+  return `
+  <div class="filter-row">
+    <select data-pendenciasfiltro="operacao">
+      <option value="">Operação: todas</option>
+      ${operacoesTime.map(op=>`<option value="${escapeHtml(op)}" ${f.operacao===op?'selected':''}>${escapeHtml(op)}</option>`).join('')}
+    </select>
+    <select data-pendenciasfiltro="analista">
+      <option value="all">Analista: todos</option>
+      ${myAnalistas.map(a=>`<option value="${a.id}" ${f.analista===a.id?'selected':''}>${escapeHtml(a.name)}</option>`).join('')}
+    </select>
+    <button class="btn" id="btnExportPendencias">⬇ Exportar Excel</button>
+  </div>
+  <div class="grid-2" style="margin-bottom:18px;">
+    <div class="stat-card"><div class="stat-num">${rows.length}</div><div class="stat-label">Pendências de justificativa em aberto</div></div>
+    <div class="stat-card"><div class="stat-num">${rows[0] ? new Date(rows[0].desde).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '—'}</div><div class="stat-label">${rows[0] ? `Mais antiga — ${escapeHtml(rows[0].operacao)}` : 'Nenhuma pendência em aberto'}</div></div>
+  </div>
+  <div class="card">
+  <table><thead><tr><th>Operação</th><th>Analista</th><th>Pendência</th><th>Aberta desde</th><th></th></tr></thead><tbody>
+  ${rows.map(p=>`<tr>
+    <td>${escapeHtml(p.operacao)}</td>
+    <td>${escapeHtml(p.analistaNome)}</td>
+    <td style="color:var(--alert);">${escapeHtml(p.label)}</td>
+    <td class="mono" style="white-space:nowrap;">${new Date(p.desde).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</td>
+    <td style="text-align:right;"><button class="btn" data-editar-raiox="${p.raioXId}">Ver / Responder</button></td>
+  </tr>`).join('') || `<tr><td colspan="5" class="empty">Nenhuma pendência de justificativa${temFiltro?' pra esse filtro':''}</td></tr>`}
   </tbody></table></div>`;
 }
 

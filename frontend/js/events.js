@@ -906,6 +906,12 @@ function bindMainEvents(){
       const ciclo = btn.dataset.ciclo || '';
       const sprMeta = btn.dataset.sprMeta!=='' ? Number(btn.dataset.sprMeta) : null;
       let estrelas = 0;
+      // Clusterização: só pergunta na PRIMEIRA finalização depois da
+      // operação virar crônica (mesmo critério do report, 7 dias/gap de 8
+      // pontos, ver operacaoEstaCronica/clusterizacaoAncora em utils.js) —
+      // se já tem resposta nos últimos 7 dias, não pergunta de novo aqui
+      // (dá pra editar depois direto no card).
+      const perguntarClusterizacao = operacaoEstaCronica(op) && !clusterizacaoAncora(op);
       // Só fecha pelo "Cancelar" ou enviando de verdade — texto de
       // observação (mínimo 150 caracteres) é fácil de perder num clique
       // sem querer fora do modal (mesmo motivo da Particularidade,
@@ -928,6 +934,16 @@ function bindMainEvents(){
           <textarea id="raioxObs" rows="5" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;" placeholder="Descreva com detalhes o que aconteceu nessa operação..."></textarea>
           <div id="raioxCounter" style="font-size:11.5px;color:var(--text-faint);margin-top:4px;">0 / ${RAIOX_MIN_OBS_LEN} caracteres mínimos</div>
         </div>
+        ${perguntarClusterizacao ? `
+        <div class="field">
+          <label>Clusterização — essa operação está há dias abaixo da própria meta de SPR</label>
+          <div class="help-text">Primeira finalização desde que virou crônica. Se já sabe o motivo, descreva a oportunidade de clusterização; se ainda não, marque "Não identificado ainda" (dá pra editar depois direto no card).</div>
+          <label class="formulario-chip" style="margin-bottom:8px;">
+            <input type="checkbox" id="raioxClusterNaoIdentificado">
+            Não identificado ainda
+          </label>
+          <textarea id="raioxClusterTexto" rows="3" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;" placeholder="Ex.: região quebrada em muitos clusters com ADO baixo, precisa agrupar..."></textarea>
+        </div>` : ''}
         <div style="display:flex;gap:8px;justify-content:flex-end;">
           <button class="btn" data-modal-cancel>Cancelar</button>
           <button class="btn btn-brand" id="confirmFinalizar" disabled>Enviar Raio-X</button>
@@ -939,17 +955,24 @@ function bindMainEvents(){
       const obsEl = document.getElementById('raioxObs');
       const counterEl = document.getElementById('raioxCounter');
       const confirmBtn = document.getElementById('confirmFinalizar');
+      const clusterNaoIdentificadoEl = document.getElementById('raioxClusterNaoIdentificado');
+      const clusterTextoEl = document.getElementById('raioxClusterTexto');
+      function clusterizacaoOk(){
+        if(!perguntarClusterizacao) return true;
+        return clusterNaoIdentificadoEl.checked || clusterTextoEl.value.trim().length>0;
+      }
       function updateState(){
         const semRot = semRotEl.checked;
         const len = obsEl.value.trim().length;
+        const okCluster = clusterizacaoOk();
         if(semRot){
           counterEl.textContent = 'Observação opcional (sem roteirização nesse horário)';
           counterEl.style.color = 'var(--text-faint)';
-          confirmBtn.disabled = !(estrelas>=1);
+          confirmBtn.disabled = !(estrelas>=1 && okCluster);
         } else {
           counterEl.textContent = `${len} / ${RAIOX_MIN_OBS_LEN} caracteres mínimos`;
           counterEl.style.color = len>=RAIOX_MIN_OBS_LEN ? 'var(--done)' : 'var(--text-faint)';
-          confirmBtn.disabled = !(estrelas>=1 && len>=RAIOX_MIN_OBS_LEN);
+          confirmBtn.disabled = !(estrelas>=1 && len>=RAIOX_MIN_OBS_LEN && okCluster);
         }
       }
       starsEl.querySelectorAll('[data-star]').forEach(s=>{
@@ -965,17 +988,32 @@ function bindMainEvents(){
       });
       semRotEl.addEventListener('change', updateState);
       obsEl.addEventListener('input', updateState);
+      if(perguntarClusterizacao){
+        clusterNaoIdentificadoEl.addEventListener('change', ()=>{
+          clusterTextoEl.disabled = clusterNaoIdentificadoEl.checked;
+          clusterNaoIdentificadoEl.closest('.formulario-chip').classList.toggle('checked', clusterNaoIdentificadoEl.checked);
+          if(clusterNaoIdentificadoEl.checked) clusterTextoEl.value = '';
+          updateState();
+        });
+        clusterTextoEl.addEventListener('input', updateState);
+      }
       confirmBtn.onclick = async ()=>{
         const semRot = semRotEl.checked;
         const observacao = obsEl.value.trim();
         if(estrelas<1) return;
         if(!semRot && observacao.length<RAIOX_MIN_OBS_LEN) return;
+        if(!clusterizacaoOk()) return;
         // sprRoteirizado/orfaos não são mais mandados daqui — o backend
         // preenche a partir da planilha Kronos x Fluxo (na hora, se já
         // tiver chegado, ou depois, quando o próximo import bater) — ver
         // createRaioX, raioX.controller.js.
         const entrada = {analistaId:session.userId, operacao:op, hora, data, estrelas, observacao,
           sprMeta: semRot ? null : sprMeta, ciclo, semRoteirizacao:semRot};
+        if(perguntarClusterizacao){
+          const naoIdentificado = clusterNaoIdentificadoEl.checked;
+          entrada.clusterizacaoStatus = naoIdentificado ? 'nao_identificado' : 'identificado';
+          entrada.clusterizacaoTexto = naoIdentificado ? null : clusterTextoEl.value.trim();
+        }
         confirmBtn.disabled = true;
         try{
           const novo = await apiCreateRaioX(entrada);
@@ -1016,6 +1054,23 @@ function bindMainEvents(){
       const r = DB.raioX.find(x=>x.id===btn.dataset.editarRaiox);
       if(!r) return;
       let estrelas = r.estrelas || 0;
+      // Justificativa de SPR/atraso: mostra o bloco sempre que a operação SE
+      // ENQUADRA no critério (não só quando ainda falta responder) — assim
+      // dá pra complementar/corrigir uma resposta já dada, não só a
+      // primeira vez. Categorias de cada gatilho aparecem juntas quando os
+      // dois batem na mesma operação (uma resposta só, pedido do usuário).
+      const foraDaFaixa = r.sprRoteirizado!=null && (r.sprRoteirizado<LIMITE_SPR_BAIXO_JUSTIFICATIVA || r.sprRoteirizado>=LIMITE_SPR_ALTO_JUSTIFICATIVA);
+      const atrasado = r.duracaoSegundos!=null && r.duracaoSegundos>SLA_JUSTIFICATIVA_SEGUNDOS;
+      const mostrarJustificativa = foraDaFaixa || atrasado;
+      const categoriasAtuais = Array.isArray(r.justificativaCategorias) ? r.justificativaCategorias : [];
+      const CATEGORIAS_SPR = ['Baixa volumetria','Limitação de frota','Parâmetro de cluster','Órfãos elevados','Outro'];
+      const CATEGORIAS_ATRASO = ['Cobertura de folga','Antecipação','Atraso de planilha','Problema operacional no hub','Outro'];
+      const chipsHtml = (lista)=>lista.map(c=>`<label class="formulario-chip${categoriasAtuais.includes(c)?' checked':''}" data-justcat="${escapeHtml(c)}"><input type="checkbox" ${categoriasAtuais.includes(c)?'checked':''} tabindex="-1">${escapeHtml(c)}</label>`).join('');
+      // Clusterização: só edita aqui quando ESTA linha é a "âncora" (a mais
+      // recente com resposta pra essa operação, ver clusterizacaoAncora,
+      // utils.js) — evita criar uma resposta nova a cada dia crônico.
+      const ancoraCluster = clusterizacaoAncora(r.operacao);
+      const ehAncoraCluster = !!(ancoraCluster && ancoraCluster.id===r.id);
       openModal(`
         <h3>Editar Raio-X — ${escapeHtml(r.operacao)} (${r.hora})</h3>
         <div class="help-text">Corrige um preenchimento incorreto ou marca a roteirização como cancelada. A observação precisa de no mínimo ${RAIOX_MIN_OBS_LEN} caracteres, a não ser que marque "Sem roteirização".</div>
@@ -1034,6 +1089,26 @@ function bindMainEvents(){
           <div id="raioxEditCounter" style="font-size:11.5px;color:var(--text-faint);margin-top:4px;"></div>
         </div>
         <div class="help-text">SPR e Órfãos vêm da planilha Kronos x Fluxo — pra corrigir um valor errado, é a planilha que precisa ser reimportada, não dá mais pra editar aqui.</div>
+        ${mostrarJustificativa ? `
+        <div class="field">
+          <label>Justificativa ${foraDaFaixa && atrasado ? '(SPR fora da meta e atraso)' : foraDaFaixa ? '(SPR fora da meta)' : '(atraso)'}</label>
+          <div class="formulario-chip-grid" id="raioxJustCategorias">
+            ${foraDaFaixa ? chipsHtml(CATEGORIAS_SPR) : ''}
+            ${atrasado ? chipsHtml(CATEGORIAS_ATRASO) : ''}
+          </div>
+          <textarea id="raioxJustTexto" rows="3" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;margin-top:8px;" placeholder="Descreva o motivo...">${escapeHtml(r.justificativaTexto||'')}</textarea>
+          ${r.justificativaRespondidoPor ? `<div class="help-text">Última resposta de ${escapeHtml(r.justificativaRespondidoPor)}.</div>` : ''}
+        </div>` : ''}
+        ${ehAncoraCluster ? `
+        <div class="field">
+          <label>Clusterização — oportunidade de melhoria</label>
+          <label class="formulario-chip${r.clusterizacaoStatus==='nao_identificado'?' checked':''}" style="margin-bottom:8px;">
+            <input type="checkbox" id="raioxEditClusterNaoIdentificado" ${r.clusterizacaoStatus==='nao_identificado'?'checked':''}>
+            Não identificado ainda
+          </label>
+          <textarea id="raioxEditClusterTexto" rows="3" style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:10px;" placeholder="Ex.: região quebrada em muitos clusters com ADO baixo, precisa agrupar...">${escapeHtml(r.clusterizacaoStatus==='identificado' ? (r.clusterizacaoTexto||'') : '')}</textarea>
+          ${r.clusterizacaoRespondidoPor ? `<div class="help-text">Última resposta de ${escapeHtml(r.clusterizacaoRespondidoPor)}.</div>` : ''}
+        </div>` : ''}
         <div style="display:flex;gap:8px;justify-content:flex-end;">
           <button class="btn" data-modal-cancel>Cancelar</button>
           <button class="btn btn-brand" id="confirmEditarRaiox">Salvar alterações</button>
@@ -1045,6 +1120,29 @@ function bindMainEvents(){
       const obsEl = document.getElementById('raioxEditObs');
       const counterEl = document.getElementById('raioxEditCounter');
       const confirmBtn = document.getElementById('confirmEditarRaiox');
+      const justTextoEl = document.getElementById('raioxJustTexto');
+      const justCategoriasEl = document.getElementById('raioxJustCategorias');
+      let justCategoriasSelecionadas = categoriasAtuais.slice();
+      if(justCategoriasEl){
+        justCategoriasEl.querySelectorAll('[data-justcat]').forEach(chip=>{
+          chip.addEventListener('click', ()=>{
+            const cat = chip.dataset.justcat;
+            const idx = justCategoriasSelecionadas.indexOf(cat);
+            if(idx>=0){ justCategoriasSelecionadas.splice(idx,1); chip.classList.remove('checked'); chip.querySelector('input').checked=false; }
+            else { justCategoriasSelecionadas.push(cat); chip.classList.add('checked'); chip.querySelector('input').checked=true; }
+          });
+        });
+      }
+      const clusterNaoIdentificadoEl = document.getElementById('raioxEditClusterNaoIdentificado');
+      const clusterTextoEl = document.getElementById('raioxEditClusterTexto');
+      if(clusterNaoIdentificadoEl){
+        clusterTextoEl.disabled = clusterNaoIdentificadoEl.checked;
+        clusterNaoIdentificadoEl.addEventListener('change', ()=>{
+          clusterTextoEl.disabled = clusterNaoIdentificadoEl.checked;
+          clusterNaoIdentificadoEl.closest('.formulario-chip').classList.toggle('checked', clusterNaoIdentificadoEl.checked);
+          if(clusterNaoIdentificadoEl.checked) clusterTextoEl.value = '';
+        });
+      }
       function updateState(){
         const semRot = semRotEl.checked;
         const len = obsEl.value.trim().length;
@@ -1069,10 +1167,21 @@ function bindMainEvents(){
         const observacao = obsEl.value.trim();
         if(estrelas<1) return;
         if(!semRot && observacao.length<RAIOX_MIN_OBS_LEN) return;
+        if(mostrarJustificativa && justTextoEl.value.trim().length===0) return;
+        if(ehAncoraCluster && !clusterNaoIdentificadoEl.checked && clusterTextoEl.value.trim().length===0) return;
         // sprRoteirizado/orfaos não são mais editáveis aqui — quem corrige
         // isso agora é um reimport da planilha Kronos x Fluxo (ver
         // fluxoImport.controller.js, que sempre sobrescreve o valor atual).
         const patch = {estrelas, observacao, semRoteirizacao:semRot, sprMeta: semRot ? null : r.sprMeta};
+        if(mostrarJustificativa){
+          patch.justificativaTexto = justTextoEl.value.trim();
+          patch.justificativaCategorias = justCategoriasSelecionadas;
+        }
+        if(ehAncoraCluster){
+          const naoIdentificado = clusterNaoIdentificadoEl.checked;
+          patch.clusterizacaoStatus = naoIdentificado ? 'nao_identificado' : 'identificado';
+          patch.clusterizacaoTexto = naoIdentificado ? null : clusterTextoEl.value.trim();
+        }
         confirmBtn.disabled = true;
         try{
           const atualizado = await apiUpdateRaioX(r.id, patch);
@@ -2915,6 +3024,10 @@ function bindMainEvents(){
     inp.addEventListener('change', ()=>{ uiState.particularidadesFiltro[inp.dataset.particularidadesfiltro] = inp.value; renderMain(); });
   });
 
+  main.querySelectorAll('[data-pendenciasfiltro]').forEach(inp=>{
+    inp.addEventListener('change', ()=>{ uiState.pendenciasFiltro[inp.dataset.pendenciasfiltro] = inp.value; renderMain(); });
+  });
+
   main.querySelectorAll('[data-basemestrafiltro]').forEach(inp=>{
     inp.addEventListener('change', ()=>{
       const key = inp.dataset.basemestrafiltro;
@@ -2928,6 +3041,10 @@ function bindMainEvents(){
   const btnExportParticularidades = document.getElementById('btnExportParticularidades');
   if(btnExportParticularidades) btnExportParticularidades.addEventListener('click', ()=>{
     exportarRelatorioExcel('particularidades-auditoria.xlsx', ['Operação','Titular','Conteúdo','Atualizado por','Atualizado em'], particularidadesAuditoriaExportRows);
+  });
+  const btnExportPendencias = document.getElementById('btnExportPendencias');
+  if(btnExportPendencias) btnExportPendencias.addEventListener('click', ()=>{
+    exportarRelatorioExcel('pendencias-justificativa.xlsx', ['Operação','Analista','Pendência','Aberta desde'], pendenciasJustificativaExportRows);
   });
 
   const btnExcluirTodasCoberturas = document.getElementById('btnExcluirTodasCoberturas');
