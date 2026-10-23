@@ -60,9 +60,17 @@ async function importarPlanilha(req, res) {
 
   const linhas = Array.isArray(req.body.linhas) ? req.body.linhas : [];
 
+  // Egress: mesmo ajuste de fluxoImport.controller.js — só os campos
+  // realmente lidos (raioXPorDataOperacao/escolherRaioX, idPorEmail) e só
+  // os últimos 10 dias (mesma janela já usada abaixo pra
+  // roteirizacaoStatus), em vez da tabela inteira a cada rodada.
   const [todosRaioX, todosUsuarios, todosStatus] = await Promise.all([
-    supabaseService.listAll("raioX"),
-    supabaseService.listAll("users"),
+    supabaseService.listWhere(
+      "raioX",
+      [["data", ">=", dataDiasAtras(10)]],
+      ["id", "data", "operacao", "ciclo", "hora", "horaInicioReal"]
+    ),
+    supabaseService.listWhere("users", [], ["id", "email"]),
     supabaseService.listWhere("roteirizacaoStatus", [["data", ">=", dataDiasAtras(10)]]),
   ]);
 

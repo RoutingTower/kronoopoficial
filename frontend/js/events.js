@@ -2362,75 +2362,7 @@ function bindMainEvents(){
     });
   });
 
-  const btnNovoSpr = document.getElementById('btnNovoSpr');
-  if(btnNovoSpr) btnNovoSpr.addEventListener('click', ()=>{
-    openModal(`<h3>Nova entrada SPR</h3>
-      <div class="field"><label>Operação</label><input id="fSprOp" list="sprOpList" placeholder="ex: LM Hub_SP_Atibaia_Ponte_Alta"></div>
-      <div class="field"><label>Ciclo</label><input id="fSprCiclo" list="sprCicloList" placeholder="ex: T3"></div>
-      <div class="field"><label>SPR</label><input id="fSprValor" type="number" placeholder="ex: 92"></div>
-      <div class="field"><label>Regional (opcional)</label><input id="fSprRegional" list="regionalList" placeholder="ex: Sudeste"></div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;">
-        <button class="btn" data-modal-cancel>Cancelar</button>
-        <button class="btn btn-brand" id="confirmNovoSpr">Salvar</button>
-      </div>`);
-    const cancelBtn = document.querySelector('[data-modal-cancel]');
-    if(cancelBtn) cancelBtn.onclick = closeModal;
-    document.getElementById('confirmNovoSpr').onclick = async ()=>{
-      const operacao = document.getElementById('fSprOp').value.trim();
-      const ciclo = document.getElementById('fSprCiclo').value.trim();
-      const spr = document.getElementById('fSprValor').value;
-      const regional = document.getElementById('fSprRegional').value.trim() || null;
-      if(!operacao || !ciclo || spr===''){ alert('Preencha operação, ciclo e SPR.'); return; }
-      const entrada = {supervisorId:session.userId, operacao, ciclo, spr: Number(spr), regional};
-      try{
-        const novo = await apiCreateSpr(entrada);
-        DB.sprs.push(novo);
-        closeModal(); renderMain();
-      }catch(e){ alert('Não foi possível salvar: '+e.message); }
-    };
-  });
-
-  main.querySelectorAll('[data-editar-spr]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const s = DB.sprs.find(x=>x.id===btn.dataset.editarSpr);
-      if(!s) return;
-      openModal(`<h3>Editar SPR</h3>
-        <div class="field"><label>Operação</label><input id="fEditSprOp" list="sprOpList" value="${escapeHtml(s.operacao)}"></div>
-        <div class="field"><label>Ciclo</label><input id="fEditSprCiclo" list="sprCicloList" value="${escapeHtml(s.ciclo)}"></div>
-        <div class="field"><label>SPR</label><input id="fEditSprValor" type="number" value="${s.spr}"></div>
-        <div class="field"><label>Regional (opcional)</label><input id="fEditSprRegional" list="regionalList" value="${escapeHtml(s.regional||'')}"></div>
-        <div style="display:flex;gap:8px;justify-content:flex-end;">
-          <button class="btn" data-modal-cancel>Cancelar</button>
-          <button class="btn btn-brand" id="confirmEditarSpr">Salvar</button>
-        </div>`);
-      const cancelBtn = document.querySelector('[data-modal-cancel]');
-      if(cancelBtn) cancelBtn.onclick = closeModal;
-      document.getElementById('confirmEditarSpr').onclick = async ()=>{
-        const operacao = document.getElementById('fEditSprOp').value.trim();
-        const ciclo = document.getElementById('fEditSprCiclo').value.trim();
-        const spr = document.getElementById('fEditSprValor').value;
-        const regional = document.getElementById('fEditSprRegional').value.trim() || null;
-        if(!operacao || !ciclo || spr===''){ alert('Preencha operação, ciclo e SPR.'); return; }
-        const patch = {operacao, ciclo, spr: Number(spr), regional};
-        try{
-          const atualizado = await apiUpdateSpr(s.id, patch);
-          DB.sprs = DB.sprs.map(x=>x.id===s.id ? atualizado : x);
-          closeModal(); renderMain();
-        }catch(e){ alert('Não foi possível salvar: '+e.message); }
-      };
-    });
-  });
-
-  main.querySelectorAll('[data-excluir-spr]').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      if(!confirm('Excluir esta entrada de SPR?')) return;
-      const id = btn.dataset.excluirSpr;
-      try{ await apiDeleteSpr(id); DB.sprs = DB.sprs.filter(x=>x.id!==id); renderMain(); }
-      catch(e){ alert('Não foi possível excluir: '+e.message); }
-    });
-  });
-
-  // Links SeaTalk (Cadastros > SPR > aba "Links SeaTalk", render-supervisor.js)
+  // Links SeaTalk (Cadastros > Links SeaTalk, render-supervisor.js)
   const btnNovoLinkSeatalk = document.getElementById('btnNovoLinkSeatalk');
   if(btnNovoLinkSeatalk) btnNovoLinkSeatalk.addEventListener('click', ()=>{
     openModal(`<h3>Novo link SeaTalk</h3>
@@ -2487,54 +2419,8 @@ function bindMainEvents(){
     });
   });
 
-  const btnExportarSpr = document.getElementById('btnExportarSpr');
-  if(btnExportarSpr) btnExportarSpr.addEventListener('click', ()=>{
-    const linhas = sprCadastroExportRows.map(s=>[s.operacao, s.ciclo, s.spr, s.regional||'']);
-    exportarRelatorioExcel(`spr_atual_${todayISO()}.xlsx`, ['operacao','ciclo','spr','regional'], linhas);
-  });
-  const btnBaixarModeloSpr = document.getElementById('btnBaixarModeloSpr');
-  if(btnBaixarModeloSpr) btnBaixarModeloSpr.addEventListener('click', ()=>{
-    downloadXLSX('modelo_spr.xlsx', ['operacao','ciclo','spr','regional'], ['LM Hub_SP_Atibaia_Ponte_Alta','T3','92','Sudeste']);
-  });
-  const fileImportSpr = document.getElementById('fileImportSpr');
-  if(fileImportSpr) fileImportSpr.addEventListener('change', async ()=>{
-    const file = fileImportSpr.files[0]; if(!file) return;
-    let rows;
-    try { rows = await parseXLSX(file); }
-    catch(e){ fileImportSpr.value=''; alert('Não foi possível ler o arquivo Excel: '+e.message); return; }
-    let ok=0, fail=0;
-    openProgressModal('Importando SPR...');
-    for(const [idx, r] of rows.entries()){
-      const operacao = (r.operacao||'').trim();
-      const ciclo = (r.ciclo||'').trim();
-      const regional = (r.regional||'').trim() || null;
-      if(!operacao || !ciclo || r.spr===''||r.spr===undefined){ fail++; updateProgressModal(idx+1, rows.length); continue; }
-      // Reimportar a mesma planilha (SPR/Regional atualizados) atualiza a
-      // entrada já existente pra essa Operação+Ciclo, em vez de duplicar
-      // linha — mesmo se a coluna "regional" vier vazia nessa linha, o
-      // valor manda (null apaga o que já tinha, não ignora silenciosamente).
-      const existente = DB.sprs.find(s=>s.supervisorId===session.userId && s.operacao===operacao && s.ciclo===ciclo);
-      try{
-        if(existente){
-          const atualizado = await apiUpdateSpr(existente.id, {spr: Number(r.spr), regional});
-          DB.sprs = DB.sprs.map(x=>x.id===existente.id ? atualizado : x);
-        } else {
-          const novo = await apiCreateSpr({supervisorId:session.userId, operacao, ciclo, spr: Number(r.spr), regional});
-          DB.sprs.push(novo);
-        }
-        ok++;
-      }catch(e){ console.error('Falha ao importar SPR', r, e); fail++; }
-      updateProgressModal(idx+1, rows.length);
-    }
-    closeModal();
-    fileImportSpr.value='';
-    renderMain();
-    alert(`Importação concluída: ${ok} entrada(s) salva(s)${fail?`, ${fail} linha(s) ignorada(s) (campos obrigatórios ausentes)`:''}.`);
-  });
-
-  // Carga em massa de Links SeaTalk (Cadastros > Links SeaTalk) — mesmo
-  // padrão do SPR acima: reimportar operação já cadastrada atualiza o
-  // link (não duplica).
+  // Carga em massa de Links SeaTalk (Cadastros > Links SeaTalk) —
+  // reimportar operação já cadastrada atualiza o link (não duplica).
   const btnExportarLinkSeatalk = document.getElementById('btnExportarLinkSeatalk');
   if(btnExportarLinkSeatalk) btnExportarLinkSeatalk.addEventListener('click', ()=>{
     const linhas = linksSeatalkExportRows.map(l=>[l.operacao, l.link]);
@@ -2732,17 +2618,10 @@ function bindMainEvents(){
       const b = DB.baseMestra.find(x=>x.id===btn.dataset.editarMestra);
       if(!b) return;
       const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
-      // SPR/Regional não vivem no base_mestra (tabela própria, ver
-      // sprCadastroBody/render-supervisor.js) — casam por Operação+Ciclo,
-      // igual ao reimport da planilha de SPR. Pré-preenche com o que já
-      // existir pra essa Operação+Ciclo, se existir.
-      const sprExistente = DB.sprs.find(s=>s.supervisorId===session.userId && s.operacao===b.operacao && s.ciclo===b.ciclo);
       openModal(`<h3>Editar operação fixa</h3>
         <div class="field"><label>Analista (titular)</label><select id="fEditAnalista">${myAnalistas.map(a=>`<option value="${a.id}" ${a.id===b.analistaId?'selected':''}>${escapeHtml(a.name)}</option>`).join('')}</select></div>
         <div class="field"><label>Operação (sigla)</label><input id="fEditOp" value="${b.operacao}"></div>
         <div class="field"><label>Ciclo</label><input id="fEditCiclo" value="${b.ciclo}"></div>
-        <div class="grid-2"><div class="field"><label>SPR (opcional)</label><input id="fEditMestraSpr" type="number" value="${sprExistente!=null ? sprExistente.spr : ''}" placeholder="ex: 92"></div>
-        <div class="field"><label>Regional (opcional)</label><input id="fEditMestraRegional" list="regionalList" value="${sprExistente && sprExistente.regional ? escapeHtml(sprExistente.regional) : ''}" placeholder="ex: Sudeste"></div></div>
         <div class="grid-2"><div class="field"><label>Início</label><select id="fEditHi">${HOURS.map(h=>`<option ${h===b.horaInicio?'selected':''}>${h}</option>`).join('')}</select></div>
         <div class="field"><label>Fim</label><select id="fEditHf">${HOURS.map(h=>`<option ${h===b.horaFim?'selected':''}>${h}</option>`).join('')}</select></div></div>
         <div class="field"><label>Dias da semana</label>
@@ -2782,27 +2661,9 @@ function bindMainEvents(){
           patch.analistaId = analistaSelect.value;
           patch.titular = userById(analistaSelect.value)?.name || '';
         }
-        const sprValor = document.getElementById('fEditMestraSpr').value.trim();
-        const regionalValor = document.getElementById('fEditMestraRegional').value.trim() || null;
         try{
           const atualizado = await apiUpdateBaseMestra(b.id, patch);
           DB.baseMestra = DB.baseMestra.map(x=>x.id===b.id ? atualizado : x);
-          // SPR vazio = não mexe no cadastro de SPR (campo é opcional aqui,
-          // não apaga o que já existia só por ter ficado em branco no
-          // formulário). Casa por Operação+Ciclo já ATUALIZADOS — se a
-          // sigla/ciclo mudou nesse mesmo salvar, cria uma entrada nova pro
-          // nome novo (mesmo comportamento do reimport da planilha de SPR).
-          if(sprValor!==''){
-            const opFinal = patch.operacao, cicloFinal = patch.ciclo;
-            const sprExistenteAgora = DB.sprs.find(s=>s.supervisorId===session.userId && s.operacao===opFinal && s.ciclo===cicloFinal);
-            if(sprExistenteAgora){
-              const sprAtualizado = await apiUpdateSpr(sprExistenteAgora.id, {spr:Number(sprValor), regional:regionalValor});
-              DB.sprs = DB.sprs.map(x=>x.id===sprExistenteAgora.id ? sprAtualizado : x);
-            } else {
-              const sprNovo = await apiCreateSpr({supervisorId:session.userId, operacao:opFinal, ciclo:cicloFinal, spr:Number(sprValor), regional:regionalValor});
-              DB.sprs.push(sprNovo);
-            }
-          }
           closeModal(); renderMain();
         }catch(e){ alert('Não foi possível salvar: '+e.message); }
       };

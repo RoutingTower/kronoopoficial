@@ -12,7 +12,6 @@ const recadosRoutes = require("./recados.routes");
 const reunioesRoutes = require("./reunioes.routes");
 const plantoesRoutes = require("./plantoes.routes");
 const feedbacksRoutes = require("./feedbacks.routes");
-const sprsRoutes = require("./sprs.routes");
 const notificacoesRoutes = require("./notificacoes.routes");
 const particularidadesRoutes = require("./particularidades.routes");
 const particularidadeCienteRoutes = require("./particularidadeCiente.routes");
@@ -26,7 +25,6 @@ const quizRoutes = require("./quiz.routes");
 const quizPlayRoutes = require("./quizPlay.routes");
 const operacaoLinksRoutes = require("./operacaoLinks.routes");
 const operacaoTransferenciasRoutes = require("./operacaoTransferencias.routes");
-const seatalkReportRoutes = require("./seatalkReport.routes");
 const passagemBastaoRoutes = require("./passagemBastao.routes");
 
 const router = Router();
@@ -54,11 +52,6 @@ router.use("/fluxo-import", fluxoImportRoutes);
 // e fica em "/quiz", abaixo do requireAuth.
 router.use("/quiz-play", quizPlayRoutes);
 
-// Também fora do requireAuth: quem chama é o mesmo Apps Script da planilha
-// de roteirização (gatilho de hora em hora à parte), não um usuário logado
-// no Kronos — token fixo próprio (ver seatalkReport.controller.js).
-router.use("/reports/seatalk", seatalkReportRoutes);
-
 // Também fora do requireAuth: varredura manual/retroativa de passagem de
 // bastão (ver passagemBastao.controller.js) — chamada sob demanda (não por
 // um Apps Script agendado), token fixo próprio.
@@ -78,7 +71,6 @@ router.use("/recados", recadosRoutes);
 router.use("/reunioes", reunioesRoutes);
 router.use("/plantoes", plantoesRoutes);
 router.use("/feedbacks", feedbacksRoutes);
-router.use("/sprs", sprsRoutes);
 router.use("/notificacoes", notificacoesRoutes);
 router.use("/particularidades", particularidadesRoutes);
 router.use("/particularidade-ciente", particularidadeCienteRoutes);

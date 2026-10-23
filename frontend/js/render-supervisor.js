@@ -6,7 +6,6 @@ function renderSupervisor(){
   let content='';
   if(activeNavKey==='cadastros') content = supCadastros(myAnalistas);
   else if(activeNavKey==='basemestra') content = renderImportPendentesBanner('basemestra', myAnalistas) + supGerarEscalaMensal(myAnalistas) + supBaseMestra(myAnalistas);
-  else if(activeNavKey==='spr') content = supSPR();
   else if(activeNavKey==='linksseatalk') content = supLinksSeatalk();
   else if(activeNavKey==='resultadospr') content = supResultadoSPR(myAnalistas);
   else if(activeNavKey==='tempoexecucao') content = supTempoExecucao(myAnalistas);
@@ -329,47 +328,6 @@ function supBaseMestra(myAnalistas){
   </tbody></table></div>`;
 }
 
-
-// Linhas atuais de SPR da equipe, mesmo formato do import — baixar,
-// atualizar só a coluna "spr" e reimportar (ver comentário na importação,
-// events.js: reimportar operação+ciclo já existente ATUALIZA o valor em
-// vez de duplicar, então isso já cobre a troca mensal em massa).
-let sprCadastroExportRows = [];
-
-function supSPR(){
-  return sprCadastroBody();
-}
-
-function sprCadastroBody(){
-  const rows = [...DB.sprs].filter(s=>s.supervisorId===session.userId).sort((a,b)=> a.operacao.localeCompare(b.operacao) || a.ciclo.localeCompare(b.ciclo));
-  sprCadastroExportRows = rows;
-  // Sugestões pro datalist do modal (Nova entrada/Editar) — operação e
-  // ciclo já usados em Operações Fixas ou Cobertura, pra evitar erro de
-  // digitação que faria o SPR não bater com nada (mesmo problema que já
-  // resolvemos pro nome do suplente na importação de Cobertura).
-  const opsConhecidas = [...new Set([...DB.baseMestra, ...DB.suplencias].map(b=>b.operacao))].sort();
-  const ciclosConhecidos = [...new Set([...DB.baseMestra, ...DB.suplencias].map(b=>b.ciclo).filter(Boolean))].sort();
-  return `
-  <div class="help-text">Cadastre o SPR (e a Regional, opcional) de cada Operação/Ciclo aqui — o SPR aparece automaticamente em Operações Fixas, Cobertura e na Programação do analista, sempre que a operação e o ciclo baterem. A Regional só é usada pra filtrar o Resultado SPR, não aparece pro analista. O SPR usado em cada finalização já fica congelado no Raio-X dela (spr_meta), então atualizar aqui não apaga o histórico do que já foi lançado.</div>
-  <datalist id="sprOpList">${opsConhecidas.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>
-  <datalist id="sprCicloList">${ciclosConhecidos.map(c=>`<option value="${escapeHtml(c)}">`).join('')}</datalist>
-  <datalist id="regionalList">${regionaisConhecidas().map(r=>`<option value="${escapeHtml(r)}">`).join('')}</datalist>
-  <div class="csv-row">
-    <span class="csv-label">Carga em massa de SPR e Regional (Excel)</span>
-    <button class="btn" id="btnExportarSpr">⬇ Exportar atuais</button>
-    <button class="btn" id="btnBaixarModeloSpr">⭳ Baixar modelo Excel</button>
-    <label class="btn" style="margin:0;">⭱ Importar Excel<input type="file" accept=".xlsx,.xls" id="fileImportSpr" style="display:none;"></label>
-  </div>
-  <div class="help-text" style="margin-top:-10px;">Reimportar operação+ciclo que já existe atualiza o valor (não duplica) — pra trocar o SPR ou a Regional em massa, exporte os atuais, mude a coluna e importe de volta.</div>
-  <div class="action-row-end" style="margin-bottom:14px;">
-    <button class="btn btn-brand" id="btnNovoSpr">+ Nova entrada SPR</button>
-  </div>
-  <div class="card">
-  <table><thead><tr><th>Operação</th><th>Ciclo</th><th>SPR</th><th>Regional</th><th></th></tr></thead><tbody>
-  ${rows.map(s=>`<tr><td>${escapeHtml(s.operacao)}</td><td>${escapeHtml(s.ciclo)}</td><td class="mono">${escapeHtml(String(s.spr))}</td><td>${s.regional ? escapeHtml(s.regional) : '<span style="color:var(--text-faint);">—</span>'}</td>
-  <td style="text-align:right;white-space:nowrap;"><button class="btn" data-editar-spr="${s.id}">Editar</button> <button class="btn btn-danger" data-excluir-spr="${s.id}">Excluir</button></td></tr>`).join('') || '<tr><td colspan="5" class="empty">Nenhum SPR cadastrado</td></tr>'}
-  </tbody></table></div>`;
-}
 
 // Link do grupo do SeaTalk por operação — tabela própria, cadastrada uma
 // vez por hub (o link não muda, ver comentário na tabela operacao_links).

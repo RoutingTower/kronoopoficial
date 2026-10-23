@@ -203,11 +203,10 @@ async function loadDB(){
     // "users" é a única exceção sem rede de segurança: sem ele nada mais no
     // app funciona mesmo (userById é usado em toda tela), então um fallback
     // silencioso só esconderia o problema real em vez de evitar dano.
-    const [users, baseMestra, suplencias, sprs, raioX, raioXHistorico, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas, operacaoLinks, operacaoTransferencias] = await Promise.all([
+    const [users, baseMestra, suplencias, raioX, raioXHistorico, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas, operacaoLinks, operacaoTransferencias] = await Promise.all([
       apiRequest('GET', '/users'),
       fetchSeguro('/base-mestra'),
       fetchSeguro('/suplencias'),
-      fetchSeguro('/sprs'),
       // ?inicio= explícito (7 dias) em vez de confiar no default de 30 dias
       // do backend (ver raioX.controller.js) — é a coleção que mais cresce
       // (1 registro por finalização de operação, de toda a equipe, pra
@@ -261,7 +260,11 @@ async function loadDB(){
       // (some assim que é respondida), sem custo relevante de egress.
       fetchSeguro('/operacao-transferencias'),
     ]);
-    DB = { users, baseMestra, suplencias, sprs, raioX, raioXHistorico, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas, operacaoLinks, operacaoTransferencias };
+    // sprs: tabela e rota removidas (não estava em uso) — DB.sprs continua
+    // existindo como array vazio pra getSPR/regionalDaOperacao (utils.js) e
+    // as colunas de SPR em Operações Fixas/Cobertura/Programação, que já
+    // degradam pra "—" sem dado nenhum, não quebrarem.
+    DB = { users, baseMestra, suplencias, sprs: [], raioX, raioXHistorico, roteirizacaoStatus, ausencias, recados, reunioes, plantoes, lembretes, feedbacks, particularidades, particularidadeCiente, reuniaoPresenca, formularios, formularioRespostas, operacaoLinks, operacaoTransferencias };
     ultimoLoadDBEm = Date.now();
   })();
   try{ await _loadDBInFlight; }
@@ -398,11 +401,6 @@ const apiMarcarPresenca = (reuniaoId) => apiRequest('POST', '/reuniao-presenca',
 const apiCreatePlantao = (data) => apiRequest('POST', '/plantoes', data);
 const apiUpdatePlantao = (id, patch) => apiRequest('PATCH', `/plantoes/${id}`, patch);
 const apiDeletePlantao = (id) => apiRequest('DELETE', `/plantoes/${id}`);
-
-// sprs
-const apiCreateSpr = (data) => apiRequest('POST', '/sprs', data);
-const apiUpdateSpr = (id, patch) => apiRequest('PATCH', `/sprs/${id}`, patch);
-const apiDeleteSpr = (id) => apiRequest('DELETE', `/sprs/${id}`);
 
 // lembretes
 const apiCreateLembrete = (data) => apiRequest('POST', '/lembretes', data);

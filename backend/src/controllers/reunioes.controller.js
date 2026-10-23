@@ -10,8 +10,17 @@ const COLLECTION = "reunioes";
 async function participantesDaReuniao(reuniao) {
   if (reuniao.tipo === "individual") return reuniao.analistaIds || [];
   if ((reuniao.analistaIds || []).length > 0) return reuniao.analistaIds;
-  const users = await supabaseService.listAll("users");
-  return users.filter((u) => u.role === "analista" && u.supervisorId === reuniao.supervisorId).map((u) => u.id);
+  // Filtro (role+supervisorId) e coluna (só "id") já no Postgres, em vez de
+  // trazer a tabela de usuários inteira pra filtrar em memória.
+  const analistas = await supabaseService.listWhere(
+    "users",
+    [
+      ["role", "==", "analista"],
+      ["supervisorId", "==", reuniao.supervisorId],
+    ],
+    ["id"]
+  );
+  return analistas.map((u) => u.id);
 }
 
 function faixaHorario(reuniao) {

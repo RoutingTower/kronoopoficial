@@ -71,10 +71,28 @@ async function importarFluxo(req, res) {
 
   const linhas = Array.isArray(req.body.linhas) ? req.body.linhas : [];
 
+  // Egress: antes buscava raioX/users/fluxoOperacional inteiros (listAll) a
+  // cada rodada — essa importação roda de hora em hora, 24h/dia (Apps
+  // Script externo), então "tabela inteira" aqui significava reler todo o
+  // histórico, pra sempre, 24x por dia, incluindo "observacao" (raio_x) e
+  // "jornada"/"navConfig" (users), nenhum dos quais é usado abaixo. Só
+  // precisamos dos campos realmente lidos (ver raioXPorDataOperacao/
+  // escolherRaioX, idPorEmail, fluxoPorChave) e de uma janela recente — a
+  // planilha é um feed ao vivo de operações em curso, não reenviamos linha
+  // de meses atrás (mesma janela de 10 dias já usada abaixo pra
+  // roteirizacaoStatus, no mesmo ciclo de importação).
   const [todosRaioX, todosUsuarios, todoFluxo, todosStatus] = await Promise.all([
-    supabaseService.listAll("raioX"),
-    supabaseService.listAll("users"),
-    supabaseService.listAll("fluxoOperacional"),
+    supabaseService.listWhere(
+      "raioX",
+      [["data", ">=", dataDiasAtras(10)]],
+      ["id", "data", "operacao", "ciclo", "hora", "horaInicioReal"]
+    ),
+    supabaseService.listWhere("users", [], ["id", "email"]),
+    supabaseService.listWhere(
+      "fluxoOperacional",
+      [["dataExpedicao", ">=", dataDiasAtras(10)]],
+      ["id", "dataExpedicao", "operacao", "ciclo", "horaInicio"]
+    ),
     supabaseService.listWhere("roteirizacaoStatus", [["data", ">=", dataDiasAtras(10)]]),
   ]);
 

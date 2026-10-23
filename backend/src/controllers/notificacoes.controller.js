@@ -4,8 +4,11 @@ const { notificar } = require("../services/notificar");
 const COLLECTION = "notificacoes";
 
 async function listNotificacoes(req, res) {
-  const all = await supabaseService.listAll(COLLECTION);
-  const minhas = all.filter((n) => n.destinatarioId === req.user.uid).sort((a, b) => b.ts - a.ts);
+  // Antes buscava a tabela inteira (todo mundo) e filtrava em memória —
+  // trocado por filtro no Postgres (só as notificações do próprio usuário).
+  const minhas = (await supabaseService.listWhere(COLLECTION, [["destinatarioId", "==", req.user.uid]])).sort(
+    (a, b) => b.ts - a.ts
+  );
   res.json(minhas);
 }
 
@@ -32,7 +35,15 @@ async function esqueciSenha(req, res) {
   const respostaGenerica = { message: "Se esse e-mail estiver cadastrado, a pessoa responsável foi avisada." };
   if (!email) return res.json(respostaGenerica);
 
-  const users = await supabaseService.listAll("users");
+  const users = await supabaseService.listWhere("users", [], [
+    "id",
+    "name",
+    "email",
+    "role",
+    "supervisorId",
+    "coordenadorId",
+    "isAdmin",
+  ]);
   const alvo = users.find((u) => (u.email || "").toLowerCase() === String(email).trim().toLowerCase());
   if (!alvo) return res.json(respostaGenerica);
 
