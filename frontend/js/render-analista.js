@@ -657,9 +657,9 @@ function statCardReuniao(proxima){
   return `<div class="stat-card" title="${escapeHtml(proxima.titulo)}"><div class="stat-num mono">${proxima.hora}</div><div class="stat-label">${icon('calendar',12)} Próxima reunião · ${proxima.diasFaltando===0?'Hoje':formatarDataCurta(proxima.data)}${sufixoDias}</div></div>`;
 }
 
-// Aba extra de quem foi delegado pelo supervisor (ver
-// renderDelegacaoProgramacao, ui.js) — mesma tela do supervisor
-// (supProgramacao), só que escopada pela equipe do supervisor QUE delegou,
+// Aba extra automática pra todo analista com supervisor ativo (ver
+// meuSupervisorDelegante, ui.js) — mesma tela do supervisor
+// (supProgramacao), só que escopada pela equipe do SEU supervisor,
 // não por session.userId (que aqui é o analista, não um supervisor de
 // verdade). Continua só leitura sem esforço extra: os únicos botões
 // daquela tela (Editar/Excluir Raio-X de colega) já são travados por
@@ -670,7 +670,7 @@ function renderProgramacaoGeralAnalista(){
   const sup = meuSupervisorDelegante();
   if(!sup){
     return `<div class="page-head"><div><h1 class="page-title">Programação Geral</h1></div></div>
-      <div class="empty">Seu supervisor desativou esse acesso.</div>`;
+      <div class="empty">Você não tem um supervisor cadastrado.</div>`;
   }
   const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===sup.id);
   return `<div class="page-head"><div><h1 class="page-title">Programação Geral</h1><div class="page-desc">Cobrindo ${escapeHtml(sup.name)} · somente leitura</div></div></div>${supProgramacao(myAnalistas)}`;

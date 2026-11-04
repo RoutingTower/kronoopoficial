@@ -240,20 +240,21 @@ const NAV = {
 let activeNavKey = null;
 
 
-// Supervisor que delegou a Programação (só leitura) pro usuário logado —
-// ver renderDelegacaoProgramacao, Configurações. null se ninguém delegou (a
-// grande maioria dos analistas, o caso comum).
+// Supervisor da equipe do usuário logado, pra liberar a "Programação Geral"
+// (só leitura — ver renderProgramacaoGeralAnalista) — todo analista ativo
+// enxerga essa aba automaticamente, sem o supervisor precisar escolher
+// quem (antes era uma lista de até 5, delegadosProgramacaoIds; removido a
+// pedido do usuário pra cobrir a equipe inteira, não só uma seleção).
 function meuSupervisorDelegante(){
   if(session.role!=='analista') return null;
   const eu = userById(session.userId);
   if(!eu?.supervisorId) return null;
-  const sup = userById(eu.supervisorId);
-  return (sup?.delegadosProgramacaoIds||[]).includes(session.userId) ? sup : null;
+  return userById(eu.supervisorId) || null;
 }
 
-// NAV[role] + a aba extra de quem foi delegado — computado toda vez (não
-// cacheado) porque o supervisor pode ativar/desativar a qualquer momento e
-// o menu precisa refletir isso no próximo render, sem precisar de logout.
+// NAV[role] + a aba extra de Programação Geral — computado toda vez (não
+// cacheado) pra ficar em sincronia com navItemsDoRole/visibleNavItems sem
+// precisar de logout.
 function navItemsDoRole(){
   const base = NAV[session.role];
   if(meuSupervisorDelegante()) return [...base, {k:'programacaogeral', label:'Programação Geral', icon:'calendar-range'}];
@@ -488,32 +489,7 @@ function renderConfiguracoes(){
       <input type="checkbox" id="cfgSomRaiox" ${somRaioxAtivo()?'checked':''}> 🔊 Som de confirmação ao enviar Raio-X
     </label>
     <div class="help-text" style="margin-top:6px;">Preferência deste navegador/aparelho — não sincroniza entre dispositivos.</div>
-  </div>` : ''}
-  ${session.role==='supervisor' ? renderDelegacaoProgramacao(me) : ''}`;
-}
-
-// Deixa o supervisor liberar a "Programação Analista" (só leitura — mesma
-// tela dele, sem os botões de Enviar/Editar/Excluir Raio-X, que continuam
-// travados por session.role==='supervisor' nos lugares certos) pra UM
-// analista da própria equipe cobrir enquanto ele estiver de folga. Vira uma
-// aba extra no menu do analista (ver visibleNavItems) só enquanto ativo.
-const MAX_DELEGADOS_PROGRAMACAO = 5;
-function renderDelegacaoProgramacao(me){
-  const myAnalistas = DB.users.filter(u=>u.role==='analista' && u.supervisorId===session.userId);
-  const delegados = me.delegadosProgramacaoIds || [];
-  return `<div class="card" style="max-width:420px;margin-top:16px;">
-    <div class="section-title">Delegar Programação (folga)</div>
-    <div class="help-text">Libera a "Programação Analista" (só leitura, sem editar Raio-X de ninguém) pra até ${MAX_DELEGADOS_PROGRAMACAO} analistas da equipe acompanharem enquanto você estiver de folga.</div>
-    <div class="field">
-      <label>Analistas (<span id="cfgDelegadosCount">${delegados.length}</span>/${MAX_DELEGADOS_PROGRAMACAO})</label>
-      <div id="cfgDelegadosLista" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;">
-        ${myAnalistas.map(a=>`<label style="display:flex;align-items:center;gap:6px;font-weight:400;">
-          <input type="checkbox" class="cfg-delegado-chk" value="${a.id}" ${delegados.includes(a.id)?'checked':''}> ${escapeHtml(a.name)}
-        </label>`).join('') || '<div class="empty">Nenhum analista na equipe</div>'}
-      </div>
-    </div>
-    <button class="btn btn-brand" id="cfgSalvarDelegacao" style="margin-top:8px;">Salvar</button>
-  </div>`;
+  </div>` : ''}`;
 }
 
 function setFormMsg(el, msg, isError){

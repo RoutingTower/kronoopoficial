@@ -3441,37 +3441,6 @@ function bindMainEvents(){
     if(cfgSomRaiox.checked) tocarSomRaioX(); // feedback imediato ao ligar, sem precisar enviar um Raio-X de verdade só pra testar
   });
 
-  // Trava a seleção em MAX_DELEGADOS_PROGRAMACAO (5) direto no clique — mais
-  // simples que só validar no Salvar, e o contador "X/5" no label já reflete
-  // em tempo real sem precisar re-renderizar a tela toda.
-  const delegadosChks = main.querySelectorAll('.cfg-delegado-chk');
-  if(delegadosChks.length){
-    const countEl = document.getElementById('cfgDelegadosCount');
-    delegadosChks.forEach(chk=>{
-      chk.addEventListener('change', ()=>{
-        const marcados = main.querySelectorAll('.cfg-delegado-chk:checked');
-        if(marcados.length>MAX_DELEGADOS_PROGRAMACAO){
-          chk.checked = false;
-          alert(`Máximo de ${MAX_DELEGADOS_PROGRAMACAO} analistas.`);
-          return;
-        }
-        if(countEl) countEl.textContent = marcados.length;
-      });
-    });
-  }
-  const cfgSalvarDelegacao = document.getElementById('cfgSalvarDelegacao');
-  if(cfgSalvarDelegacao) cfgSalvarDelegacao.addEventListener('click', async ()=>{
-    const ids = Array.from(main.querySelectorAll('.cfg-delegado-chk:checked')).map(c=>c.value);
-    cfgSalvarDelegacao.disabled = true;
-    try{
-      const atualizado = await apiUpdateUser(session.userId, { delegadosProgramacaoIds: ids });
-      DB.users = DB.users.map(x=>x.id===session.userId ? atualizado : x);
-      renderMain();
-    }catch(e){
-      alert('Não foi possível atualizar: '+e.message);
-      cfgSalvarDelegacao.disabled = false;
-    }
-  });
 
   // Quiz ao vivo (render-quiz.js) — mesma tela pros 3 papéis. _quizLista=null
   // força recarregar a lista da próxima vez que uiState.quizView voltar a
